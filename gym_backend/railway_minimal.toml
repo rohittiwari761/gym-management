@@ -1,0 +1,9 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+healthcheckPath = "/health/"
+healthcheckTimeout = 300
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+startCommand = "gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 120 --access-logfile - --error-logfile - gym_backend.wsgi_production:application"

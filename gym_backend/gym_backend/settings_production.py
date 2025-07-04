@@ -236,8 +236,8 @@ USE_L10N = False  # Disable if not needed
 # Database Query Optimization
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Add performance monitoring middleware
-MIDDLEWARE.insert(0, 'silk.middleware.SilkyMiddleware')
+# Add performance monitoring middleware (disabled for Railway)
+# MIDDLEWARE.insert(0, 'silk.middleware.SilkyMiddleware')
 
 # Celery Configuration for Async Tasks (if needed)
 CELERY_BROKER_URL = config('REDIS_URL', default='redis://127.0.0.1:6379/3')
@@ -247,13 +247,15 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'UTC'
 
-# Add new apps for production
+# Add new apps for production (minimal for Railway)
 INSTALLED_APPS += [
-    'django_redis',
     'rest_framework_simplejwt',
-    'silk',  # Performance profiling
     'drf_spectacular',  # API documentation
 ]
+
+# Add Redis app only if Redis is available
+if REDIS_URL:
+    INSTALLED_APPS.append('django_redis')
 
 # API Documentation
 SPECTACULAR_SETTINGS = {
