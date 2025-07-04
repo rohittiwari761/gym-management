@@ -271,8 +271,8 @@ SIMPLE_JWT = {
 # Enhanced REST Framework Configuration
 REST_FRAMEWORK.update({
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-        'rest_framework.authentication.TokenAuthentication',
+        'rest_framework.authentication.TokenAuthentication',  # Primary - Django tokens
+        'rest_framework_simplejwt.authentication.JWTAuthentication',  # Secondary - JWT
         'rest_framework.authentication.SessionAuthentication',
     ],
     'DEFAULT_THROTTLE_CLASSES': [

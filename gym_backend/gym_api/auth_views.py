@@ -10,6 +10,13 @@ from .models import GymOwner
 from .serializers import GymOwnerSerializer
 import uuid
 
+# Try to import JWT components (available in production)
+try:
+    from rest_framework_simplejwt.tokens import RefreshToken
+    JWT_AVAILABLE = True
+except ImportError:
+    JWT_AVAILABLE = False
+
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -59,13 +66,22 @@ def gym_owner_register(request):
             # Create authentication token
             token, created = Token.objects.get_or_create(user=user)
             
+            # Generate JWT tokens if available (for production)
+            jwt_tokens = {}
+            if JWT_AVAILABLE:
+                refresh = RefreshToken.for_user(user)
+                jwt_tokens = {
+                    'refresh': str(refresh),
+                    'access': str(refresh.access_token),
+                }
+            
             # Serialize gym owner data
             serializer = GymOwnerSerializer(gym_owner)
             
-            return Response({
+            response_data = {
                 'success': True,
                 'message': 'Gym owner registered successfully',
-                'token': token.key,
+                'token': token.key,  # Django token for backwards compatibility
                 'gym_owner': serializer.data,
                 'user': {
                     'id': user.id,
@@ -73,7 +89,13 @@ def gym_owner_register(request):
                     'first_name': user.first_name,
                     'last_name': user.last_name
                 }
-            }, status=status.HTTP_201_CREATED)
+            }
+            
+            # Add JWT tokens if available
+            if JWT_AVAILABLE:
+                response_data['jwt'] = jwt_tokens
+            
+            return Response(response_data, status=status.HTTP_201_CREATED)
             
     except Exception as e:
         return Response({
@@ -115,13 +137,22 @@ def gym_owner_login(request):
         # Get or create token
         token, created = Token.objects.get_or_create(user=user)
         
+        # Generate JWT tokens if available (for production)
+        jwt_tokens = {}
+        if JWT_AVAILABLE:
+            refresh = RefreshToken.for_user(user)
+            jwt_tokens = {
+                'refresh': str(refresh),
+                'access': str(refresh.access_token),
+            }
+        
         # Serialize gym owner data
         serializer = GymOwnerSerializer(gym_owner)
         
-        return Response({
+        response_data = {
             'success': True,
             'message': 'Login successful',
-            'token': token.key,
+            'token': token.key,  # Django token for backwards compatibility
             'gym_owner': serializer.data,
             'user': {
                 'id': user.id,
@@ -129,7 +160,13 @@ def gym_owner_login(request):
                 'first_name': user.first_name,
                 'last_name': user.last_name
             }
-        }, status=status.HTTP_200_OK)
+        }
+        
+        # Add JWT tokens if available
+        if JWT_AVAILABLE:
+            response_data['jwt'] = jwt_tokens
+        
+        return Response(response_data, status=status.HTTP_200_OK)
         
     except Exception as e:
         return Response({
