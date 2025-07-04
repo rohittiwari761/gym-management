@@ -1,2 +1,2 @@
-web: gunicorn --config gunicorn.conf.py gym_backend.wsgi_production:application
+web: gunicorn --config gunicorn_simple.conf.py gym_backend.wsgi_production:application
 release: python manage.py migrate --settings=gym_backend.settings_production

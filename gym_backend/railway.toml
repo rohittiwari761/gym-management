@@ -7,7 +7,7 @@ healthcheckPath = "/health/"
 healthcheckTimeout = 100
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
-startCommand = "python manage.py migrate --settings=gym_backend.settings_production && python manage.py collectstatic --noinput --settings=gym_backend.settings_production && gunicorn --config gunicorn.conf.py gym_backend.wsgi_production:application"
+startCommand = "python manage.py migrate --settings=gym_backend.settings_production && python manage.py collectstatic --noinput --settings=gym_backend.settings_production && gunicorn --config gunicorn_simple.conf.py gym_backend.wsgi_production:application"
 
 # Auto-deploy from GitHub
 [environments.production]

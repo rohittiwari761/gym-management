@@ -16,15 +16,13 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-from gym_api.health import health_check, metrics_endpoint, ready_check, live_check
+from gym_api.simple_health import simple_health_check, live_check
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('gym_api.urls')),
     
-    # Health and monitoring endpoints
-    path('health/', health_check, name='health_check'),
-    path('metrics/', metrics_endpoint, name='metrics'),
-    path('ready/', ready_check, name='ready_check'),
+    # Simple health endpoints for Railway
+    path('health/', simple_health_check, name='health_check'),
     path('live/', live_check, name='live_check'),
 ]
