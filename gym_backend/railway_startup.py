@@ -51,6 +51,22 @@ def main():
         log(f"   Error output: {e.stderr}")
         sys.exit(1)
     
+    # Create test user for authentication testing
+    log("👤 Creating test gym owner...")
+    try:
+        result = subprocess.run([
+            'python', 'manage.py', 'create_test_user',
+            '--email=test@gym.com',
+            '--password=TestPass123!',
+            '--settings=gym_backend.settings_production'
+        ], check=True, capture_output=True, text=True)
+        log("   ✅ Test user created/verified")
+        log(f"   📧 Test credentials: test@gym.com / TestPass123!")
+    except subprocess.CalledProcessError as e:
+        log(f"   ⚠️  Test user creation failed: {e}")
+        log(f"   Error output: {e.stderr}")
+        # Don't exit - this is not critical for startup
+    
     # Start gunicorn
     log(f"🚀 Starting gunicorn on 0.0.0.0:{port}...")
     
