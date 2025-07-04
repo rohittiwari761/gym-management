@@ -113,6 +113,7 @@ ALLOWED_HOSTS = [
 
 # Database Configuration - Railway PostgreSQL
 import dj_database_url
+import re
 
 # Try multiple ways to get PostgreSQL connection
 DATABASE_URL = os.environ.get('DATABASE_URL')
@@ -122,31 +123,77 @@ PGDATABASE = os.environ.get('PGDATABASE', 'railway')
 PGUSER = os.environ.get('PGUSER', 'postgres')
 PGPASSWORD = os.environ.get('PGPASSWORD')
 
+def validate_database_url(url):
+    """Validate DATABASE_URL format."""
+    if not url:
+        return False, "DATABASE_URL is empty"
+    
+    # Check if it starts with postgresql://
+    if not url.startswith('postgresql://'):
+        return False, f"DATABASE_URL should start with 'postgresql://', got: {url[:30]}..."
+    
+    # Basic URL pattern check
+    pattern = r'^postgresql://[^:]+:[^@]+@[^:]+:\d+/\w+$'
+    if not re.match(pattern, url):
+        return False, f"DATABASE_URL format is invalid. Expected: postgresql://user:pass@host:port/db, got: {url[:50]}..."
+    
+    return True, "Valid"
+
 if DATABASE_URL:
-    # Method 1: Use DATABASE_URL if available
-    DATABASES = {
-        'default': dj_database_url.config(
-            default=DATABASE_URL,
-            conn_max_age=300,
-            conn_health_checks=True,
-        )
-    }
-    print(f"✅ Using DATABASE_URL: {DATABASE_URL[:50]}...")
-elif PGHOST and PGPASSWORD:
+    # Method 1: Validate and use DATABASE_URL if available
+    is_valid, message = validate_database_url(DATABASE_URL)
+    if is_valid:
+        try:
+            DATABASES = {
+                'default': dj_database_url.config(
+                    default=DATABASE_URL,
+                    conn_max_age=300,
+                    conn_health_checks=True,
+                )
+            }
+            print(f"✅ Using DATABASE_URL: {DATABASE_URL[:50]}...")
+        except Exception as e:
+            print(f"❌ Error parsing DATABASE_URL: {e}")
+            print(f"❌ DATABASE_URL value: {DATABASE_URL}")
+            print("❌ Falling back to individual variables or SQLite")
+            DATABASE_URL = None  # Force fallback
+    else:
+        print(f"❌ Invalid DATABASE_URL: {message}")
+        print(f"❌ DATABASE_URL value: {DATABASE_URL}")
+        DATABASE_URL = None  # Force fallback
+
+if not DATABASE_URL and PGHOST and PGPASSWORD:
     # Method 2: Build connection from individual variables
-    manual_database_url = f"postgresql://{PGUSER}:{PGPASSWORD}@{PGHOST}:{PGPORT}/{PGDATABASE}"
-    DATABASES = {
-        'default': dj_database_url.config(
-            default=manual_database_url,
-            conn_max_age=300,
-            conn_health_checks=True,
-        )
-    }
-    print(f"✅ Using manual PostgreSQL connection: {PGHOST}")
-else:
+    try:
+        manual_database_url = f"postgresql://{PGUSER}:{PGPASSWORD}@{PGHOST}:{PGPORT}/{PGDATABASE}"
+        print(f"🔧 Building manual DATABASE_URL: postgresql://{PGUSER}:***@{PGHOST}:{PGPORT}/{PGDATABASE}")
+        
+        DATABASES = {
+            'default': dj_database_url.config(
+                default=manual_database_url,
+                conn_max_age=300,
+                conn_health_checks=True,
+            )
+        }
+        print(f"✅ Using manual PostgreSQL connection: {PGHOST}")
+    except Exception as e:
+        print(f"❌ Error building manual connection: {e}")
+        PGHOST = None  # Force SQLite fallback
+
+if not DATABASE_URL and not (PGHOST and PGPASSWORD):
     # Method 3: Fallback to SQLite (only for development)
-    print("⚠️  WARNING: No PostgreSQL configuration found!")
-    print("⚠️  Add DATABASE_URL or PostgreSQL variables in Railway dashboard.")
+    print("⚠️  WARNING: No valid PostgreSQL configuration found!")
+    print("⚠️  Issues found:")
+    if DATABASE_URL:
+        print(f"   - DATABASE_URL format invalid: {DATABASE_URL[:50]}...")
+    else:
+        print("   - DATABASE_URL not set")
+    if not PGHOST:
+        print("   - PGHOST not set")
+    if not PGPASSWORD:
+        print("   - PGPASSWORD not set")
+    print("⚠️  Using SQLite fallback - fix PostgreSQL variables in Railway dashboard")
+    
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
