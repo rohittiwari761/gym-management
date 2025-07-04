@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
+import 'dart:convert';
+import 'dart:typed_data';
 import '../providers/user_profile_provider.dart';
 import '../providers/auth_provider.dart';
 import '../utils/html_decoder.dart';
@@ -45,6 +47,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _profileProvider = null;
     _scaffoldMessenger = null;
     super.dispose();
+  }
+
+  /// Get appropriate image provider for profile picture
+  /// Handles both data URLs (base64) and network URLs
+  ImageProvider? _getProfileImageProvider(String? imageUrl) {
+    if (imageUrl == null || imageUrl.isEmpty) {
+      return null;
+    }
+
+    print('🖼️ Processing image URL: ${imageUrl.substring(0, imageUrl.length > 50 ? 50 : imageUrl.length)}...');
+
+    // Check if it's a data URL (base64)
+    if (imageUrl.startsWith('data:')) {
+      try {
+        // Parse data URL: data:image/jpeg;base64,/9j/4AAQ...
+        final commaIndex = imageUrl.indexOf(',');
+        if (commaIndex != -1) {
+          final base64String = imageUrl.substring(commaIndex + 1);
+          final imageBytes = base64Decode(base64String);
+          print('✅ Decoded base64 image: ${imageBytes.length} bytes');
+          return MemoryImage(imageBytes);
+        }
+      } catch (e) {
+        print('❌ Error decoding base64 image: $e');
+        return null;
+      }
+    } else {
+      // Regular network URL
+      print('🌐 Using network image');
+      return NetworkImage(imageUrl);
+    }
+
+    return null;
   }
 
   @override
@@ -146,9 +181,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 child: CircleAvatar(
                                   radius: 56,
                                   backgroundColor: Colors.grey[300],
-                                  backgroundImage: profile.profilePicture != null && profile.profilePicture!.isNotEmpty
-                                      ? NetworkImage(profile.profilePicture!)
-                                      : null,
+                                  backgroundImage: _getProfileImageProvider(profile.profilePicture),
                                   onBackgroundImageError: (error, stackTrace) {
                                     print('❌ Error loading profile image: $error');
                                     // Image will fall back to initials automatically
@@ -507,19 +540,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
           print('✅ Upload successful, refreshing profile...');
           
           // Evict old image from cache if it exists
-          if (oldImageUrl != null && oldImageUrl.isNotEmpty) {
+          if (oldImageUrl != null && oldImageUrl.isNotEmpty && !oldImageUrl.startsWith('data:')) {
             imageCache.evict(NetworkImage(oldImageUrl));
-            print('🗑️ Evicted old image from cache: $oldImageUrl');
+            print('🗑️ Evicted old network image from cache: $oldImageUrl');
           }
           
           // Force refresh the profile to get the updated image URL
           await _profileProvider!.fetchCurrentProfile();
           
-          // Evict new image URL from cache to force reload
+          // For base64 images, no need to evict cache - they're stored directly
           final newImageUrl = _profileProvider!.currentProfile?.profilePicture;
-          if (newImageUrl != null && newImageUrl.isNotEmpty) {
+          if (newImageUrl != null && newImageUrl.isNotEmpty && !newImageUrl.startsWith('data:')) {
             imageCache.evict(NetworkImage(newImageUrl));
-            print('🔄 Evicted new image from cache to force reload: $newImageUrl');
+            print('🔄 Evicted new network image from cache to force reload: $newImageUrl');
+          } else if (newImageUrl != null && newImageUrl.startsWith('data:')) {
+            print('✅ Using base64 image - no cache eviction needed');
           }
           
           // Force rebuild to show updated image
