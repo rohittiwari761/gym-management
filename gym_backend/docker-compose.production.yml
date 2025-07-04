@@ -1,0 +1,191 @@
+# Production Docker Compose for Gym Management System
+# Optimized for 100k+ users with load balancing and caching
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: gym_db
+      POSTGRES_USER: gym_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-gym_password_2024}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    command: >
+      postgres 
+      -c max_connections=200
+      -c shared_buffers=256MB
+      -c effective_cache_size=1GB
+      -c maintenance_work_mem=64MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gym_user -d gym_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: >
+      redis-server 
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Django API Server 1
+  api1:
+    build: .
+    restart: unless-stopped
+    environment:
+      - DB_HOST=postgres
+      - DB_NAME=gym_db
+      - DB_USER=gym_user
+      - DB_PASSWORD=${DB_PASSWORD:-gym_password_2024}
+      - REDIS_URL=redis://redis:6379/1
+      - DJANGO_SETTINGS_MODULE=gym_backend.settings_production
+    volumes:
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+      - ./logs:/var/log/gym_app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/api/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Django API Server 2 (Load Balancing)
+  api2:
+    build: .
+    restart: unless-stopped
+    environment:
+      - DB_HOST=postgres
+      - DB_NAME=gym_db
+      - DB_USER=gym_user
+      - DB_PASSWORD=${DB_PASSWORD:-gym_password_2024}
+      - REDIS_URL=redis://redis:6379/1
+      - DJANGO_SETTINGS_MODULE=gym_backend.settings_production
+    volumes:
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+      - ./logs:/var/log/gym_app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/api/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # NGINX Load Balancer
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - static_volume:/app/staticfiles:ro
+      - media_volume:/app/media:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - api1
+      - api2
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Celery Worker (for async tasks)
+  celery:
+    build: .
+    restart: unless-stopped
+    command: celery -A gym_backend worker -l info --concurrency=4
+    environment:
+      - DB_HOST=postgres
+      - DB_NAME=gym_db
+      - DB_USER=gym_user
+      - DB_PASSWORD=${DB_PASSWORD:-gym_password_2024}
+      - REDIS_URL=redis://redis:6379/3
+      - DJANGO_SETTINGS_MODULE=gym_backend.settings_production
+    volumes:
+      - ./logs:/var/log/gym_app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Celery Beat (for scheduled tasks)
+  celery-beat:
+    build: .
+    restart: unless-stopped
+    command: celery -A gym_backend beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    environment:
+      - DB_HOST=postgres
+      - DB_NAME=gym_db
+      - DB_USER=gym_user
+      - DB_PASSWORD=${DB_PASSWORD:-gym_password_2024}
+      - REDIS_URL=redis://redis:6379/3
+      - DJANGO_SETTINGS_MODULE=gym_backend.settings_production
+    volumes:
+      - ./logs:/var/log/gym_app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Monitoring with Prometheus (optional)
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+
+volumes:
+  postgres_data:
+  redis_data:
+  static_volume:
+  media_volume:
+  prometheus_data:
+
+networks:
+  default:
+    driver: bridge

@@ -1,0 +1,137 @@
+name: Deploy to Railway
+
+on:
+  push:
+    branches: [ main, production ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_gym_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      working-directory: gym_backend
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Run database migrations
+      working-directory: gym_backend
+      env:
+        DATABASE_URL: postgres://postgres:postgres@localhost:5432/test_gym_db
+        DJANGO_SETTINGS_MODULE: gym_backend.settings
+      run: |
+        python manage.py migrate
+        
+    - name: Run tests
+      working-directory: gym_backend
+      env:
+        DATABASE_URL: postgres://postgres:postgres@localhost:5432/test_gym_db
+        DJANGO_SETTINGS_MODULE: gym_backend.settings
+      run: |
+        python manage.py test
+        
+    - name: Run security checks
+      working-directory: gym_backend
+      run: |
+        python manage.py check --deploy
+        
+    - name: Check code formatting
+      working-directory: gym_backend
+      run: |
+        pip install black flake8
+        black --check .
+        flake8 .
+
+  deploy-staging:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Railway CLI
+      run: npm install -g @railway/cli
+      
+    - name: Deploy to Railway (Staging)
+      working-directory: gym_backend
+      env:
+        RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      run: |
+        railway login --token $RAILWAY_TOKEN
+        railway up --service staging
+        
+  deploy-production:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/production'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Railway CLI
+      run: npm install -g @railway/cli
+      
+    - name: Deploy to Railway (Production)
+      working-directory: gym_backend
+      env:
+        RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      run: |
+        railway login --token $RAILWAY_TOKEN
+        railway up --service production
+        
+    - name: Run post-deployment tests
+      env:
+        PRODUCTION_URL: ${{ secrets.PRODUCTION_URL }}
+      run: |
+        # Health check
+        curl -f $PRODUCTION_URL/health/ || exit 1
+        
+        # API availability check
+        curl -f $PRODUCTION_URL/api/ || exit 1
+        
+  notify:
+    needs: [deploy-staging, deploy-production]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Notify deployment status
+      uses: 8398a7/action-slack@v3
+      if: always()
+      with:
+        status: ${{ job.status }}
+        channel: '#deployments'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}

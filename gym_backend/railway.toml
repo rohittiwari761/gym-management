@@ -1,0 +1,31 @@
+[build]
+builder = "nixpacks"
+buildCommand = "pip install -r requirements.txt"
+
+[deploy]
+healthcheckPath = "/health/"
+healthcheckTimeout = 100
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+startCommand = "python manage.py migrate --settings=gym_backend.settings_production && python manage.py collectstatic --noinput --settings=gym_backend.settings_production && gunicorn --config gunicorn.conf.py gym_backend.wsgi_production:application"
+
+# Auto-deploy from GitHub
+[environments.production]
+branch = "main"
+autoDeployments = true
+
+[environments.staging]
+branch = "develop"
+autoDeployments = true
+
+# Environment variables for production
+[environments.production.variables]
+DJANGO_SETTINGS_MODULE = "gym_backend.settings_production"
+DEBUG = "False"
+ALLOWED_HOSTS = "*.railway.app"
+
+# Environment variables for staging
+[environments.staging.variables]
+DJANGO_SETTINGS_MODULE = "gym_backend.settings"
+DEBUG = "True"
+ALLOWED_HOSTS = "*.railway.app"

@@ -1,0 +1,54 @@
+name: gym_management
+description: A cross-platform gym management application
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: ">=3.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # Core dependencies only
+  http: ^1.1.0
+  provider: ^6.0.0
+  cupertino_icons: ^1.0.2
+  intl: ^0.18.0
+  shared_preferences: ^2.0.0
+  
+  # Authentication & Security
+  flutter_secure_storage: ^9.0.0
+  
+  # QR Code functionality (optional - can be added later)
+  # qr_code_scanner: ^1.0.1
+  # qr_flutter: ^4.1.0
+  
+  # Charts (optional - can be added later)
+  # fl_chart: ^0.60.0
+  
+  # Permissions
+  permission_handler: ^10.0.0
+  
+  # PDF generation (optional - can be added later)
+  # pdf: ^3.10.0
+  # printing: ^5.11.0
+  
+  # Notifications (optional - can be added later)
+  # flutter_local_notifications: ^15.0.0
+  
+  # File handling
+  path_provider: ^2.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+
+flutter:
+  uses-material-design: true
+  
+  # Assets
+  assets:
+    - assets/images/

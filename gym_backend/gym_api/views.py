@@ -1,0 +1,968 @@
+from rest_framework import viewsets, status, permissions, serializers
+from rest_framework.decorators import action, throttle_classes
+from rest_framework.response import Response
+from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
+from django.contrib.auth.models import User
+from django.shortcuts import get_object_or_404
+from django.db.models import Q, Count, Sum, Prefetch, F, Avg
+from django.utils import timezone
+from django.views.decorators.cache import cache_page
+from django.core.cache import cache
+from django.utils.decorators import method_decorator
+from datetime import timedelta, date
+import logging
+
+logger = logging.getLogger(__name__)
+from .models import (
+    GymOwner, Member, Trainer, Equipment, WorkoutPlan, Exercise, WorkoutSession, 
+    MembershipPayment, Attendance, SubscriptionPlan, MemberSubscription, TrainerMemberAssociation,
+    get_ist_now, get_ist_date
+)
+from .serializers import (
+    UserSerializer, GymOwnerSerializer, MemberSerializer, TrainerSerializer, EquipmentSerializer,
+    WorkoutPlanSerializer, ExerciseSerializer, WorkoutSessionSerializer,
+    MembershipPaymentSerializer, AttendanceSerializer, SubscriptionPlanSerializer, MemberSubscriptionSerializer,
+    TrainerMemberAssociationSerializer
+)
+
+
+class GymOwnerViewSet(viewsets.ModelViewSet):
+    queryset = GymOwner.objects.all()
+    serializer_class = GymOwnerSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        # Only return the gym owner for the authenticated user
+        if hasattr(self.request.user, 'gymowner'):
+            return GymOwner.objects.filter(user=self.request.user)
+        return GymOwner.objects.none()
+    
+    @action(detail=True, methods=['get'])
+    def dashboard_stats(self, request, pk=None):
+        gym_owner = self.get_object()
+        today = timezone.now().date()
+        
+        stats = {
+            'total_members': gym_owner.members.filter(is_active=True).count(),
+            'total_trainers': gym_owner.trainers.filter(is_available=True).count(),
+            'total_equipment': gym_owner.equipment.filter(is_working=True).count(),
+            'active_subscriptions': gym_owner.member_subscriptions.filter(status='active').count(),
+            'today_attendance': gym_owner.attendances.filter(date=today).count(),
+            'monthly_revenue': gym_owner.payments.filter(
+                payment_date__month=today.month,
+                payment_date__year=today.year,
+                status='completed'
+            ).aggregate(total=Sum('amount'))['total'] or 0,
+            'expiring_memberships': gym_owner.member_subscriptions.filter(
+                status='active',
+                end_date__lte=today + timedelta(days=7)
+            ).count(),
+        }
+        
+        return Response(stats)
+    
+    @action(detail=True, methods=['get'])
+    def qr_code_info(self, request, pk=None):
+        gym_owner = self.get_object()
+        return Response({
+            'qr_code_token': str(gym_owner.qr_code_token),
+            'gym_name': gym_owner.gym_name,
+            'qr_code_url': f'/api/attendance/qr-checkin/{gym_owner.qr_code_token}/'
+        })
+
+
+class MemberViewSet(viewsets.ModelViewSet):
+    serializer_class = MemberSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = [UserRateThrottle]
+    
+    def get_queryset(self):
+        # Filter members by gym owner with optimized queries
+        if hasattr(self.request.user, 'gymowner'):
+            return Member.objects.select_related('user', 'gym_owner').filter(
+                gym_owner=self.request.user.gymowner
+            ).order_by('-created_at')
+        return Member.objects.none()
+    
+    def perform_create(self, serializer):
+        # Automatically assign gym owner on creation
+        if hasattr(self.request.user, 'gymowner'):
+            serializer.save(gym_owner=self.request.user.gymowner)
+        else:
+            raise serializers.ValidationError("User must be a gym owner to create members")
+    
+    @action(detail=True, methods=['get'])
+    @method_decorator(cache_page(300))  # Cache for 5 minutes
+    def attendance_history(self, request, pk=None):
+        member = self.get_object()
+        # Filter attendance by gym owner for security with optimized query
+        attendance = Attendance.objects.select_related('member', 'gym_owner').filter(
+            member=member,
+            gym_owner=member.gym_owner
+        ).order_by('-date')[:100]  # Limit to last 100 records
+        serializer = AttendanceSerializer(attendance, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['get'])
+    @method_decorator(cache_page(300))  # Cache for 5 minutes
+    def payment_history(self, request, pk=None):
+        member = self.get_object()
+        # Filter payments by gym owner for security with optimized query
+        payments = MembershipPayment.objects.select_related(
+            'member', 'gym_owner', 'subscription_plan'
+        ).filter(
+            member=member,
+            gym_owner=member.gym_owner
+        ).order_by('-payment_date')[:50]  # Limit to last 50 payments
+        serializer = MembershipPaymentSerializer(payments, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def active_members(self, request):
+        # Get active members for current gym
+        if hasattr(request.user, 'gymowner'):
+            members = Member.objects.filter(
+                gym_owner=request.user.gymowner,
+                is_active=True
+            )
+            serializer = self.get_serializer(members, many=True)
+            return Response(serializer.data)
+        return Response({'error': 'User must be a gym owner'}, status=status.HTTP_403_FORBIDDEN)
+    
+    @action(detail=False, methods=['get'])
+    def expiring_memberships(self, request):
+        # Get members with expiring memberships
+        if hasattr(request.user, 'gymowner'):
+            expiry_date = timezone.now().date() + timedelta(days=7)
+            members = Member.objects.filter(
+                gym_owner=request.user.gymowner,
+                is_active=True,
+                membership_expiry__lte=expiry_date
+            )
+            serializer = self.get_serializer(members, many=True)
+            return Response(serializer.data)
+        return Response({'error': 'User must be a gym owner'}, status=status.HTTP_403_FORBIDDEN)
+
+
+class TrainerViewSet(viewsets.ModelViewSet):
+    serializer_class = TrainerSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        # Filter trainers by gym owner
+        if hasattr(self.request.user, 'gymowner'):
+            return Trainer.objects.filter(gym_owner=self.request.user.gymowner)
+        return Trainer.objects.none()
+    
+    def perform_create(self, serializer):
+        # Automatically assign gym owner on creation
+        if hasattr(self.request.user, 'gymowner'):
+            serializer.save(gym_owner=self.request.user.gymowner)
+        else:
+            raise serializers.ValidationError("User must be a gym owner to create trainers")
+    
+    @action(detail=False, methods=['get'])
+    def available(self, request):
+        # Filter available trainers by gym owner
+        if hasattr(request.user, 'gymowner'):
+            available_trainers = Trainer.objects.filter(
+                gym_owner=request.user.gymowner,
+                is_available=True
+            )
+            serializer = self.get_serializer(available_trainers, many=True)
+            return Response(serializer.data)
+        return Response({'error': 'User must be a gym owner'}, status=status.HTTP_403_FORBIDDEN)
+    
+    @action(detail=True, methods=['get'])
+    def members(self, request, pk=None):
+        """Get all members associated with this trainer"""
+        trainer = self.get_object()
+        
+        # Get active associations for this trainer
+        associations = TrainerMemberAssociation.objects.filter(
+            trainer=trainer,
+            gym_owner=request.user.gymowner,
+            is_active=True
+        ).select_related('member', 'member__user')
+        
+        serializer = TrainerMemberAssociationSerializer(associations, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['post'])
+    def associate_member(self, request, pk=None):
+        """Associate a member with this trainer"""
+        trainer = self.get_object()
+        member_id = request.data.get('member_id')
+        
+        if not member_id:
+            return Response({'error': 'member_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if member exists and belongs to this gym
+        try:
+            member = Member.objects.get(id=member_id, gym_owner=request.user.gymowner)
+        except Member.DoesNotExist:
+            return Response({'error': 'Member not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Check if association already exists
+        existing_association = TrainerMemberAssociation.objects.filter(
+            trainer=trainer,
+            member=member,
+            gym_owner=request.user.gymowner,
+            is_active=True
+        ).first()
+        
+        if existing_association:
+            return Response({'error': 'Member is already associated with this trainer'}, 
+                          status=status.HTTP_400_BAD_REQUEST)
+        
+        # Create new association
+        serializer = TrainerMemberAssociationSerializer(
+            data={
+                'member_id': member_id,
+                'trainer_id': trainer.id,
+                'notes': request.data.get('notes', '')
+            },
+            context={
+                'request': request,
+                'gym_owner': request.user.gymowner
+            }
+        )
+        
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['delete'])
+    def unassociate_member(self, request, pk=None):
+        """Remove association between trainer and member"""
+        trainer = self.get_object()
+        member_id = request.data.get('member_id')
+        
+        if not member_id:
+            return Response({'error': 'member_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Find and deactivate the association
+        try:
+            association = TrainerMemberAssociation.objects.get(
+                trainer=trainer,
+                member_id=member_id,
+                gym_owner=request.user.gymowner,
+                is_active=True
+            )
+            association.deactivate()
+            return Response({'message': 'Member successfully unassociated from trainer'}, 
+                          status=status.HTTP_200_OK)
+        except TrainerMemberAssociation.DoesNotExist:
+            return Response({'error': 'Association not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class EquipmentViewSet(viewsets.ModelViewSet):
+    serializer_class = EquipmentSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        # Filter equipment by gym owner
+        if hasattr(self.request.user, 'gymowner'):
+            return Equipment.objects.filter(gym_owner=self.request.user.gymowner)
+        return Equipment.objects.none()
+    
+    def perform_create(self, serializer):
+        # Automatically assign gym owner on creation
+        if hasattr(self.request.user, 'gymowner'):
+            serializer.save(gym_owner=self.request.user.gymowner)
+        else:
+            raise serializers.ValidationError("User must be a gym owner to create equipment")
+    
+    @action(detail=False, methods=['get'])
+    def working(self, request):
+        # Filter working equipment by gym owner
+        if hasattr(request.user, 'gymowner'):
+            working_equipment = Equipment.objects.filter(
+                gym_owner=request.user.gymowner,
+                is_working=True
+            )
+            serializer = self.get_serializer(working_equipment, many=True)
+            return Response(serializer.data)
+        return Response({'error': 'User must be a gym owner'}, status=status.HTTP_403_FORBIDDEN)
+    
+    @action(detail=False, methods=['get'])
+    def by_type(self, request):
+        equipment_type = request.query_params.get('type')
+        if equipment_type:
+            if hasattr(request.user, 'gymowner'):
+                equipment = Equipment.objects.filter(
+                    gym_owner=request.user.gymowner,
+                    equipment_type=equipment_type
+                )
+                serializer = self.get_serializer(equipment, many=True)
+                return Response(serializer.data)
+            return Response({'error': 'User must be a gym owner'}, status=status.HTTP_403_FORBIDDEN)
+        return Response({'error': 'Type parameter required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=False, methods=['get'])
+    def maintenance_due(self, request):
+        # Get equipment needing maintenance
+        if hasattr(request.user, 'gymowner'):
+            today = timezone.now().date()
+            equipment = Equipment.objects.filter(
+                gym_owner=request.user.gymowner,
+                next_maintenance_date__lte=today
+            )
+            serializer = self.get_serializer(equipment, many=True)
+            return Response(serializer.data)
+        return Response({'error': 'User must be a gym owner'}, status=status.HTTP_403_FORBIDDEN)
+
+
+class WorkoutPlanViewSet(viewsets.ModelViewSet):
+    serializer_class = WorkoutPlanSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        # Filter workout plans by gym owner
+        if hasattr(self.request.user, 'gymowner'):
+            return WorkoutPlan.objects.filter(gym_owner=self.request.user.gymowner)
+        return WorkoutPlan.objects.none()
+    
+    def perform_create(self, serializer):
+        # Automatically assign gym owner on creation
+        if hasattr(self.request.user, 'gymowner'):
+            serializer.save(gym_owner=self.request.user.gymowner)
+        else:
+            raise serializers.ValidationError("User must be a gym owner to create workout plans")
+    
+    @action(detail=False, methods=['get'])
+    def by_difficulty(self, request):
+        difficulty = request.query_params.get('difficulty')
+        if difficulty:
+            if hasattr(request.user, 'gymowner'):
+                plans = WorkoutPlan.objects.filter(
+                    gym_owner=request.user.gymowner,
+                    difficulty_level=difficulty,
+                    is_active=True
+                )
+                serializer = self.get_serializer(plans, many=True)
+                return Response(serializer.data)
+            return Response({'error': 'User must be a gym owner'}, status=status.HTTP_403_FORBIDDEN)
+        return Response({'error': 'Difficulty parameter required'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ExerciseViewSet(viewsets.ModelViewSet):
+    serializer_class = ExerciseSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        # Filter exercises by gym owner
+        if hasattr(self.request.user, 'gymowner'):
+            return Exercise.objects.filter(gym_owner=self.request.user.gymowner)
+        return Exercise.objects.none()
+    
+    def perform_create(self, serializer):
+        # Automatically assign gym owner on creation
+        if hasattr(self.request.user, 'gymowner'):
+            serializer.save(gym_owner=self.request.user.gymowner)
+        else:
+            raise serializers.ValidationError("User must be a gym owner to create exercises")
+    
+    @action(detail=False, methods=['get'])
+    def by_muscle_group(self, request):
+        muscle_group = request.query_params.get('muscle_group')
+        if muscle_group:
+            if hasattr(request.user, 'gymowner'):
+                exercises = Exercise.objects.filter(
+                    gym_owner=request.user.gymowner,
+                    muscle_group=muscle_group
+                )
+                serializer = self.get_serializer(exercises, many=True)
+                return Response(serializer.data)
+            return Response({'error': 'User must be a gym owner'}, status=status.HTTP_403_FORBIDDEN)
+        return Response({'error': 'Muscle group parameter required'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class WorkoutSessionViewSet(viewsets.ModelViewSet):
+    serializer_class = WorkoutSessionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        # Filter workout sessions by gym owner
+        if hasattr(self.request.user, 'gymowner'):
+            return WorkoutSession.objects.filter(gym_owner=self.request.user.gymowner)
+        return WorkoutSession.objects.none()
+    
+    def perform_create(self, serializer):
+        # Automatically assign gym owner on creation
+        if hasattr(self.request.user, 'gymowner'):
+            serializer.save(gym_owner=self.request.user.gymowner)
+        else:
+            raise serializers.ValidationError("User must be a gym owner to create workout sessions")
+    
+    @action(detail=False, methods=['get'])
+    def upcoming(self, request):
+        if hasattr(request.user, 'gymowner'):
+            upcoming_sessions = WorkoutSession.objects.filter(
+                gym_owner=request.user.gymowner,
+                date__gte=timezone.now(),
+                completed=False
+            ).order_by('date')
+            serializer = self.get_serializer(upcoming_sessions, many=True)
+            return Response(serializer.data)
+        return Response({'error': 'User must be a gym owner'}, status=status.HTTP_403_FORBIDDEN)
+    
+    @action(detail=True, methods=['post'])
+    def mark_completed(self, request, pk=None):
+        session = self.get_object()
+        session.completed = True
+        session.save()
+        return Response({'status': 'Session marked as completed'})
+
+
+class MembershipPaymentViewSet(viewsets.ModelViewSet):
+    serializer_class = MembershipPaymentSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        # Filter payments by gym owner
+        if hasattr(self.request.user, 'gymowner'):
+            return MembershipPayment.objects.filter(gym_owner=self.request.user.gymowner)
+        return MembershipPayment.objects.none()
+    
+    def perform_create(self, serializer):
+        # Automatically assign gym owner on creation
+        if hasattr(self.request.user, 'gymowner'):
+            serializer.save(gym_owner=self.request.user.gymowner)
+        else:
+            raise serializers.ValidationError("User must be a gym owner to create payments")
+    
+    @action(detail=False, methods=['get'])
+    def monthly_revenue(self, request):
+        # Get monthly revenue for current gym
+        if hasattr(request.user, 'gymowner'):
+            today = timezone.now().date()
+            payments = MembershipPayment.objects.filter(
+                gym_owner=request.user.gymowner,
+                payment_date__month=today.month,
+                payment_date__year=today.year,
+                status='completed'
+            )
+            total_revenue = payments.aggregate(total=Sum('amount'))['total'] or 0
+            payment_count = payments.count()
+            
+            return Response({
+                'total_revenue': total_revenue,
+                'payment_count': payment_count,
+                'month': today.strftime('%B %Y')
+            })
+        return Response({'error': 'User must be a gym owner'}, status=status.HTTP_403_FORBIDDEN)
+    
+    @action(detail=False, methods=['get'])
+    @throttle_classes([UserRateThrottle])
+    def revenue_analytics(self, request):
+        """Get comprehensive revenue analytics for current gym - OPTIMIZED"""
+        if hasattr(request.user, 'gymowner'):
+            gym_owner = request.user.gymowner
+            cache_key = f'revenue_analytics_{gym_owner.id}'
+            
+            # Try to get from cache first
+            cached_result = cache.get(cache_key)
+            if cached_result:
+                logger.info(f'Revenue analytics served from cache for gym {gym_owner.id}')
+                return Response(cached_result)
+            
+            today = timezone.now().date()
+            week_ago = today - timedelta(days=7)
+            
+            # OPTIMIZED: Single query with aggregations instead of multiple queries
+            revenue_stats = MembershipPayment.objects.filter(
+                gym_owner=gym_owner,
+                status='completed'
+            ).aggregate(
+                # All time revenue
+                total_revenue=Sum('amount'),
+                
+                # Monthly revenue
+                monthly_revenue=Sum('amount', filter=Q(
+                    payment_date__month=today.month,
+                    payment_date__year=today.year
+                )),
+                
+                # Weekly revenue
+                weekly_revenue=Sum('amount', filter=Q(
+                    payment_date__date__gte=week_ago,
+                    payment_date__date__lte=today
+                )),
+                
+                # Daily revenue
+                daily_revenue=Sum('amount', filter=Q(payment_date__date=today)),
+                
+                # Payment counts for additional insights
+                total_payments=Count('id'),
+                monthly_payments=Count('id', filter=Q(
+                    payment_date__month=today.month,
+                    payment_date__year=today.year
+                )),
+                
+                # Average payment amount
+                avg_payment=Avg('amount')
+            )
+            
+            result = {
+                'total_revenue': float(revenue_stats['total_revenue'] or 0),
+                'monthly_revenue': float(revenue_stats['monthly_revenue'] or 0),
+                'weekly_revenue': float(revenue_stats['weekly_revenue'] or 0),
+                'daily_revenue': float(revenue_stats['daily_revenue'] or 0),
+                'analytics': {
+                    'total_payments': revenue_stats['total_payments'] or 0,
+                    'monthly_payments': revenue_stats['monthly_payments'] or 0,
+                    'avg_payment_amount': float(revenue_stats['avg_payment'] or 0),
+                    'weekly_growth': self._calculate_growth_rate(gym_owner.id, 'weekly'),
+                    'monthly_growth': self._calculate_growth_rate(gym_owner.id, 'monthly'),
+                },
+                'currency': '₹',
+                'date': today,
+                'cached_at': timezone.now().isoformat()
+            }
+            
+            # Cache the result for 10 minutes (revenue changes less frequently)
+            cache.set(cache_key, result, 600)
+            logger.info(f'Revenue analytics calculated and cached for gym {gym_owner.id}')
+            
+            return Response(result)
+        return Response({'error': 'User must be a gym owner'}, status=status.HTTP_403_FORBIDDEN)
+    
+    def _calculate_growth_rate(self, gym_owner_id, period='weekly'):
+        """Calculate growth rate for revenue analytics"""
+        cache_key = f'growth_rate_{gym_owner_id}_{period}'
+        cached_rate = cache.get(cache_key)
+        if cached_rate is not None:
+            return cached_rate
+        
+        # Simplified growth calculation - can be enhanced
+        today = timezone.now().date()
+        if period == 'weekly':
+            current_start = today - timedelta(days=7)
+            previous_start = today - timedelta(days=14)
+            previous_end = today - timedelta(days=7)
+        else:  # monthly
+            current_start = today.replace(day=1)
+            if today.month == 1:
+                previous_start = date(today.year - 1, 12, 1)
+                previous_end = date(today.year, 1, 1) - timedelta(days=1)
+            else:
+                previous_start = date(today.year, today.month - 1, 1)
+                previous_end = current_start - timedelta(days=1)
+        
+        try:
+            current_revenue = MembershipPayment.objects.filter(
+                gym_owner_id=gym_owner_id,
+                status='completed',
+                payment_date__date__gte=current_start,
+                payment_date__date__lte=today
+            ).aggregate(total=Sum('amount'))['total'] or 0
+            
+            previous_revenue = MembershipPayment.objects.filter(
+                gym_owner_id=gym_owner_id,
+                status='completed',
+                payment_date__date__gte=previous_start,
+                payment_date__date__lte=previous_end
+            ).aggregate(total=Sum('amount'))['total'] or 0
+            
+            if previous_revenue > 0:
+                growth_rate = ((current_revenue - previous_revenue) / previous_revenue) * 100
+            else:
+                growth_rate = 100 if current_revenue > 0 else 0
+                
+            growth_rate = round(growth_rate, 1)
+            cache.set(cache_key, growth_rate, 3600)  # Cache for 1 hour
+            return growth_rate
+        except:
+            return 0.0
+
+
+class AttendanceViewSet(viewsets.ModelViewSet):
+    serializer_class = AttendanceSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        # Filter attendance by gym owner
+        if hasattr(self.request.user, 'gymowner'):
+            return Attendance.objects.filter(gym_owner=self.request.user.gymowner)
+        return Attendance.objects.none()
+    
+    def perform_create(self, serializer):
+        # Automatically assign gym owner on creation
+        if hasattr(self.request.user, 'gymowner'):
+            serializer.save(gym_owner=self.request.user.gymowner)
+        else:
+            raise serializers.ValidationError("User must be a gym owner to create attendance records")
+    
+    @action(detail=False, methods=['post'])
+    def check_in(self, request):
+        member_id = request.data.get('member_id')
+        if not member_id:
+            return Response({'error': 'Member ID required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not hasattr(request.user, 'gymowner'):
+            return Response({'error': 'User must be a gym owner'}, status=status.HTTP_403_FORBIDDEN)
+        
+        try:
+            # Ensure member belongs to the current gym
+            member = Member.objects.get(
+                id=member_id,
+                gym_owner=request.user.gymowner
+            )
+            today = timezone.now().date()
+            
+            attendance, created = Attendance.objects.get_or_create(
+                member=member,
+                gym_owner=request.user.gymowner,
+                date=today,
+                defaults={
+                    'check_in_time': timezone.now(),
+                    'qr_code_used': request.data.get('qr_code_used', False)
+                }
+            )
+            
+            if not created:
+                return Response({'error': 'Already checked in today'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            serializer = self.get_serializer(attendance)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        
+        except Member.DoesNotExist:
+            return Response({'error': 'Member not found or does not belong to your gym'}, status=status.HTTP_404_NOT_FOUND)
+    
+    @action(detail=False, methods=['post'])
+    def check_out(self, request):
+        member_id = request.data.get('member_id')
+        if not member_id:
+            return Response({'error': 'Member ID required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not hasattr(request.user, 'gymowner'):
+            return Response({'error': 'User must be a gym owner'}, status=status.HTTP_403_FORBIDDEN)
+        
+        try:
+            # Ensure member belongs to the current gym
+            member = Member.objects.get(
+                id=member_id,
+                gym_owner=request.user.gymowner
+            )
+            today = timezone.now().date()
+            
+            attendance = Attendance.objects.get(
+                member=member,
+                gym_owner=request.user.gymowner,
+                date=today
+            )
+            
+            if attendance.check_out_time:
+                return Response({'error': 'Already checked out today'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            attendance.check_out_time = timezone.now()
+            attendance.notes = request.data.get('notes', '')
+            attendance.save()
+            
+            serializer = self.get_serializer(attendance)
+            return Response(serializer.data)
+        
+        except Member.DoesNotExist:
+            return Response({'error': 'Member not found or does not belong to your gym'}, status=status.HTTP_404_NOT_FOUND)
+        except Attendance.DoesNotExist:
+            return Response({'error': 'No check-in record found for today'}, status=status.HTTP_404_NOT_FOUND)
+    
+    @action(detail=False, methods=['post'])
+    def qr_checkin(self, request, qr_token=None):
+        """QR code-based check-in for members"""
+        if not qr_token:
+            qr_token = request.data.get('qr_token')
+        
+        if not qr_token:
+            return Response({'error': 'QR token required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Find gym by QR token
+            gym_owner = GymOwner.objects.get(qr_code_token=qr_token)
+            
+            # Get member info from request
+            member_email = request.data.get('member_email')
+            member_id = request.data.get('member_id')
+            
+            if member_email:
+                member = Member.objects.get(
+                    user__email=member_email,
+                    gym_owner=gym_owner
+                )
+            elif member_id:
+                member = Member.objects.get(
+                    id=member_id,
+                    gym_owner=gym_owner
+                )
+            else:
+                return Response({'error': 'Member email or ID required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            today = timezone.now().date()
+            
+            attendance, created = Attendance.objects.get_or_create(
+                member=member,
+                gym_owner=gym_owner,
+                date=today,
+                defaults={
+                    'check_in_time': timezone.now(),
+                    'qr_code_used': True
+                }
+            )
+            
+            if not created:
+                return Response({'error': 'Already checked in today'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            serializer = self.get_serializer(attendance)
+            return Response({
+                'success': True,
+                'message': f'Successfully checked in to {gym_owner.gym_name}',
+                'attendance': serializer.data
+            }, status=status.HTTP_201_CREATED)
+        
+        except GymOwner.DoesNotExist:
+            return Response({'error': 'Invalid QR code'}, status=status.HTTP_404_NOT_FOUND)
+        except Member.DoesNotExist:
+            return Response({'error': 'Member not found or not registered at this gym'}, status=status.HTTP_404_NOT_FOUND)
+    
+    @action(detail=False, methods=['get'])
+    def today_attendance(self, request):
+        """Get today's attendance for the gym"""
+        if hasattr(request.user, 'gymowner'):
+            today = timezone.now().date()
+            attendance = Attendance.objects.filter(
+                gym_owner=request.user.gymowner,
+                date=today
+            ).order_by('-check_in_time')
+            
+            serializer = self.get_serializer(attendance, many=True)
+            return Response({
+                'date': today,
+                'total_checkins': attendance.count(),
+                'total_checkouts': attendance.filter(check_out_time__isnull=False).count(),
+                'attendances': serializer.data
+            })
+        return Response({'error': 'User must be a gym owner'}, status=status.HTTP_403_FORBIDDEN)
+    
+    @action(detail=False, methods=['get'])
+    @throttle_classes([UserRateThrottle])
+    def attendance_analytics(self, request):
+        """Get comprehensive attendance analytics for current gym - OPTIMIZED"""
+        if hasattr(request.user, 'gymowner'):
+            gym_owner = request.user.gymowner
+            cache_key = f'attendance_analytics_{gym_owner.id}'
+            
+            # Try to get from cache first
+            cached_result = cache.get(cache_key)
+            if cached_result:
+                logger.info(f'Attendance analytics served from cache for gym {gym_owner.id}')
+                return Response(cached_result)
+            
+            today = timezone.now().date()
+            week_ago = today - timedelta(days=7)
+            
+            # OPTIMIZED: Single query with aggregations instead of multiple queries
+            attendance_stats = Attendance.objects.filter(
+                gym_owner=gym_owner
+            ).aggregate(
+                # Today's stats
+                today_present=Count('id', filter=Q(date=today)),
+                today_checked_out=Count('id', filter=Q(date=today, check_out_time__isnull=False)),
+                
+                # Week stats
+                week_total_visits=Count('id', filter=Q(date__gte=week_ago, date__lte=today)),
+                week_unique_members=Count('member', filter=Q(date__gte=week_ago, date__lte=today), distinct=True),
+                
+                # Month stats
+                month_total_visits=Count('id', filter=Q(date__month=today.month, date__year=today.year)),
+                month_unique_members=Count('member', filter=Q(date__month=today.month, date__year=today.year), distinct=True),
+                
+                # Average session time
+                avg_session_time=Avg('session_duration_minutes', filter=Q(session_duration_minutes__isnull=False))
+            )
+            
+            # Get total active members (cached separately as it changes less frequently)
+            active_members_cache_key = f'active_members_count_{gym_owner.id}'
+            total_active_members = cache.get(active_members_cache_key)
+            if total_active_members is None:
+                total_active_members = gym_owner.members.filter(is_active=True).count()
+                cache.set(active_members_cache_key, total_active_members, 1800)  # Cache for 30 minutes
+            
+            # Calculate derived stats
+            today_present = attendance_stats['today_present'] or 0
+            today_checked_out = attendance_stats['today_checked_out'] or 0
+            today_absent = total_active_members - today_present
+            week_total_visits = attendance_stats['week_total_visits'] or 0
+            month_total_visits = attendance_stats['month_total_visits'] or 0
+            
+            result = {
+                'today': {
+                    'present': today_present,
+                    'absent': today_absent,
+                    'checked_out': today_checked_out,
+                    'still_in_gym': today_present - today_checked_out
+                },
+                'week': {
+                    'total_visits': week_total_visits,
+                    'unique_members': attendance_stats['week_unique_members'] or 0,
+                    'average_daily_visits': round(week_total_visits / 7, 1)
+                },
+                'month': {
+                    'total_visits': month_total_visits,
+                    'unique_members': attendance_stats['month_unique_members'] or 0,
+                    'average_daily_visits': round(month_total_visits / 30, 1) if month_total_visits > 0 else 0
+                },
+                'performance': {
+                    'avg_session_time_minutes': round(attendance_stats['avg_session_time'] or 0, 1),
+                    'utilization_rate': round((today_present / total_active_members * 100), 1) if total_active_members > 0 else 0
+                },
+                'total_active_members': total_active_members,
+                'date': today,
+                'cached_at': timezone.now().isoformat()
+            }
+            
+            # Cache the result for 5 minutes
+            cache.set(cache_key, result, 300)
+            logger.info(f'Attendance analytics calculated and cached for gym {gym_owner.id}')
+            
+            return Response(result)
+        return Response({'error': 'User must be a gym owner'}, status=status.HTTP_403_FORBIDDEN)
+
+
+class SubscriptionPlanViewSet(viewsets.ModelViewSet):
+    serializer_class = SubscriptionPlanSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        # Filter subscription plans by gym owner
+        if hasattr(self.request.user, 'gymowner'):
+            return SubscriptionPlan.objects.filter(gym_owner=self.request.user.gymowner)
+        return SubscriptionPlan.objects.none()
+    
+    def perform_create(self, serializer):
+        # Automatically assign gym owner on creation
+        if hasattr(self.request.user, 'gymowner'):
+            serializer.save(gym_owner=self.request.user.gymowner)
+        else:
+            raise serializers.ValidationError("User must be a gym owner to create subscription plans")
+    
+    @action(detail=False, methods=['get'])
+    def active(self, request):
+        if hasattr(request.user, 'gymowner'):
+            active_plans = SubscriptionPlan.objects.filter(
+                gym_owner=request.user.gymowner,
+                is_active=True
+            )
+            serializer = self.get_serializer(active_plans, many=True)
+            return Response(serializer.data)
+        return Response({'error': 'User must be a gym owner'}, status=status.HTTP_403_FORBIDDEN)
+
+
+class MemberSubscriptionViewSet(viewsets.ModelViewSet):
+    serializer_class = MemberSubscriptionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        # Filter member subscriptions by gym owner
+        if hasattr(self.request.user, 'gymowner'):
+            return MemberSubscription.objects.filter(gym_owner=self.request.user.gymowner)
+        return MemberSubscription.objects.none()
+    
+    def perform_create(self, serializer):
+        # Automatically assign gym owner on creation
+        if hasattr(self.request.user, 'gymowner'):
+            serializer.save(gym_owner=self.request.user.gymowner)
+        else:
+            raise serializers.ValidationError("User must be a gym owner to create member subscriptions")
+    
+    @action(detail=False, methods=['get'])
+    def active(self, request):
+        if hasattr(request.user, 'gymowner'):
+            active_subscriptions = MemberSubscription.objects.filter(
+                gym_owner=request.user.gymowner,
+                status='active'
+            )
+            serializer = self.get_serializer(active_subscriptions, many=True)
+            return Response(serializer.data)
+        return Response({'error': 'User must be a gym owner'}, status=status.HTTP_403_FORBIDDEN)
+    
+    @action(detail=False, methods=['get'])
+    def expiring_soon(self, request):
+        if hasattr(request.user, 'gymowner'):
+            soon_date = timezone.now().date() + timedelta(days=7)
+            expiring_subscriptions = MemberSubscription.objects.filter(
+                gym_owner=request.user.gymowner,
+                status='active',
+                end_date__lte=soon_date
+            )
+            serializer = self.get_serializer(expiring_subscriptions, many=True)
+            return Response(serializer.data)
+        return Response({'error': 'User must be a gym owner'}, status=status.HTTP_403_FORBIDDEN)
+
+
+class TrainerMemberAssociationViewSet(viewsets.ModelViewSet):
+    serializer_class = TrainerMemberAssociationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        # Filter associations by gym owner
+        if hasattr(self.request.user, 'gymowner'):
+            return TrainerMemberAssociation.objects.filter(
+                gym_owner=self.request.user.gymowner
+            ).select_related('trainer', 'member', 'trainer__user', 'member__user')
+        return TrainerMemberAssociation.objects.none()
+    
+    def perform_create(self, serializer):
+        # Automatically assign gym owner on creation
+        if hasattr(self.request.user, 'gymowner'):
+            serializer.save(
+                gym_owner=self.request.user.gymowner,
+                assigned_by=self.request.user
+            )
+        else:
+            raise serializers.ValidationError("User must be a gym owner to create associations")
+    
+    @action(detail=False, methods=['get'])
+    def active(self, request):
+        """Get all active trainer-member associations"""
+        if hasattr(request.user, 'gymowner'):
+            active_associations = self.get_queryset().filter(is_active=True)
+            serializer = self.get_serializer(active_associations, many=True)
+            return Response(serializer.data)
+        return Response({'error': 'User must be a gym owner'}, status=status.HTTP_403_FORBIDDEN)
+    
+    @action(detail=False, methods=['get'])
+    def by_trainer(self, request):
+        """Get associations grouped by trainer"""
+        if not hasattr(request.user, 'gymowner'):
+            return Response({'error': 'User must be a gym owner'}, status=status.HTTP_403_FORBIDDEN)
+        
+        trainer_id = request.query_params.get('trainer_id')
+        if not trainer_id:
+            return Response({'error': 'trainer_id parameter is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        associations = self.get_queryset().filter(
+            trainer_id=trainer_id,
+            is_active=True
+        )
+        serializer = self.get_serializer(associations, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def by_member(self, request):
+        """Get associations for a specific member"""
+        if not hasattr(request.user, 'gymowner'):
+            return Response({'error': 'User must be a gym owner'}, status=status.HTTP_403_FORBIDDEN)
+        
+        member_id = request.query_params.get('member_id')
+        if not member_id:
+            return Response({'error': 'member_id parameter is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        associations = self.get_queryset().filter(
+            member_id=member_id,
+            is_active=True
+        )
+        serializer = self.get_serializer(associations, many=True)
+        return Response(serializer.data)
