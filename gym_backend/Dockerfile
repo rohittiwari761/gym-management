@@ -63,8 +63,8 @@ RUN python manage.py collectstatic --noinput --settings=gym_backend.settings_bui
 # Switch to non-root user
 USER appuser
 
-# Expose port
-EXPOSE 8001
+# Expose port (Railway uses dynamic PORT)
+EXPOSE ${PORT:-8000}
 
 # Health check - Railway uses dynamic PORT
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \

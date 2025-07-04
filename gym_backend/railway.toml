@@ -7,8 +7,8 @@ healthcheckPath = "/health/"
 healthcheckTimeout = 300
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
-# Runtime startup with proper database migration and static files
-startCommand = "python manage.py migrate --settings=gym_backend.settings_production && gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 120 --log-level info gym_backend.wsgi_production:application"
+# Runtime startup with debugging
+startCommand = "python railway_startup.py"
 
 # Auto-deploy from GitHub
 [environments.production]
