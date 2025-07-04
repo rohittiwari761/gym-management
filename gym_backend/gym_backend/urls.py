@@ -21,7 +21,12 @@ from gym_api.simple_health import simple_health_check, live_check
 
 def ultra_simple_health(request):
     """Ultra simple health check - just return 200."""
-    return JsonResponse({'status': 'ok'})
+    import time
+    return JsonResponse({
+        'status': 'ok',
+        'timestamp': time.time(),
+        'message': 'Gym Management API is running'
+    })
 
 urlpatterns = [
     path('admin/', admin.site.urls),

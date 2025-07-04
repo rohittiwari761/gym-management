@@ -7,8 +7,8 @@ healthcheckPath = "/health/"
 healthcheckTimeout = 300
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
-# Simplified startup - skip database check during startup for faster boot
-startCommand = "python manage.py migrate --settings=gym_backend.settings_production && python manage.py collectstatic --noinput --settings=gym_backend.settings_production && gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 120 --preload gym_backend.wsgi_production:application"
+# Runtime startup with proper database migration and static files
+startCommand = "python manage.py migrate --settings=gym_backend.settings_production && gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 120 --log-level info gym_backend.wsgi_production:application"
 
 # Auto-deploy from GitHub
 [environments.production]

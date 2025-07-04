@@ -57,8 +57,8 @@ WORKDIR /app
 # Copy project files
 COPY --chown=appuser:appuser . .
 
-# Collect static files
-RUN python manage.py collectstatic --noinput --settings=gym_backend.settings_production
+# Collect static files using build settings (no database required)
+RUN python manage.py collectstatic --noinput --settings=gym_backend.settings_build
 
 # Switch to non-root user
 USER appuser
@@ -66,9 +66,9 @@ USER appuser
 # Expose port
 EXPOSE 8001
 
-# Health check
+# Health check - Railway uses dynamic PORT
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8001/api/health/ || exit 1
+    CMD curl -f http://localhost:${PORT:-8000}/health/ || exit 1
 
 # Start Gunicorn
 CMD ["gunicorn", "--config", "gunicorn.conf.py", "gym_backend.wsgi_production:application"]
