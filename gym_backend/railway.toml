@@ -7,7 +7,8 @@ healthcheckPath = "/health/"
 healthcheckTimeout = 100
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
-startCommand = "python manage.py migrate --settings=gym_backend.settings_production && python manage.py collectstatic --noinput --settings=gym_backend.settings_production && gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 120 gym_backend.wsgi_production:application"
+# Check database connection before starting server
+startCommand = "python manage.py check_db --settings=gym_backend.settings_production && python manage.py migrate --settings=gym_backend.settings_production && python manage.py collectstatic --noinput --settings=gym_backend.settings_production && gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 120 gym_backend.wsgi_production:application"
 
 # Auto-deploy from GitHub
 [environments.production]

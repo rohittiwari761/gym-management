@@ -114,11 +114,11 @@ ALLOWED_HOSTS = [
 # Database Configuration - Railway PostgreSQL
 import dj_database_url
 
-# Railway provides DATABASE_URL automatically
+# Railway provides DATABASE_URL automatically when PostgreSQL service is added
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
 if DATABASE_URL:
-    # Use Railway's DATABASE_URL
+    # Use Railway's PostgreSQL DATABASE_URL
     DATABASES = {
         'default': dj_database_url.config(
             default=DATABASE_URL,
@@ -126,8 +126,12 @@ if DATABASE_URL:
             conn_health_checks=True,
         )
     }
+    # Log database engine for debugging
+    print(f"Using PostgreSQL database: {DATABASES['default']['ENGINE']}")
 else:
-    # Fallback to SQLite for local development
+    # IMPORTANT: This fallback should NOT be used in Railway production
+    # Add PostgreSQL service in Railway dashboard to get DATABASE_URL
+    print("WARNING: DATABASE_URL not found! Add PostgreSQL service in Railway dashboard.")
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
