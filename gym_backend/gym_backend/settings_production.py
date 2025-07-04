@@ -16,54 +16,57 @@ ALLOWED_HOSTS = [
     '127.0.0.1',
     '.gymmanagement.com',  # Production domain
     '.herokuapp.com',  # If using Heroku
+    '.railway.app',  # Railway deployment
+    '*',  # Allow all for now (restrict later)
 ]
 
-# Database Configuration - PostgreSQL with Connection Pooling
+# Database Configuration - Railway PostgreSQL
+import dj_database_url
+
+# Use Railway's DATABASE_URL if available, otherwise fall back to manual config
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config('DB_NAME', default='gym_db'),
-        'USER': config('DB_USER', default='gym_user'),
-        'PASSWORD': config('DB_PASSWORD', default='gym_password_2024'),
-        'HOST': config('DB_HOST', default='localhost'),
-        'PORT': config('DB_PORT', default='5432'),
-        'OPTIONS': {
-            'MAX_CONNS': 20,  # Connection pooling
-            'CONN_MAX_AGE': 300,  # Keep connections alive for 5 minutes
-        },
-    }
+    'default': dj_database_url.config(
+        default=f"postgresql://{config('DB_USER', default='gym_user')}:{config('DB_PASSWORD', default='gym_password_2024')}@{config('DB_HOST', default='localhost')}:{config('DB_PORT', default='5432')}/{config('DB_NAME', default='gym_db')}",
+        conn_max_age=300,
+        conn_health_checks=True,
+    )
 }
 
-# Redis Cache Configuration for High Performance
-CACHES = {
-    'default': {
-        'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': config('REDIS_URL', default='redis://127.0.0.1:6379/1'),
-        'OPTIONS': {
-            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-            'CONNECTION_POOL_KWARGS': {
-                'max_connections': 50,
-                'retry_on_timeout': True,
+# Redis Cache Configuration (Optional - fallback to database cache)
+REDIS_URL = config('REDIS_URL', default='')
+if REDIS_URL:
+    # Use Redis if available
+    CACHES = {
+        'default': {
+            'BACKEND': 'django_redis.cache.RedisCache',
+            'LOCATION': REDIS_URL,
+            'OPTIONS': {
+                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+                'CONNECTION_POOL_KWARGS': {
+                    'max_connections': 50,
+                    'retry_on_timeout': True,
+                },
+                'SERIALIZER': 'django_redis.serializers.json.JSONSerializer',
+                'COMPRESSOR': 'django_redis.compressors.zlib.ZlibCompressor',
             },
-            'SERIALIZER': 'django_redis.serializers.json.JSONSerializer',
-            'COMPRESSOR': 'django_redis.compressors.zlib.ZlibCompressor',
+            'KEY_PREFIX': 'gym_app',
+            'TIMEOUT': 300,  # 5 minutes default timeout
         },
-        'KEY_PREFIX': 'gym_app',
-        'TIMEOUT': 300,  # 5 minutes default timeout
-    },
-    'sessions': {
-        'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': config('REDIS_URL', default='redis://127.0.0.1:6379/2'),
-        'OPTIONS': {
-            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-        },
-        'KEY_PREFIX': 'gym_sessions',
     }
-}
+    # Use Redis for session storage
+    SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+    SESSION_CACHE_ALIAS = 'default'
+else:
+    # Fallback to database cache
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+            'LOCATION': 'cache_table',
+        }
+    }
+    # Use database for session storage
+    SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 
-# Use Redis for session storage
-SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
-SESSION_CACHE_ALIAS = 'sessions'
 SESSION_COOKIE_AGE = 86400  # 24 hours
 
 # Security Settings
@@ -217,21 +220,24 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 
-# Sentry Configuration for Error Monitoring
-import sentry_sdk
-from sentry_sdk.integrations.django import DjangoIntegration
-from sentry_sdk.integrations.redis import RedisIntegration
+# Sentry Configuration for Error Monitoring (Optional)
+# Only initialize Sentry if DSN is provided
+SENTRY_DSN = config('SENTRY_DSN', default='')
+if SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+    from sentry_sdk.integrations.redis import RedisIntegration
 
-sentry_sdk.init(
-    dsn=config('SENTRY_DSN', default=''),
-    integrations=[
-        DjangoIntegration(auto_enabling=True),
-        RedisIntegration(),
-    ],
-    traces_sample_rate=0.1,  # 10% of transactions for performance monitoring
-    send_default_pii=False,
-    environment=config('ENVIRONMENT', default='production'),
-)
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[
+            DjangoIntegration(),  # Removed auto_enabling parameter
+            RedisIntegration(),
+        ],
+        traces_sample_rate=0.1,  # 10% of transactions for performance monitoring
+        send_default_pii=False,
+        environment=config('ENVIRONMENT', default='production'),
+    )
 
 # Performance Optimization Settings
 USE_TZ = True

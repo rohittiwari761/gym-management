@@ -8,7 +8,8 @@ class SecurityConfig {
   
   // API Configuration
   static const String _devApiUrl = 'http://127.0.0.1:8000/api';
-  static const String _prodApiUrl = 'https://your-project-name.railway.app/api';
+  // Replace this with your actual Railway URL once deployed
+  static const String _prodApiUrl = 'https://gym-management-production-xxx.railway.app/api';
   
   static String get apiUrl => _isProduction ? _prodApiUrl : _devApiUrl;
   

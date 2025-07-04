@@ -4,6 +4,7 @@ djangorestframework==3.14.0
 
 # Database
 psycopg2-binary==2.9.9  # PostgreSQL adapter
+dj-database-url==2.1.0  # Parse DATABASE_URL for Railway/Heroku
 django-extensions==3.2.3  # Database shell plus and other utilities
 
 # Caching and Performance
