@@ -114,11 +114,16 @@ ALLOWED_HOSTS = [
 # Database Configuration - Railway PostgreSQL
 import dj_database_url
 
-# Railway provides DATABASE_URL automatically when PostgreSQL service is added
+# Try multiple ways to get PostgreSQL connection
 DATABASE_URL = os.environ.get('DATABASE_URL')
+PGHOST = os.environ.get('PGHOST')
+PGPORT = os.environ.get('PGPORT', '5432')
+PGDATABASE = os.environ.get('PGDATABASE', 'railway')
+PGUSER = os.environ.get('PGUSER', 'postgres')
+PGPASSWORD = os.environ.get('PGPASSWORD')
 
 if DATABASE_URL:
-    # Use Railway's PostgreSQL DATABASE_URL
+    # Method 1: Use DATABASE_URL if available
     DATABASES = {
         'default': dj_database_url.config(
             default=DATABASE_URL,
@@ -126,18 +131,34 @@ if DATABASE_URL:
             conn_health_checks=True,
         )
     }
-    # Log database engine for debugging
-    print(f"Using PostgreSQL database: {DATABASES['default']['ENGINE']}")
+    print(f"✅ Using DATABASE_URL: {DATABASE_URL[:50]}...")
+elif PGHOST and PGPASSWORD:
+    # Method 2: Build connection from individual variables
+    manual_database_url = f"postgresql://{PGUSER}:{PGPASSWORD}@{PGHOST}:{PGPORT}/{PGDATABASE}"
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=manual_database_url,
+            conn_max_age=300,
+            conn_health_checks=True,
+        )
+    }
+    print(f"✅ Using manual PostgreSQL connection: {PGHOST}")
 else:
-    # IMPORTANT: This fallback should NOT be used in Railway production
-    # Add PostgreSQL service in Railway dashboard to get DATABASE_URL
-    print("WARNING: DATABASE_URL not found! Add PostgreSQL service in Railway dashboard.")
+    # Method 3: Fallback to SQLite (only for development)
+    print("⚠️  WARNING: No PostgreSQL configuration found!")
+    print("⚠️  Add DATABASE_URL or PostgreSQL variables in Railway dashboard.")
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
+
+# Debug database configuration
+print(f"🔍 Database Engine: {DATABASES['default']['ENGINE']}")
+if 'postgresql' in DATABASES['default']['ENGINE']:
+    print(f"🐘 PostgreSQL Host: {DATABASES['default'].get('HOST', 'Unknown')}")
+    print(f"🐘 PostgreSQL Database: {DATABASES['default'].get('NAME', 'Unknown')}")
 
 # Redis Cache Configuration (Optional - fallback to database cache)
 REDIS_URL = config('REDIS_URL', default='')
