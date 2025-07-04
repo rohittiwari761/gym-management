@@ -51,6 +51,9 @@ def main():
         log(f"   Error output: {e.stderr}")
         sys.exit(1)
     
+    # Cache setup (using local memory cache - no table needed)
+    log("💾 Cache configured: Local memory cache for Railway")
+    
     # Create test user for authentication testing
     log("👤 Creating test gym owner...")
     try:

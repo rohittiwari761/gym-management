@@ -207,40 +207,22 @@ if 'postgresql' in DATABASES['default']['ENGINE']:
     print(f"🐘 PostgreSQL Host: {DATABASES['default'].get('HOST', 'Unknown')}")
     print(f"🐘 PostgreSQL Database: {DATABASES['default'].get('NAME', 'Unknown')}")
 
-# Redis Cache Configuration (Optional - fallback to database cache)
-REDIS_URL = config('REDIS_URL', default='')
-if REDIS_URL:
-    # Use Redis if available
-    CACHES = {
-        'default': {
-            'BACKEND': 'django_redis.cache.RedisCache',
-            'LOCATION': REDIS_URL,
-            'OPTIONS': {
-                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-                'CONNECTION_POOL_KWARGS': {
-                    'max_connections': 50,
-                    'retry_on_timeout': True,
-                },
-                'SERIALIZER': 'django_redis.serializers.json.JSONSerializer',
-                'COMPRESSOR': 'django_redis.compressors.zlib.ZlibCompressor',
-            },
-            'KEY_PREFIX': 'gym_app',
-            'TIMEOUT': 300,  # 5 minutes default timeout
-        },
-    }
-    # Use Redis for session storage
-    SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
-    SESSION_CACHE_ALIAS = 'default'
-else:
-    # Fallback to database cache
-    CACHES = {
-        'default': {
-            'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
-            'LOCATION': 'cache_table',
+# Cache Configuration - Simplified for Railway
+# Use local memory cache for simplicity (no Redis setup required)
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'gym-management-cache',
+        'TIMEOUT': 300,  # 5 minutes default timeout
+        'OPTIONS': {
+            'MAX_ENTRIES': 1000,
+            'CULL_FREQUENCY': 3,
         }
     }
-    # Use database for session storage
-    SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+}
+
+# Use database for session storage (simple and reliable)
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 
 SESSION_COOKIE_AGE = 86400  # 24 hours
 
