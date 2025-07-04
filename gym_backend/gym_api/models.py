@@ -32,6 +32,9 @@ class GymOwner(models.Model):
     is_active = models.BooleanField(default=True)
     qr_code_token = models.UUIDField(default=uuid.uuid4, unique=True)  # Unique QR token for gym
     profile_picture = models.ImageField(upload_to='gym_owner_profiles/', blank=True, null=True)
+    # Add base64 profile picture for Railway deployment (ephemeral storage)
+    profile_picture_base64 = models.TextField(blank=True, null=True, help_text="Base64 encoded profile picture for Railway deployment")
+    profile_picture_content_type = models.CharField(max_length=50, blank=True, null=True, help_text="Content type of the base64 image")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     

@@ -394,29 +394,40 @@ def gym_owner_upload_picture(request):
                 'error': f'Invalid file type. Only JPEG, PNG, GIF, and HEIC images are allowed. Received: {content_type}'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Save the uploaded file
+        # Save the uploaded file and also store as base64 for Railway
         print(f"💾 UPLOAD: Saving file to model...")
+        
+        # Store as base64 for reliable access on Railway
+        import base64
+        uploaded_file.seek(0)  # Reset file pointer
+        file_content = uploaded_file.read()
+        base64_content = base64.b64encode(file_content).decode('utf-8')
+        
         gym_owner.profile_picture = uploaded_file
+        gym_owner.profile_picture_base64 = base64_content
+        gym_owner.profile_picture_content_type = uploaded_file.content_type
         gym_owner.save()
         
         print(f"✅ UPLOAD: File saved successfully")
         print(f"📁 UPLOAD: File path: {gym_owner.profile_picture.name}")
+        print(f"💾 UPLOAD: Base64 length: {len(base64_content)} characters")
         print(f"🔗 UPLOAD: Relative URL: {gym_owner.profile_picture.url}")
         
         # Return updated profile data with full image URL
         serializer = GymOwnerSerializer(gym_owner, context={'request': request})
         
-        # Construct full image URL
-        image_url = None
-        if gym_owner.profile_picture and gym_owner.profile_picture.name:
-            try:
-                image_url = request.build_absolute_uri(gym_owner.profile_picture.url)
-                print(f'🖼️ Generated full image URL: {image_url}')
-            except Exception as e:
-                print(f'❌ Error generating image URL: {e}')
-                # Fallback to relative URL
-                image_url = gym_owner.profile_picture.url if hasattr(gym_owner.profile_picture, 'url') else None
-                print(f'🔄 Using fallback URL: {image_url}')
+        # Create a data URL for immediate use
+        data_url = f"data:{uploaded_file.content_type};base64,{base64_content}"
+        print(f'🖼️ Generated data URL (first 100 chars): {data_url[:100]}...')
+        
+        # Try to build traditional URL, but fallback to data URL
+        image_url = data_url  # Use data URL as primary
+        try:
+            traditional_url = request.build_absolute_uri(gym_owner.profile_picture.url)
+            print(f'🔗 Traditional URL: {traditional_url}')
+            # Could test accessibility here, but for now use data URL
+        except Exception as e:
+            print(f'❌ Error generating traditional URL: {e}')
         
         return Response({
             'success': True,

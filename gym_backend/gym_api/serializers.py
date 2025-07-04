@@ -30,7 +30,14 @@ class GymOwnerSerializer(serializers.ModelSerializer):
         return obj.equipment.filter(is_working=True).count()
     
     def get_profile_picture_url(self, obj):
-        """Get the full URL for the profile picture"""
+        """Get the full URL for the profile picture - prefer base64 data URL for Railway"""
+        # First try base64 data URL (works reliably on Railway)
+        if obj.profile_picture_base64 and obj.profile_picture_content_type:
+            data_url = f"data:{obj.profile_picture_content_type};base64,{obj.profile_picture_base64}"
+            print(f'🖼️ Using base64 data URL for profile picture')
+            return data_url
+        
+        # Fallback to traditional file URL
         if obj.profile_picture and obj.profile_picture.name:
             request = self.context.get('request')
             if request:
