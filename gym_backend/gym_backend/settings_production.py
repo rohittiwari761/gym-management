@@ -22,15 +22,32 @@ ALLOWED_HOSTS = [
 
 # Database Configuration - Railway PostgreSQL
 import dj_database_url
+import os
 
-# Use Railway's DATABASE_URL if available, otherwise fall back to manual config
-DATABASES = {
-    'default': dj_database_url.config(
-        default=f"postgresql://{config('DB_USER', default='gym_user')}:{config('DB_PASSWORD', default='gym_password_2024')}@{config('DB_HOST', default='localhost')}:{config('DB_PORT', default='5432')}/{config('DB_NAME', default='gym_db')}",
-        conn_max_age=300,
-        conn_health_checks=True,
-    )
-}
+# Railway provides DATABASE_URL automatically
+DATABASE_URL = os.environ.get('DATABASE_URL')
+
+if DATABASE_URL:
+    # Use Railway's DATABASE_URL
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=DATABASE_URL,
+            conn_max_age=300,
+            conn_health_checks=True,
+        )
+    }
+else:
+    # Fallback for local development
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': config('DB_NAME', default='gym_db'),
+            'USER': config('DB_USER', default='gym_user'),
+            'PASSWORD': config('DB_PASSWORD', default='gym_password_2024'),
+            'HOST': config('DB_HOST', default='localhost'),
+            'PORT': config('DB_PORT', default='5432'),
+        }
+    }
 
 # Redis Cache Configuration (Optional - fallback to database cache)
 REDIS_URL = config('REDIS_URL', default='')
