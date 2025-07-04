@@ -96,7 +96,21 @@ class ApiService {
       final response = await _httpClient.get('members/', requireAuth: true);
 
       if (response.isSuccess && response.data != null) {
-        final List<dynamic> jsonList = response.data as List<dynamic>;
+        // Handle Django pagination format: {"count": X, "results": [...]}
+        final responseData = response.data;
+        List<dynamic> jsonList;
+        
+        if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
+          // Paginated response from Django REST Framework
+          jsonList = responseData['results'] as List<dynamic>;
+          print('📊 API: Received paginated response with ${responseData['count']} total members');
+        } else if (responseData is List<dynamic>) {
+          // Direct list response (fallback)
+          jsonList = responseData;
+        } else {
+          throw Exception('Unexpected response format');
+        }
+        
         SecurityConfig.logSecurityEvent('MEMBERS_LOADED', {
           'count': jsonList.length,
         });
@@ -181,7 +195,21 @@ class ApiService {
       final response = await _httpClient.get('trainers/', requireAuth: true);
 
       if (response.isSuccess && response.data != null) {
-        final List<dynamic> jsonList = response.data as List<dynamic>;
+        // Handle Django pagination format: {"count": X, "results": [...]}
+        final responseData = response.data;
+        List<dynamic> jsonList;
+        
+        if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
+          // Paginated response from Django REST Framework
+          jsonList = responseData['results'] as List<dynamic>;
+          print('📊 API: Received paginated response with ${responseData['count']} total trainers');
+        } else if (responseData is List<dynamic>) {
+          // Direct list response (fallback)
+          jsonList = responseData;
+        } else {
+          throw Exception('Unexpected response format');
+        }
+        
         return jsonList.map((json) => Trainer.fromJson(json)).toList();
       } else {
         throw Exception(response.errorMessage ?? 'Failed to load trainers');
@@ -199,7 +227,21 @@ class ApiService {
       final response = await _httpClient.get('trainers/available/', requireAuth: true);
 
       if (response.isSuccess && response.data != null) {
-        final List<dynamic> jsonList = response.data as List<dynamic>;
+        // Handle Django pagination format: {"count": X, "results": [...]}
+        final responseData = response.data;
+        List<dynamic> jsonList;
+        
+        if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
+          // Paginated response from Django REST Framework
+          jsonList = responseData['results'] as List<dynamic>;
+          print('📊 API: Received paginated response with ${responseData['count']} available trainers');
+        } else if (responseData is List<dynamic>) {
+          // Direct list response (fallback)
+          jsonList = responseData;
+        } else {
+          throw Exception('Unexpected response format');
+        }
+        
         return jsonList.map((json) => Trainer.fromJson(json)).toList();
       } else {
         throw Exception(response.errorMessage ?? 'Failed to load available trainers');
@@ -355,7 +397,21 @@ class ApiService {
       final response = await _httpClient.get('equipment/', requireAuth: true);
 
       if (response.isSuccess && response.data != null) {
-        final List<dynamic> jsonList = response.data as List<dynamic>;
+        // Handle Django pagination format: {"count": X, "results": [...]}
+        final responseData = response.data;
+        List<dynamic> jsonList;
+        
+        if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
+          // Paginated response from Django REST Framework
+          jsonList = responseData['results'] as List<dynamic>;
+          print('📊 API: Received paginated response with ${responseData['count']} total equipment');
+        } else if (responseData is List<dynamic>) {
+          // Direct list response (fallback)
+          jsonList = responseData;
+        } else {
+          throw Exception('Unexpected response format');
+        }
+        
         return jsonList.map((json) => Equipment.fromJson(json)).toList();
       } else {
         throw Exception(response.errorMessage ?? 'Failed to load equipment');
@@ -370,7 +426,21 @@ class ApiService {
       final response = await _httpClient.get('equipment/working/', requireAuth: true);
 
       if (response.isSuccess && response.data != null) {
-        final List<dynamic> jsonList = response.data as List<dynamic>;
+        // Handle Django pagination format: {"count": X, "results": [...]}
+        final responseData = response.data;
+        List<dynamic> jsonList;
+        
+        if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
+          // Paginated response from Django REST Framework
+          jsonList = responseData['results'] as List<dynamic>;
+          print('📊 API: Received paginated response with ${responseData['count']} working equipment');
+        } else if (responseData is List<dynamic>) {
+          // Direct list response (fallback)
+          jsonList = responseData;
+        } else {
+          throw Exception('Unexpected response format');
+        }
+        
         return jsonList.map((json) => Equipment.fromJson(json)).toList();
       } else {
         throw Exception(response.errorMessage ?? 'Failed to load working equipment');
@@ -386,7 +456,21 @@ class ApiService {
       final response = await _httpClient.get('workout-sessions/upcoming/', requireAuth: true);
 
       if (response.isSuccess && response.data != null) {
-        final List<dynamic> jsonList = response.data as List<dynamic>;
+        // Handle Django pagination format: {"count": X, "results": [...]}
+        final responseData = response.data;
+        List<dynamic> jsonList;
+        
+        if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
+          // Paginated response from Django REST Framework
+          jsonList = responseData['results'] as List<dynamic>;
+          print('📊 API: Received paginated response with ${responseData['count']} upcoming sessions');
+        } else if (responseData is List<dynamic>) {
+          // Direct list response (fallback)
+          jsonList = responseData;
+        } else {
+          throw Exception('Unexpected response format');
+        }
+        
         return jsonList.map((json) => WorkoutSession.fromJson(json)).toList();
       } else {
         throw Exception(response.errorMessage ?? 'Failed to load upcoming sessions');
@@ -588,7 +672,21 @@ class ApiService {
       final response = await _httpClient.get('trainer-member-associations/active/', requireAuth: true);
 
       if (response.isSuccess && response.data != null) {
-        final List<dynamic> jsonList = response.data as List<dynamic>;
+        // Handle Django pagination format: {"count": X, "results": [...]}
+        final responseData = response.data;
+        List<dynamic> jsonList;
+        
+        if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
+          // Paginated response from Django REST Framework
+          jsonList = responseData['results'] as List<dynamic>;
+          print('📊 API: Received paginated response with ${responseData['count']} trainer-member associations');
+        } else if (responseData is List<dynamic>) {
+          // Direct list response (fallback)
+          jsonList = responseData;
+        } else {
+          throw Exception('Unexpected response format');
+        }
+        
         return jsonList.cast<Map<String, dynamic>>();
       } else {
         throw Exception(response.errorMessage ?? 'Failed to load associations');
@@ -612,7 +710,21 @@ class ApiService {
       final response = await _httpClient.get('trainers/$trainerId/members/', requireAuth: true);
 
       if (response.isSuccess && response.data != null) {
-        final List<dynamic> jsonList = response.data as List<dynamic>;
+        // Handle Django pagination format: {"count": X, "results": [...]}
+        final responseData = response.data;
+        List<dynamic> jsonList;
+        
+        if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
+          // Paginated response from Django REST Framework
+          jsonList = responseData['results'] as List<dynamic>;
+          print('📊 API: Received paginated response with ${responseData['count']} trainer members');
+        } else if (responseData is List<dynamic>) {
+          // Direct list response (fallback)
+          jsonList = responseData;
+        } else {
+          throw Exception('Unexpected response format');
+        }
+        
         return jsonList.cast<Map<String, dynamic>>();
       } else {
         throw Exception(response.errorMessage ?? 'Failed to load trainer members');

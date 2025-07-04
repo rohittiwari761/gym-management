@@ -17,6 +17,8 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from django.http import JsonResponse
+from django.conf import settings
+from django.conf.urls.static import static
 from gym_api.simple_health import simple_health_check, live_check
 
 def ultra_simple_health(request):
@@ -37,3 +39,11 @@ urlpatterns = [
     path('health-detailed/', simple_health_check, name='detailed_health'),
     path('live/', live_check, name='live_check'),
 ]
+
+# Serve media files in development and production
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+else:
+    # For production (Railway), also serve media files
+    # Railway doesn't have a separate media server, so Django needs to serve them
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -207,7 +207,7 @@ def gym_owner_profile(request):
             }, status=status.HTTP_403_FORBIDDEN)
         
         gym_owner = request.user.gymowner
-        serializer = GymOwnerSerializer(gym_owner)
+        serializer = GymOwnerSerializer(gym_owner, context={'request': request})
         
         return Response({
             'success': True,
@@ -365,18 +365,45 @@ def gym_owner_upload_picture(request):
         
         gym_owner = request.user.gymowner
         
-        # TODO: Add file validation (size, format, etc.)
-        # For now, just save the uploaded file
-        gym_owner.profile_picture = request.FILES['profile_picture']
+        # Basic file validation
+        uploaded_file = request.FILES['profile_picture']
+        
+        # Check file size (max 5MB)
+        if uploaded_file.size > 5 * 1024 * 1024:
+            return Response({
+                'error': 'File size too large. Maximum size is 5MB.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check file type
+        allowed_types = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif']
+        if uploaded_file.content_type not in allowed_types:
+            return Response({
+                'error': 'Invalid file type. Only JPEG, PNG, and GIF images are allowed.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Save the uploaded file
+        gym_owner.profile_picture = uploaded_file
         gym_owner.save()
         
-        # Return updated profile data
-        serializer = GymOwnerSerializer(gym_owner)
+        # Return updated profile data with full image URL
+        serializer = GymOwnerSerializer(gym_owner, context={'request': request})
+        
+        # Construct full image URL
+        image_url = None
+        if gym_owner.profile_picture and gym_owner.profile_picture.name:
+            try:
+                image_url = request.build_absolute_uri(gym_owner.profile_picture.url)
+                print(f'🖼️ Generated image URL: {image_url}')
+            except Exception as e:
+                print(f'❌ Error generating image URL: {e}')
+                # Fallback to relative URL
+                image_url = gym_owner.profile_picture.url if hasattr(gym_owner.profile_picture, 'url') else None
         
         return Response({
             'success': True,
             'message': 'Profile picture uploaded successfully',
             'gym_owner': serializer.data,
+            'profile_picture_url': image_url,
             'user': {
                 'id': request.user.id,
                 'email': request.user.email,

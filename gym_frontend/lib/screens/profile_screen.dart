@@ -146,10 +146,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 child: CircleAvatar(
                                   radius: 56,
                                   backgroundColor: Colors.grey[300],
-                                  backgroundImage: profile.profilePicture != null
+                                  backgroundImage: profile.profilePicture != null && profile.profilePicture!.isNotEmpty
                                       ? NetworkImage(profile.profilePicture!)
                                       : null,
-                                  child: profile.profilePicture == null
+                                  onBackgroundImageError: (error, stackTrace) {
+                                    print('❌ Error loading profile image: $error');
+                                    // Image will fall back to initials automatically
+                                  },
+                                  child: profile.profilePicture == null || profile.profilePicture!.isEmpty
                                       ? Text(
                                           profile.fullName.isNotEmpty
                                               ? profile.fullName[0].toUpperCase()
@@ -491,20 +495,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (image != null && mounted && _profileProvider != null) {
         final File imageFile = File(image.path);
         
-        // Clear image cache before uploading new image
-        if (_profileProvider!.currentProfile?.profilePicture != null) {
-          await precacheImage(NetworkImage(_profileProvider!.currentProfile!.profilePicture!), context)
-              .then((_) => imageCache.clear());
-        }
+        // Store old image URL for cache eviction
+        final oldImageUrl = _profileProvider!.currentProfile?.profilePicture;
         
+        print('🔄 Starting profile picture upload...');
         final success = await _profileProvider!.uploadProfilePicture(imageFile);
         
         if (success && mounted && _profileProvider != null) {
+          print('✅ Upload successful, refreshing profile...');
+          
+          // Evict old image from cache if it exists
+          if (oldImageUrl != null && oldImageUrl.isNotEmpty) {
+            imageCache.evict(NetworkImage(oldImageUrl));
+            print('🗑️ Evicted old image from cache: $oldImageUrl');
+          }
+          
           // Force refresh the profile to get the updated image URL
           await _profileProvider!.fetchCurrentProfile();
           
-          // Clear cache again to ensure new image loads
-          imageCache.clear();
+          // Evict new image URL from cache to force reload
+          final newImageUrl = _profileProvider!.currentProfile?.profilePicture;
+          if (newImageUrl != null && newImageUrl.isNotEmpty) {
+            imageCache.evict(NetworkImage(newImageUrl));
+            print('🔄 Evicted new image from cache to force reload: $newImageUrl');
+          }
+          
+          // Force rebuild to show updated image
+          if (mounted) {
+            setState(() {});
+          }
         }
         
         if (mounted && _scaffoldMessenger != null) {

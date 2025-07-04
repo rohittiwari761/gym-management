@@ -18,7 +18,21 @@ class PaymentService {
       final response = await _httpClient.get('payments/');
 
       if (response.isSuccess && response.data != null) {
-        final List<dynamic> jsonList = response.data as List<dynamic>;
+        // Handle Django pagination format: {"count": X, "results": [...]}
+        final responseData = response.data;
+        List<dynamic> jsonList;
+        
+        if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
+          // Paginated response from Django REST Framework
+          jsonList = responseData['results'] as List<dynamic>;
+          print('📊 API: Received paginated response with ${responseData['count']} total payments');
+        } else if (responseData is List<dynamic>) {
+          // Direct list response (fallback)
+          jsonList = responseData;
+        } else {
+          throw Exception('Unexpected response format');
+        }
+        
         return jsonList.map((json) => Payment.fromJson(json)).toList();
       } else {
         throw Exception(response.errorMessage ?? 'Failed to load payments');
@@ -126,8 +140,22 @@ class PaymentService {
       final response = await _httpClient.get('payments/monthly/$year/');
 
       if (response.isSuccess && response.data != null) {
-        final List<dynamic> data = response.data as List<dynamic>;
-        return data.cast<Map<String, dynamic>>();
+        // Handle Django pagination format: {"count": X, "results": [...]}
+        final responseData = response.data;
+        List<dynamic> jsonList;
+        
+        if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
+          // Paginated response from Django REST Framework
+          jsonList = responseData['results'] as List<dynamic>;
+          print('📊 API: Received paginated response with ${responseData['count']} monthly payments for year $year');
+        } else if (responseData is List<dynamic>) {
+          // Direct list response (fallback)
+          jsonList = responseData;
+        } else {
+          throw Exception('Unexpected response format');
+        }
+        
+        return jsonList.cast<Map<String, dynamic>>();
       } else {
         throw Exception(response.errorMessage ?? 'Failed to fetch monthly payments');
       }

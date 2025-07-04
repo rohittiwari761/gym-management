@@ -42,6 +42,21 @@ class UserProfileProvider with ChangeNotifier {
           final user = data['user'];
           
           // Map Django response to UserProfile
+          // Handle profile picture URL - prefer full URL from serializer
+          String? profilePictureUrl = gymOwner['profile_picture_url'];
+          
+          // Fallback to building URL manually if needed
+          if (profilePictureUrl == null && gymOwner['profile_picture'] != null) {
+            final pictureUrl = gymOwner['profile_picture'].toString();
+            if (pictureUrl.startsWith('http')) {
+              // Already a full URL
+              profilePictureUrl = pictureUrl;
+            } else if (pictureUrl.isNotEmpty) {
+              // Relative URL, make it absolute
+              profilePictureUrl = '${SecurityConfig.apiUrl.replaceAll('/api', '')}$pictureUrl';
+            }
+          }
+          
           final profileData = {
             'id': user['id'],
             'first_name': user['first_name'],
@@ -49,7 +64,7 @@ class UserProfileProvider with ChangeNotifier {
             'email': user['email'],
             'phone': gymOwner['phone_number'],
             'address': gymOwner['gym_address'],
-            'profile_picture': gymOwner['profile_picture'],
+            'profile_picture': profilePictureUrl,
             'role': 'admin', // Gym owners are admins
             'date_of_birth': null, // Not in gym owner model
             'gender': null, // Not in gym owner model  
@@ -206,10 +221,11 @@ class UserProfileProvider with ChangeNotifier {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        // Django returns {success: true, gym_owner: {...}, user: {...}}
+        // Django returns {success: true, gym_owner: {...}, user: {...}, profile_picture_url: "..."}
         if (data['success'] == true) {
           final gymOwner = data['gym_owner'];
           final user = data['user'];
+          final profilePictureUrl = data['profile_picture_url']; // New field from backend
           
           // Map Django response to UserProfile
           final profileData = {
@@ -219,7 +235,7 @@ class UserProfileProvider with ChangeNotifier {
             'email': user['email'],
             'phone': gymOwner['phone_number'],
             'address': gymOwner['gym_address'],
-            'profile_picture': gymOwner['profile_picture'],
+            'profile_picture': profilePictureUrl ?? gymOwner['profile_picture'], // Use full URL if available
             'role': 'admin',
             'date_of_birth': null,
             'gender': null,
@@ -236,6 +252,7 @@ class UserProfileProvider with ChangeNotifier {
           _isLoading = false;
           notifyListeners();
           print('✅ Profile picture uploaded successfully');
+          print('🖼️ New profile picture URL: $profilePictureUrl');
           return true;
         } else {
           _errorMessage = 'Failed to upload profile picture: ${data['error'] ?? 'Unknown error'}';

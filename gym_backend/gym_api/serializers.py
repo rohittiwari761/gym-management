@@ -14,6 +14,7 @@ class GymOwnerSerializer(serializers.ModelSerializer):
     total_members = serializers.SerializerMethodField()
     total_trainers = serializers.SerializerMethodField()
     total_equipment = serializers.SerializerMethodField()
+    profile_picture_url = serializers.SerializerMethodField()
     
     class Meta:
         model = GymOwner
@@ -27,6 +28,20 @@ class GymOwnerSerializer(serializers.ModelSerializer):
     
     def get_total_equipment(self, obj):
         return obj.equipment.filter(is_working=True).count()
+    
+    def get_profile_picture_url(self, obj):
+        """Get the full URL for the profile picture"""
+        if obj.profile_picture and obj.profile_picture.name:
+            request = self.context.get('request')
+            if request:
+                try:
+                    return request.build_absolute_uri(obj.profile_picture.url)
+                except Exception as e:
+                    print(f'❌ Error building profile picture URL: {e}')
+                    return obj.profile_picture.url
+            else:
+                return obj.profile_picture.url
+        return None
     
     def create(self, validated_data):
         # Extract user data from request
