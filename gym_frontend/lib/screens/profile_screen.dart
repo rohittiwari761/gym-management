@@ -490,6 +490,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         maxWidth: 800,
         maxHeight: 800,
         imageQuality: 85,
+        preferredCameraDevice: CameraDevice.front, // Better for profile pics
+        requestFullMetadata: false, // Reduce file size
       );
 
       if (image != null && mounted && _profileProvider != null) {

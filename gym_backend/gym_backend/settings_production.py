@@ -30,6 +30,7 @@ MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
+    'gym_api.middleware.ServeMediaMiddleware',  # Custom media file serving
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -343,8 +344,19 @@ STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
+# Media files configuration - Railway deployment
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# Ensure media directory exists
+os.makedirs(MEDIA_ROOT, exist_ok=True)
+print(f"📁 MEDIA_ROOT: {MEDIA_ROOT}")
+print(f"🌐 MEDIA_URL: {MEDIA_URL}")
+
+# For Railway, we need to ensure WhiteNoise can serve media files in production
+# Add media files to WhiteNoise configuration
+WHITENOISE_USE_FINDERS = True
+WHITENOISE_AUTOREFRESH = True
 
 # CORS Configuration for Production
 CORS_ALLOW_ALL_ORIGINS = False

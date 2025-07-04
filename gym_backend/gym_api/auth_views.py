@@ -368,22 +368,40 @@ def gym_owner_upload_picture(request):
         # Basic file validation
         uploaded_file = request.FILES['profile_picture']
         
+        print(f"📤 UPLOAD: File name: {uploaded_file.name}")
+        print(f"📤 UPLOAD: File size: {uploaded_file.size} bytes")
+        print(f"📤 UPLOAD: Content type: {uploaded_file.content_type}")
+        
         # Check file size (max 5MB)
         if uploaded_file.size > 5 * 1024 * 1024:
             return Response({
                 'error': 'File size too large. Maximum size is 5MB.'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Check file type
-        allowed_types = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif']
-        if uploaded_file.content_type not in allowed_types:
+        # Check file type - be more flexible with iOS formats
+        allowed_types = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/heic', 'image/heif']
+        content_type = uploaded_file.content_type.lower() if uploaded_file.content_type else ''
+        
+        # Also check file extension as fallback
+        file_name = uploaded_file.name.lower() if uploaded_file.name else ''
+        allowed_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.heic', '.heif']
+        
+        type_valid = content_type in allowed_types or any(file_name.endswith(ext) for ext in allowed_extensions)
+        
+        if not type_valid:
+            print(f"❌ UPLOAD: Invalid file type - Content-Type: {content_type}, Filename: {file_name}")
             return Response({
-                'error': 'Invalid file type. Only JPEG, PNG, and GIF images are allowed.'
+                'error': f'Invalid file type. Only JPEG, PNG, GIF, and HEIC images are allowed. Received: {content_type}'
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # Save the uploaded file
+        print(f"💾 UPLOAD: Saving file to model...")
         gym_owner.profile_picture = uploaded_file
         gym_owner.save()
+        
+        print(f"✅ UPLOAD: File saved successfully")
+        print(f"📁 UPLOAD: File path: {gym_owner.profile_picture.name}")
+        print(f"🔗 UPLOAD: Relative URL: {gym_owner.profile_picture.url}")
         
         # Return updated profile data with full image URL
         serializer = GymOwnerSerializer(gym_owner, context={'request': request})
@@ -393,11 +411,12 @@ def gym_owner_upload_picture(request):
         if gym_owner.profile_picture and gym_owner.profile_picture.name:
             try:
                 image_url = request.build_absolute_uri(gym_owner.profile_picture.url)
-                print(f'🖼️ Generated image URL: {image_url}')
+                print(f'🖼️ Generated full image URL: {image_url}')
             except Exception as e:
                 print(f'❌ Error generating image URL: {e}')
                 # Fallback to relative URL
                 image_url = gym_owner.profile_picture.url if hasattr(gym_owner.profile_picture, 'url') else None
+                print(f'🔄 Using fallback URL: {image_url}')
         
         return Response({
             'success': True,
