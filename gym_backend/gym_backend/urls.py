@@ -16,13 +16,19 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.http import JsonResponse
 from gym_api.simple_health import simple_health_check, live_check
+
+def ultra_simple_health(request):
+    """Ultra simple health check - just return 200."""
+    return JsonResponse({'status': 'ok'})
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('gym_api.urls')),
     
-    # Simple health endpoints for Railway
-    path('health/', simple_health_check, name='health_check'),
+    # Ultra simple health endpoints for Railway
+    path('health/', ultra_simple_health, name='ultra_health'),
+    path('health-detailed/', simple_health_check, name='detailed_health'),
     path('live/', live_check, name='live_check'),
 ]
