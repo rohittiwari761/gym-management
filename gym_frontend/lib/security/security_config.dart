@@ -11,7 +11,8 @@ class SecurityConfig {
   // Railway deployment URL
   static const String _prodApiUrl = 'https://gym-management-production-4343.up.railway.app/api';
   
-  static String get apiUrl => _isProduction ? _prodApiUrl : _devApiUrl;
+  // Force Railway URL for testing (change back to _isProduction check if needed)
+  static String get apiUrl => _prodApiUrl; // Always use Railway for now
   
   // Security Settings
   static const int tokenExpiryDuration = 3600; // 1 hour in seconds
