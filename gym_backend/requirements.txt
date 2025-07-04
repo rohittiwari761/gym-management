@@ -1,6 +1,7 @@
 # Core Django packages
 Django==4.2.23
 djangorestframework==3.14.0
+django-filter==23.5  # Required for DRF filter backends
 
 # Database
 psycopg2-binary==2.9.9  # PostgreSQL adapter
