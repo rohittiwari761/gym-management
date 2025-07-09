@@ -260,6 +260,15 @@ class GoogleAuthService {
           };
         }
       } else {
+        // Check if it's a 404 error (Google auth endpoint not available)
+        if (response.statusCode == 404) {
+          print('⚠️ GOOGLE_AUTH: Google authentication endpoint not available on server');
+          return {
+            'success': false,
+            'error': 'Google Sign-In is temporarily unavailable. Please use email registration instead.',
+          };
+        }
+        
         return {
           'success': false,
           'error': response.errorMessage ?? 'Google authentication failed',
