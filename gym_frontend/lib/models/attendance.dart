@@ -1,3 +1,5 @@
+import '../utils/timezone_utils.dart';
+
 class Attendance {
   final int? id;
   final int memberId;
@@ -100,12 +102,14 @@ class Attendance {
   }
 
   String get checkInTimeFormatted {
-    return '${checkInTime.hour.toString().padLeft(2, '0')}:${checkInTime.minute.toString().padLeft(2, '0')}';
+    final istTime = TimezoneUtils.toIST(checkInTime);
+    return '${istTime.hour.toString().padLeft(2, '0')}:${istTime.minute.toString().padLeft(2, '0')} IST';
   }
 
   String get checkOutTimeFormatted {
     if (checkOutTime == null) return '--:--';
-    return '${checkOutTime!.hour.toString().padLeft(2, '0')}:${checkOutTime!.minute.toString().padLeft(2, '0')}';
+    final istTime = TimezoneUtils.toIST(checkOutTime!);
+    return '${istTime.hour.toString().padLeft(2, '0')}:${istTime.minute.toString().padLeft(2, '0')} IST';
   }
 }
 

@@ -1,5 +1,5 @@
 name: gym_management
-description: A cross-platform gym management application
+description: A comprehensive gym management application with member tracking, trainer management, equipment monitoring, and attendance system.
 
 version: 1.0.0+1
 
@@ -31,8 +31,14 @@ dependencies:
   # Image handling
   image_picker: ^1.0.7
   
-  # QR Code scanning
+  # QR Code scanning (mobile only)
   qr_code_scanner: ^1.0.1
+  
+  # Google Sign-In
+  google_sign_in: ^6.2.1
+  
+  # Web QR Code alternative
+  qr_flutter: ^4.1.0
 
 dev_dependencies:
   flutter_test:

@@ -162,44 +162,72 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      InkWell(
-                        onTap: () => _selectDateOfBirth(),
-                        child: InputDecorator(
-                          decoration: const InputDecoration(
-                            labelText: 'Date of Birth (Optional)',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.cake),
-                          ),
-                          child: Text(
-                            _dateOfBirth != null
-                                ? DateFormat('MMM dd, yyyy').format(_dateOfBirth!)
-                                : 'Select Date of Birth',
-                            style: TextStyle(
-                              color: _dateOfBirth != null ? Colors.black : Colors.grey[600],
+                      // Show Date of Birth and Gender fields only for non-admin users
+                      if (widget.profile.role != 'admin') ...[
+                        InkWell(
+                          onTap: () => _selectDateOfBirth(),
+                          child: InputDecorator(
+                            decoration: const InputDecoration(
+                              labelText: 'Date of Birth (Optional)',
+                              border: OutlineInputBorder(),
+                              prefixIcon: Icon(Icons.cake),
+                            ),
+                            child: Text(
+                              _dateOfBirth != null
+                                  ? DateFormat('MMM dd, yyyy').format(_dateOfBirth!)
+                                  : 'Select Date of Birth',
+                              style: TextStyle(
+                                color: _dateOfBirth != null ? Colors.black : Colors.grey[600],
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      DropdownButtonFormField<String>(
-                        value: _gender,
-                        decoration: const InputDecoration(
-                          labelText: 'Gender (Optional)',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.person_outline),
+                        const SizedBox(height: 16),
+                        DropdownButtonFormField<String>(
+                          value: _gender,
+                          decoration: const InputDecoration(
+                            labelText: 'Gender (Optional)',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.person_outline),
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: null, child: Text('Select Gender')),
+                            DropdownMenuItem(value: 'Male', child: Text('Male')),
+                            DropdownMenuItem(value: 'Female', child: Text('Female')),
+                            DropdownMenuItem(value: 'Other', child: Text('Other')),
+                          ],
+                          onChanged: (value) {
+                            setState(() {
+                              _gender = value;
+                            });
+                          },
                         ),
-                        items: const [
-                          DropdownMenuItem(value: null, child: Text('Select Gender')),
-                          DropdownMenuItem(value: 'Male', child: Text('Male')),
-                          DropdownMenuItem(value: 'Female', child: Text('Female')),
-                          DropdownMenuItem(value: 'Other', child: Text('Other')),
-                        ],
-                        onChanged: (value) {
-                          setState(() {
-                            _gender = value;
-                          });
-                        },
-                      ),
+                      ] else ...[
+                        // Show informational message for gym owners
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.blue.shade200),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.info_outline, color: Colors.blue.shade700),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'Date of Birth and Gender fields are not applicable for gym owner profiles.',
+                                  style: TextStyle(
+                                    color: Colors.blue.shade700,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -413,8 +441,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         email: _emailController.text.trim(),
         phone: _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
         address: _addressController.text.trim().isEmpty ? null : _addressController.text.trim(),
-        dateOfBirth: _dateOfBirth,
-        gender: _gender,
+        dateOfBirth: widget.profile.role == 'admin' ? null : _dateOfBirth,
+        gender: widget.profile.role == 'admin' ? null : _gender,
         gymName: _gymNameController.text.trim().isEmpty ? null : _gymNameController.text.trim(),
         gymDescription: _gymDescriptionController.text.trim().isEmpty ? null : _gymDescriptionController.text.trim(),
         gymEstablishedDate: _gymEstablishedDate,

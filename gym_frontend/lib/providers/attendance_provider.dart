@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import '../models/attendance.dart';
 import '../models/member.dart';
 import '../services/api_service.dart';
+import '../utils/timezone_utils.dart';
 
 class AttendanceProvider with ChangeNotifier {
   final ApiService _apiService = ApiService();
@@ -11,7 +12,7 @@ class AttendanceProvider with ChangeNotifier {
   AttendanceStats? _stats;
   bool _isLoading = false;
   String _errorMessage = '';
-  DateTime _selectedDate = DateTime.now();
+  DateTime _selectedDate = TimezoneUtils.todayIST;
   List<Member> _members = []; // Cache members for name resolution
 
   List<Attendance> get attendances => _attendances;
@@ -32,10 +33,14 @@ class AttendanceProvider with ChangeNotifier {
   Future<void> fetchAttendances({DateTime? date}) async {
     _setLoading(true);
     try {
-      print('📋 ATTENDANCE: Fetching attendances for ${date ?? 'today'}...');
+      final dateForDisplay = date != null ? TimezoneUtils.formatISTDate(date) : 'today';
+      print('📋 ATTENDANCE: Fetching attendances for $dateForDisplay...');
+      
+      // Clear previous data to avoid confusion
+      _attendances.clear();
       
       final response = await _apiService.getAttendances(
-        date: date ?? DateTime.now(),
+        date: date, // Don't default to DateTime.now() here
       );
       
       if (response['success'] == true) {
@@ -44,36 +49,45 @@ class AttendanceProvider with ChangeNotifier {
             .toList();
         
         // Debug: Check member names after parsing
+        print('📋 ATTENDANCE: Fetched ${_attendances.length} attendances for $dateForDisplay');
         for (final attendance in _attendances) {
-          print('📋 ATTENDANCE: Parsed attendance - Member ID: ${attendance.memberId}, Name: "${attendance.memberName}"');
+          final attendanceDate = TimezoneUtils.formatISTDate(attendance.checkInTime);
+          print('📋 ATTENDANCE: Member ID: ${attendance.memberId}, Name: "${attendance.memberName}", Date: $attendanceDate');
         }
         
-        // Always fetch today's attendance separately to ensure fresh data
-        final todayResponse = await _apiService.getTodayAttendances();
-        if (todayResponse['success'] == true) {
-          _todayAttendances = (todayResponse['data'] as List)
-              .map((item) => Attendance.fromJson(item))
-              .toList();
-          
-          // Debug: Check today's member names after parsing
-          for (final attendance in _todayAttendances) {
-            print('📋 TODAY ATTENDANCE: Parsed attendance - Member ID: ${attendance.memberId}, Name: "${attendance.memberName}"');
+        // Only fetch today's attendance if no specific date was requested
+        if (date == null) {
+          final todayResponse = await _apiService.getTodayAttendances();
+          if (todayResponse['success'] == true) {
+            _todayAttendances = (todayResponse['data'] as List)
+                .map((item) => Attendance.fromJson(item))
+                .toList();
+            
+            // Debug: Check today's member names after parsing
+            for (final attendance in _todayAttendances) {
+              print('📋 TODAY ATTENDANCE: Parsed attendance - Member ID: ${attendance.memberId}, Name: "${attendance.memberName}"');
+            }
+            
+            print('✅ ATTENDANCE: Loaded ${_todayAttendances.length} today\'s attendances (${_todayAttendances.where((a) => a.isCheckedIn).length} checked in, ${_todayAttendances.where((a) => a.isCheckedOut).length} checked out)');
+          } else {
+            // Only fallback to filtering if we're actually fetching today's data
+            final today = DateTime.now();
+            final todayAttendances = await _apiService.getAttendances(date: today);
+            if (todayAttendances['success'] == true) {
+              _todayAttendances = (todayAttendances['data'] as List)
+                  .map((item) => Attendance.fromJson(item))
+                  .toList();
+            } else {
+              _todayAttendances = [];
+            }
           }
-          
-          print('✅ ATTENDANCE: Loaded ${_todayAttendances.length} today\'s attendances (${_todayAttendances.where((a) => a.isCheckedIn).length} checked in, ${_todayAttendances.where((a) => a.isCheckedOut).length} checked out)');
         } else {
-          // Fallback to filtering from all attendances if today's endpoint fails
-          final today = DateTime.now();
-          _todayAttendances = _attendances.where((attendance) {
-            final checkInDate = attendance.checkInTime;
-            return checkInDate.year == today.year &&
-                   checkInDate.month == today.month &&
-                   checkInDate.day == today.day;
-          }).toList();
+          // When fetching a specific historical date, don't mix with today's data
+          print('📋 ATTENDANCE: Fetching historical date (${TimezoneUtils.formatISTDate(date!)}), today\'s attendance not affected');
         }
         
         _errorMessage = '';
-        print('✅ ATTENDANCE: Loaded ${_attendances.length} total attendances');
+        print('✅ ATTENDANCE: Loaded ${_attendances.length} total attendances for ${date != null ? TimezoneUtils.formatISTDate(date) : 'today'}');
       } else {
         _errorMessage = response['message'] ?? 'Failed to fetch attendances';
         print('❌ ATTENDANCE ERROR: $_errorMessage');
@@ -96,6 +110,50 @@ class AttendanceProvider with ChangeNotifier {
       }
     } finally {
       _setLoading(false);
+    }
+  }
+
+  /// Fetch today's attendance specifically
+  Future<void> fetchTodaysAttendance() async {
+    try {
+      print('📋 ATTENDANCE: Fetching today\'s attendance...');
+      
+      final todayResponse = await _apiService.getTodayAttendances();
+      if (todayResponse['success'] == true) {
+        _todayAttendances = (todayResponse['data'] as List)
+            .map((item) => Attendance.fromJson(item))
+            .toList();
+        
+        // Fix member names using cache
+        _fixTodayAttendanceNames();
+        
+        // Debug: Check today's member names after parsing
+        for (final attendance in _todayAttendances) {
+          print('📋 TODAY ATTENDANCE: Parsed attendance - Member ID: ${attendance.memberId}, Name: "${attendance.memberName}"');
+        }
+        
+        print('✅ ATTENDANCE: Loaded ${_todayAttendances.length} today\'s attendances (${_todayAttendances.where((a) => a.isCheckedIn).length} checked in, ${_todayAttendances.where((a) => a.isCheckedOut).length} checked out)');
+        notifyListeners();
+      } else {
+        // Fallback to API call with today's date in IST
+        final today = TimezoneUtils.todayIST;
+        final todayAttendances = await _apiService.getAttendances(date: today);
+        if (todayAttendances['success'] == true) {
+          _todayAttendances = (todayAttendances['data'] as List)
+              .map((item) => Attendance.fromJson(item))
+              .toList();
+          _fixTodayAttendanceNames();
+          notifyListeners();
+        } else {
+          print('❌ ATTENDANCE: Failed to fetch today\'s attendance');
+          _todayAttendances = [];
+          notifyListeners();
+        }
+      }
+    } catch (e) {
+      print('💥 ATTENDANCE: Error fetching today\'s attendance: $e');
+      _todayAttendances = [];
+      notifyListeners();
     }
   }
 
@@ -392,8 +450,11 @@ class AttendanceProvider with ChangeNotifier {
   }
 
   void setSelectedDate(DateTime date) {
-    _selectedDate = date;
-    fetchAttendances(date: date);
+    // Convert to IST date (date only, no time)
+    final istDate = TimezoneUtils.toIST(date);
+    _selectedDate = DateTime(istDate.year, istDate.month, istDate.day);
+    print('📅 ATTENDANCE: Selected date set to: ${TimezoneUtils.formatISTDate(_selectedDate)} (IST)');
+    fetchAttendances(date: _selectedDate);
   }
 
   void _setLoading(bool loading) {
@@ -460,6 +521,7 @@ class AttendanceProvider with ChangeNotifier {
     clearAllData();
     await Future.wait([
       fetchAttendances(),
+      fetchTodaysAttendance(),
       fetchStats(),
     ]);
   }
@@ -471,6 +533,52 @@ class AttendanceProvider with ChangeNotifier {
     
     // Fix existing attendance records with proper member names
     _fixAttendanceRecordNames();
+    _fixTodayAttendanceNames();
+    notifyListeners();
+  }
+
+  // Fix today's attendance records with proper member names
+  void _fixTodayAttendanceNames() {
+    if (_members.isNotEmpty) {
+      for (int i = 0; i < _todayAttendances.length; i++) {
+        final attendance = _todayAttendances[i];
+        if (attendance.memberName.isEmpty || attendance.memberName == 'Unknown Member') {
+          final member = _members.firstWhere(
+            (m) => m.id == attendance.memberId,
+            orElse: () => Member(
+              id: 0,
+              user: User(
+                id: 0, 
+                username: 'unknown', 
+                email: 'unknown@example.com', 
+                firstName: 'Unknown', 
+                lastName: 'Member'
+              ),
+              phone: '',
+              dateOfBirth: DateTime.now(),
+              membershipType: 'Basic',
+              membershipExpiry: DateTime.now(),
+              isActive: true,
+              emergencyContactName: '',
+              emergencyContactPhone: '',
+            ),
+          );
+          
+          if (member.id != 0) {
+            _todayAttendances[i] = Attendance(
+              id: attendance.id,
+              memberId: attendance.memberId,
+              memberName: member.fullName,
+              checkInTime: attendance.checkInTime,
+              checkOutTime: attendance.checkOutTime,
+              status: attendance.status,
+              notes: attendance.notes,
+            );
+            print('🔧 ATTENDANCE: Fixed today\'s attendance name for member ${attendance.memberId}: ${member.fullName}');
+          }
+        }
+      }
+    }
   }
 
   // Fix existing attendance records with proper member names

@@ -15,21 +15,31 @@ class MemberProvider with ChangeNotifier {
   List<Member> _members = [];
   bool _isLoading = false;
   String? _errorMessage;
+  DateTime? _lastFetchTime;
+  
+  // Cache duration - 5 minutes
+  static const Duration _cacheDuration = Duration(minutes: 5);
 
   List<Member> get members => _members;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
-  Future<void> fetchMembers() async {
-    print('🏋️ MemberProvider: Starting fetchMembers()');
+  Future<void> fetchMembers({bool forceRefresh = false}) async {
+    // Check cache first
+    if (!forceRefresh && _lastFetchTime != null && _members.isNotEmpty) {
+      final timeSinceLastFetch = DateTime.now().difference(_lastFetchTime!);
+      if (timeSinceLastFetch < _cacheDuration) {
+        return; // Use cached data
+      }
+    }
+
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      print('🏋️ MemberProvider: Calling _apiService.getMembers()');
       _members = await _apiService.getMembers();
-      print('🏋️ MemberProvider: Successfully fetched ${_members.length} members from Django backend');
+      _lastFetchTime = DateTime.now();
       
       // Don't create mock data - use real backend data only
     } catch (e) {

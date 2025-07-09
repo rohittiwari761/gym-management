@@ -31,14 +31,11 @@ class GoogleAuthService {
       
       // Pre-initialize Google Sign-In to catch any configuration issues early
       _googleSignIn.signInSilently().catchError((error) {
-        print('🔑 GOOGLE AUTH: Silent sign-in failed (this is normal): $error');
         return null;
       });
       
       SecurityConfig.logSecurityEvent('GOOGLE_AUTH_SERVICE_INITIALIZED', {});
-      print('🔑 GOOGLE AUTH: Service initialized successfully');
     } catch (e) {
-      print('💥 GOOGLE AUTH: Error during initialization: $e');
       SecurityConfig.logSecurityEvent('GOOGLE_AUTH_INIT_ERROR', {
         'error': e.toString(),
       });
@@ -48,28 +45,23 @@ class GoogleAuthService {
   /// Check and restore previous Google Sign-In session
   Future<Map<String, dynamic>?> restorePreviousSession() async {
     try {
-      print('🔄 GOOGLE AUTH: Checking for previous Google session...');
       
       // Check if user was previously signed in
       final isSignedIn = await _googleSignIn.isSignedIn();
       if (!isSignedIn) {
-        print('🔑 GOOGLE AUTH: No previous Google session found');
         return null;
       }
 
       // Try to restore the session
       final googleUser = await _googleSignIn.signInSilently();
       if (googleUser == null) {
-        print('🔑 GOOGLE AUTH: Silent sign-in returned null');
         return null;
       }
 
-      print('🔑 GOOGLE AUTH: Previous session restored for: ${googleUser.email}');
       
       // Get fresh authentication token
       final googleAuth = await googleUser.authentication;
       if (googleAuth.idToken == null) {
-        print('⚠️ GOOGLE AUTH: No ID token in restored session');
         return null;
       }
 
@@ -77,19 +69,16 @@ class GoogleAuthService {
       final backendResult = await _authenticateWithBackend(googleAuth.idToken!);
       
       if (backendResult['success']) {
-        print('✅ GOOGLE AUTH: Previous session successfully restored and authenticated');
         SecurityConfig.logSecurityEvent('GOOGLE_SESSION_RESTORED', {
           'email': googleUser.email,
         });
         return backendResult;
       } else {
-        print('❌ GOOGLE AUTH: Backend authentication failed for restored session');
         // Clear the invalid session
         await _googleSignIn.signOut();
         return null;
       }
     } catch (e) {
-      print('💥 GOOGLE AUTH: Error restoring previous session: $e');
       SecurityConfig.logSecurityEvent('GOOGLE_SESSION_RESTORE_ERROR', {
         'error': e.toString(),
       });
@@ -174,7 +163,6 @@ class GoogleAuthService {
         };
       }
 
-      print('🔑 GOOGLE AUTH: Obtained Google ID token');
 
       // Send ID token to Django backend for verification
       final backendResult = await _authenticateWithBackend(googleAuth.idToken!);
@@ -195,7 +183,6 @@ class GoogleAuthService {
         return backendResult;
       }
     } catch (e) {
-      print('💥 GOOGLE AUTH: Error during Google sign-in: $e');
       SecurityConfig.logSecurityEvent('GOOGLE_SIGNIN_ERROR', {
         'error': e.toString(),
       });
@@ -210,7 +197,6 @@ class GoogleAuthService {
   /// Authenticate with Django backend using Google ID token
   Future<Map<String, dynamic>> _authenticateWithBackend(String googleIdToken) async {
     try {
-      print('🔐 GOOGLE AUTH: Sending Google token to Django backend');
 
       // Try connecting to local Django server
       final response = await _httpClient.post(
@@ -222,13 +208,10 @@ class GoogleAuthService {
       ).timeout(
         const Duration(seconds: 10), // 10 second timeout for local server
         onTimeout: () {
-          print('⏱️ GOOGLE AUTH: Local server request timed out after 10 seconds');
           throw Exception('Local server timeout - please ensure Django server is running on localhost:8000');
         },
       );
 
-      print('🔐 GOOGLE AUTH: Backend response - Status: ${response.statusCode}, Success: ${response.isSuccess}');
-      print('🔐 GOOGLE AUTH: Response data: ${response.data}');
 
       if (response.isSuccess && response.data != null) {
         final data = response.data as Map<String, dynamic>;
@@ -240,6 +223,7 @@ class GoogleAuthService {
           final isNewUser = data['is_new_user'] as bool? ?? false;
           final needsProfileCompletion = data['needs_profile_completion'] as bool? ?? false;
 
+          print('🔵 GOOGLE AUTH: Storing authentication data in AuthService...');
           // Store authentication data using AuthService with persistent session flag
           final authService = AuthService();
           await authService.loginWithGoogleData(
@@ -258,6 +242,7 @@ class GoogleAuthService {
             token: token,
             isPersistentSession: true, // Mark as persistent Google session
           );
+          print('🔵 GOOGLE AUTH: Authentication data stored successfully');
 
           return {
             'success': true,
@@ -321,9 +306,7 @@ class GoogleAuthService {
       await _googleSignIn.disconnect();
       
       SecurityConfig.logSecurityEvent('GOOGLE_SIGNOUT_COMPLETED', {});
-      print('✅ GOOGLE AUTH: Signed out and disconnected from Google');
     } catch (e) {
-      print('💥 GOOGLE AUTH: Error during Google sign-out: $e');
       SecurityConfig.logSecurityEvent('GOOGLE_SIGNOUT_ERROR', {
         'error': e.toString(),
       });
@@ -331,9 +314,7 @@ class GoogleAuthService {
       // Fallback to regular signOut if disconnect fails
       try {
         await _googleSignIn.signOut();
-        print('✅ GOOGLE AUTH: Fallback sign-out successful');
       } catch (fallbackError) {
-        print('💥 GOOGLE AUTH: Fallback sign-out also failed: $fallbackError');
       }
     }
   }
@@ -343,7 +324,6 @@ class GoogleAuthService {
     try {
       return await _googleSignIn.isSignedIn();
     } catch (e) {
-      print('💥 GOOGLE AUTH: Error checking Google sign-in status: $e');
       return false;
     }
   }
@@ -353,7 +333,6 @@ class GoogleAuthService {
     try {
       return _googleSignIn.currentUser;
     } catch (e) {
-      print('💥 GOOGLE AUTH: Error getting current Google user: $e');
       return null;
     }
   }
@@ -365,20 +344,17 @@ class GoogleAuthService {
       if (!kIsWeb && Platform.isIOS) {
         // iOS Simulator detection is complex, but we can check for known simulator identifiers
         // For now, we'll allow the configuration check to proceed
-        print('🔑 GOOGLE AUTH: Running on iOS - checking configuration...');
       }
       
       // Try to initialize silently to check configuration
       await _googleSignIn.signInSilently();
       return true;
     } catch (e) {
-      print('🔑 GOOGLE AUTH: Configuration check failed: $e');
       
       // Check for iOS Simulator specific errors
       if (e.toString().contains('simulator') || 
           e.toString().contains('Simulator') ||
           e.toString().contains('SIGN_IN_FAILED_SIMULATOR')) {
-        print('⚠️ GOOGLE AUTH: Detected iOS Simulator - Google Sign-In may have limitations');
         return false;
       }
       

@@ -154,18 +154,30 @@ class InputValidator {
     bool allowEmpty = false,
     String fieldName = 'Input',
   }) {
+    print('🔍 VALIDATOR: Validating $fieldName: "${input.length > 100 ? input.substring(0, 100) + '...' : input}"');
+    
     if (!allowEmpty && input.isEmpty) {
+      print('❌ VALIDATOR: $fieldName is empty');
       return ValidationResult(false, '$fieldName is required');
     }
     
     if (input.length > maxLength) {
+      print('❌ VALIDATOR: $fieldName too long (${input.length} > $maxLength)');
       return ValidationResult(false, '$fieldName is too long (max $maxLength characters)');
     }
     
+    // Special handling for API endpoints - they can contain SQL keywords legitimately
+    if (fieldName == 'Endpoint' && _isLegitimateApiEndpoint(input)) {
+      print('✅ VALIDATOR: $fieldName validation passed (legitimate API endpoint)');
+      return ValidationResult(true, 'Valid $fieldName');
+    }
+    
     if (_containsMaliciousPatterns(input)) {
+      print('❌ VALIDATOR: Malicious patterns detected in $fieldName');
       return ValidationResult(false, 'Invalid characters detected in $fieldName');
     }
     
+    print('✅ VALIDATOR: $fieldName validation passed');
     return ValidationResult(true, 'Valid $fieldName');
   }
 
@@ -218,12 +230,22 @@ class InputValidator {
   static bool _containsMaliciousPatterns(String input) {
     final lowercaseInput = input.toLowerCase();
     
-    // Check SQL injection patterns
+    // Check SQL injection patterns with context awareness
     for (final pattern in _sqlInjectionPatterns) {
       if (RegExp(pattern, caseSensitive: false).hasMatch(lowercaseInput)) {
+        print('🚨 VALIDATOR: SQL pattern "$pattern" matched in: "${input.length > 100 ? input.substring(0, 100) + '...' : input}"');
+        
+        // Check if this is a false positive in legitimate business text
+        if (_isLegitimateBusinessText(input, pattern)) {
+          print('✅ VALIDATOR: Pattern "$pattern" allowed as legitimate business text');
+          continue; // Skip this pattern as it's likely legitimate
+        }
+        
+        print('❌ VALIDATOR: Pattern "$pattern" blocked as potential SQL injection');
         SecurityConfig.logSecurityEvent('SQL_INJECTION_ATTEMPT', {
           'pattern': pattern,
           'inputLength': input.length,
+          'input_preview': input.length > 50 ? '${input.substring(0, 50)}...' : input,
         });
         return true;
       }
@@ -264,6 +286,142 @@ class InputValidator {
     ];
     
     return commonPasswords.contains(password.toLowerCase());
+  }
+
+  /// Check if input containing SQL keywords is likely legitimate business text
+  static bool _isLegitimateBusinessText(String input, String pattern) {
+    final lowercaseInput = input.toLowerCase();
+    print('🔍 VALIDATOR: Checking if legitimate business text: "$input" (pattern: $pattern)');
+    
+    // Common legitimate business contexts where SQL keywords might appear
+    final legitimateContexts = [
+      // Business names and descriptions
+      r'\b(fitness|gym|health|wellness|training|sports|recreation|center|centre)\b',
+      r'\b(business|company|corporation|enterprise|solutions|services)\b',
+      r'\b(professional|fitness|health|medical|dental|legal|consulting)\b',
+      // Address and location contexts
+      r'\b(street|avenue|road|lane|drive|court|place|center|centre|plaza|mall)\b',
+      // Educational contexts
+      r'\b(school|college|university|academy|institute|education|learning)\b',
+      // Common business words
+      r'\b(creative|design|development|management|marketing|sales|support)\b',
+    ];
+    
+    // If the input contains legitimate business context, it's likely safe
+    for (final context in legitimateContexts) {
+      if (RegExp(context, caseSensitive: false).hasMatch(lowercaseInput)) {
+        print('🎯 VALIDATOR: Found business context: $context');
+        // Additional check: ensure SQL keywords are part of normal text, not SQL syntax
+        if (!_containsSqlSyntaxPatterns(lowercaseInput)) {
+          print('✅ VALIDATOR: No SQL syntax patterns detected, allowing as business text');
+          return true;
+        } else {
+          print('❌ VALIDATOR: SQL syntax patterns detected despite business context');
+        }
+      }
+    }
+    
+    // Check for common gym/fitness business name patterns
+    if (RegExp(r'\b\w+\s+(fitness|gym|health|wellness|training|sports|recreation)\s+(center|centre|club|studio|academy)\b', caseSensitive: false).hasMatch(lowercaseInput)) {
+      print('✅ VALIDATOR: Matched gym/fitness business pattern');
+      return true;
+    }
+    
+    print('❌ VALIDATOR: No legitimate business context found');
+    return false;
+  }
+  
+  /// Check for actual SQL syntax patterns that indicate malicious intent
+  static bool _containsSqlSyntaxPatterns(String input) {
+    final sqlSyntaxPatterns = [
+      r'\bselect\s+\*\s+from\b',
+      r'\bunion\s+select\b',
+      r'\binsert\s+into\b',
+      r'\bdelete\s+from\b',
+      r'\bupdate\s+.+\s+set\b',
+      r'\bdrop\s+table\b',
+      r'\bcreate\s+table\b',
+      r'\balter\s+table\b',
+      r'\bor\s+1\s*=\s*1\b',
+      r'\band\s+1\s*=\s*1\b',
+      r"'\s*or\s*'",
+      r'--\s*\w+',
+      r'/\*.*\*/',
+      r';\s*(select|insert|update|delete|drop|create|alter)',
+    ];
+    
+    for (final pattern in sqlSyntaxPatterns) {
+      if (RegExp(pattern, caseSensitive: false).hasMatch(input)) {
+        return true;
+      }
+    }
+    
+    return false;
+  }
+
+  /// Check if input is a legitimate API endpoint that can contain SQL keywords
+  static bool _isLegitimateApiEndpoint(String input) {
+    final lowercaseInput = input.toLowerCase();
+    print('🔍 VALIDATOR: Checking if legitimate API endpoint: "$input"');
+    
+    // Valid API endpoint patterns
+    final apiEndpointPatterns = [
+      // REST API patterns with CRUD operations
+      r'^[a-z0-9_/-]+/(create|update|delete|insert|select)/?$',
+      r'^[a-z0-9_/-]+/(create|update|delete|insert|select)/[a-z0-9_/-]*/?$',
+      // Auth endpoints
+      r'^auth/[a-z0-9_/-]+/?$',
+      // Profile endpoints
+      r'^[a-z0-9_/-]*/profile/[a-z0-9_/-]*/?$',
+      // Generic REST patterns
+      r'^[a-z0-9_/-]+/?$',
+    ];
+    
+    for (final pattern in apiEndpointPatterns) {
+      if (RegExp(pattern, caseSensitive: false).hasMatch(lowercaseInput)) {
+        print('✅ VALIDATOR: Matched API endpoint pattern: $pattern');
+        // Additional validation: ensure it doesn't contain SQL syntax
+        if (!_containsSqlSyntaxPatterns(lowercaseInput)) {
+          print('✅ VALIDATOR: No SQL syntax in API endpoint');
+          return true;
+        } else {
+          print('❌ VALIDATOR: SQL syntax detected in API endpoint');
+        }
+      }
+    }
+    
+    // Common gym management API endpoints that can contain SQL keywords
+    final gymApiEndpoints = [
+      'auth/profile/update/',
+      'auth/profile/create/',
+      'auth/profile/delete/',
+      'members/create/',
+      'members/update/',
+      'members/delete/',
+      'trainers/create/',
+      'trainers/update/',
+      'trainers/delete/',
+      'equipment/create/',
+      'equipment/update/',
+      'equipment/delete/',
+      'payments/create/',
+      'payments/update/',
+      'payments/delete/',
+      'attendance/create/',
+      'attendance/update/',
+      'attendance/delete/',
+      'subscription-plans/create/',
+      'subscription-plans/update/',
+      'subscription-plans/delete/',
+    ];
+    
+    if (gymApiEndpoints.contains(lowercaseInput)) {
+      print('✅ VALIDATOR: Recognized gym API endpoint');
+      return true;
+    }
+    
+    print('❌ VALIDATOR: Not recognized as legitimate API endpoint');
+    return false;
   }
 
   /// Validate QR code format and content

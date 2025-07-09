@@ -58,29 +58,30 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _loadData() {
-    print('🏠 HomeScreen: Starting to load all data...');
+    // Load critical data first (members for dashboard), then load rest in background
     Future.microtask(() async {
-      if (!mounted) return; // Check if widget is still mounted
+      if (!mounted) return;
       
       try {
-        print('🏠 HomeScreen: Loading members...');
-        if (mounted) await context.read<MemberProvider>().fetchMembers();
+        // Load critical data first for faster UI response
+        if (mounted) {
+          await context.read<MemberProvider>().fetchMembers();
+        }
         
-        print('🏠 HomeScreen: Loading trainers...');
-        if (mounted) await context.read<TrainerProvider>().fetchTrainers();
-        
-        print('🏠 HomeScreen: Loading equipment...');
-        if (mounted) await context.read<EquipmentProvider>().fetchEquipment();
-        
-        print('🏠 HomeScreen: Loading subscription plans...');
-        if (mounted) await context.read<SubscriptionProvider>().fetchSubscriptionPlans();
-        
-        print('🏠 HomeScreen: Loading revenue analytics...');
-        if (mounted) await context.read<PaymentProvider>().fetchRevenueAnalytics();
-        
-        print('✅ HomeScreen: All data loaded successfully!');
+        // Load non-critical data in parallel for better performance
+        if (mounted) {
+          final futures = [
+            context.read<TrainerProvider>().fetchTrainers(),
+            context.read<EquipmentProvider>().fetchEquipment(),
+            context.read<SubscriptionProvider>().fetchSubscriptionPlans(),
+            context.read<PaymentProvider>().fetchRevenueAnalytics(),
+          ];
+          
+          await Future.wait(futures, eagerError: false);
+        }
       } catch (e) {
-        print('💥 HomeScreen ERROR during data loading: $e');
+        // Silently handle errors in production
+        if (kDebugMode) print('HomeScreen data loading error: $e');
       }
     });
   }

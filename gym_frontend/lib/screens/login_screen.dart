@@ -343,7 +343,6 @@ class _LoginScreenState extends State<LoginScreen> {
     if (_formKey.currentState!.validate()) {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       
-      print('🔐 LOGIN: Attempting login for ${_emailController.text.trim()}');
       
       final result = await authProvider.login(
         _emailController.text.trim(),
@@ -351,19 +350,16 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (result['success'] == true && mounted) {
-        print('✅ LOGIN: Login successful, navigating to home screen');
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (context) => const HomeScreen(),
           ),
         );
       } else {
-        print('❌ LOGIN: Login failed');
         // Additional error information is already handled by AuthProvider
         // and displayed via the Consumer<AuthProvider> error handling above
       }
     } else {
-      print('⚠️ LOGIN: Form validation failed');
     }
   }
 
@@ -384,14 +380,41 @@ class _LoginScreenState extends State<LoginScreen> {
       bool isSuccess = result['success'] == true || result['success'] == 'true';
       
       if (isSuccess) {
-        // Google sign-in successful - manually refresh AuthProvider
-        // Wait a bit for the auth service to store the data
-        await Future.delayed(const Duration(milliseconds: 300));
+        // Google sign-in successful - force immediate navigation
+        // Wait for the auth service to store the data
+        await Future.delayed(const Duration(milliseconds: 1000));
         
-        // Force AuthProvider to check login status immediately
+        // Force AuthProvider to check login status multiple times with longer delays
         await authProvider.checkLoginStatus();
         
-        // AuthProvider should now navigate to home screen
+        // Check if we're now logged in
+        if (authProvider.isLoggedIn) {
+          // Navigation should happen automatically via AuthWrapper
+          authProvider.setLoading(false);
+          return;
+        }
+        
+        // Additional retry attempts with longer delays
+        for (int i = 0; i < 3; i++) {
+          await Future.delayed(const Duration(milliseconds: 500));
+          await authProvider.checkLoginStatus();
+          
+          if (authProvider.isLoggedIn) {
+            authProvider.setLoading(false);
+            return;
+          }
+        }
+        
+        // If still not logged in, force manual navigation
+        if (mounted) {
+          authProvider.setLoading(false);
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => const HomeScreen(),
+            ),
+          );
+        }
+        
         return;
       } else {
         authProvider.setLoading(false);
@@ -417,8 +440,6 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     }
-    
-    print('🔚 GOOGLE SIGNIN: Method completed');
   }
 
   void _navigateToHomeAlternative() {

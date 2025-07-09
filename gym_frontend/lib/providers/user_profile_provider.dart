@@ -5,9 +5,11 @@ import 'dart:io';
 import '../models/user_profile.dart';
 import '../services/auth_service.dart';
 import '../security/security_config.dart';
+import '../security/secure_http_client.dart';
 
 class UserProfileProvider with ChangeNotifier {
   final AuthService _authService = AuthService();
+  final SecureHttpClient _httpClient = SecureHttpClient();
 
   UserProfile? _currentProfile;
   List<UserProfile> _allProfiles = [];
@@ -25,17 +27,14 @@ class UserProfileProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final headers = await _authService.getAuthHeaders();
-      final response = await http.get(
-        Uri.parse('${SecurityConfig.apiUrl}/auth/profile/'),
-        headers: headers,
-      );
+      print('🔄 FETCH PROFILE: Starting profile fetch...');
+      final response = await _httpClient.get('auth/profile/', requireAuth: true);
 
       print('🔄 FETCH PROFILE - Status: ${response.statusCode}');
-      print('🔄 FETCH PROFILE - Response: ${response.body}');
+      print('🔄 FETCH PROFILE - Response: ${response.data}');
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+      if (response.isSuccess && response.data != null) {
+        final data = response.data as Map<String, dynamic>;
         // Django returns {success: true, gym_owner: {...}, user: {...}}
         if (data['success'] == true) {
           final gymOwner = data['gym_owner'];
@@ -84,7 +83,7 @@ class UserProfileProvider with ChangeNotifier {
           throw Exception('Failed to fetch profile: ${data['error'] ?? 'Unknown error'}');
         }
       } else {
-        throw Exception('Failed to fetch profile: ${response.statusCode}');
+        throw Exception('Failed to fetch profile: ${response.errorMessage ?? 'Unknown error'}');
       }
     } catch (e) {
       _errorMessage = 'Network error: ${e.toString()}';
@@ -113,34 +112,65 @@ class UserProfileProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final headers = await _authService.getAuthHeaders();
-      final response = await http.put(
-        Uri.parse('${SecurityConfig.apiUrl}/auth/profile/update/'),
-        headers: headers,
-        body: jsonEncode({
-          'first_name': firstName,
-          'last_name': lastName,
-          'email': email,
-          'phone_number': phone, // Django expects phone_number
-          'gym_address': address, // Django maps address to gym_address
-          'date_of_birth': dateOfBirth?.toIso8601String().split('T')[0],
-          'gender': gender,
-          'gym_name': gymName,
-          'gym_description': gymDescription,
-          'gym_established_date': gymEstablishedDate?.toIso8601String().split('T')[0],
-          'subscription_plan': subscriptionPlan,
-        }),
+      final requestBody = <String, dynamic>{
+        'first_name': firstName,
+        'last_name': lastName,
+        'email': email,
+        'gym_name': gymName,
+      };
+      
+      // Add optional fields only if they have values
+      if (phone != null && phone.isNotEmpty) {
+        requestBody['phone_number'] = phone;
+      }
+      if (address != null && address.isNotEmpty) {
+        requestBody['gym_address'] = address;
+      }
+      if (gymDescription != null && gymDescription.isNotEmpty) {
+        requestBody['gym_description'] = gymDescription;
+      }
+      if (gymEstablishedDate != null) {
+        requestBody['gym_established_date'] = gymEstablishedDate.toIso8601String().split('T')[0];
+      }
+      if (subscriptionPlan != null && subscriptionPlan.isNotEmpty) {
+        requestBody['subscription_plan'] = subscriptionPlan;
+      }
+      
+      // Note: date_of_birth and gender are not supported by the backend GymOwner model
+      // These fields are only available for Members, not GymOwners
+      
+      print('🔄 UPDATE PROFILE: Sending request body: $requestBody');
+      
+      final response = await _httpClient.put(
+        'auth/profile/update/',
+        body: requestBody,
+        requireAuth: true,
       );
 
       print('🔄 UPDATE PROFILE - Status: ${response.statusCode}');
-      print('🔄 UPDATE PROFILE - Response: ${response.body}');
+      print('🔄 UPDATE PROFILE - Response: ${response.data}');
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+      if (response.isSuccess && response.data != null) {
+        final data = response.data as Map<String, dynamic>;
         // Django returns {success: true, gym_owner: {...}, user: {...}}
         if (data['success'] == true) {
           final gymOwner = data['gym_owner'];
           final user = data['user'];
+          
+          // Handle profile picture URL - prefer full URL from serializer (same logic as fetchCurrentProfile)
+          String? profilePictureUrl = gymOwner['profile_picture_url'];
+          
+          // Fallback to building URL manually if needed
+          if (profilePictureUrl == null && gymOwner['profile_picture'] != null) {
+            final pictureUrl = gymOwner['profile_picture'].toString();
+            if (pictureUrl.startsWith('http')) {
+              // Already a full URL
+              profilePictureUrl = pictureUrl;
+            } else if (pictureUrl.isNotEmpty) {
+              // Relative URL, make it absolute
+              profilePictureUrl = '${SecurityConfig.apiUrl.replaceAll('/api', '')}$pictureUrl';
+            }
+          }
           
           // Map Django response to UserProfile
           final profileData = {
@@ -150,7 +180,7 @@ class UserProfileProvider with ChangeNotifier {
             'email': user['email'],
             'phone': gymOwner['phone_number'],
             'address': gymOwner['gym_address'],
-            'profile_picture': gymOwner['profile_picture'],
+            'profile_picture': profilePictureUrl,
             'role': 'admin',
             'date_of_birth': null,
             'gender': null,
@@ -175,7 +205,7 @@ class UserProfileProvider with ChangeNotifier {
           return false;
         }
       } else {
-        _errorMessage = 'Failed to update profile: ${response.statusCode}';
+        _errorMessage = 'Failed to update profile: ${response.errorMessage ?? 'Unknown error'}';
         _isLoading = false;
         notifyListeners();
         return false;
@@ -194,33 +224,41 @@ class UserProfileProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final headers = await _authService.getAuthHeaders();
+      print('🔄 UPLOAD PICTURE: Starting upload process...');
       
-      // Remove content-type as multipart will set it automatically
-      final uploadHeaders = Map<String, String>.from(headers);
-      uploadHeaders.remove('Content-Type');
-
-      final request = http.MultipartRequest(
-        'POST',
-        Uri.parse('${SecurityConfig.apiUrl}/auth/profile/upload-picture/'),
-      );
+      // Read image file and convert to base64
+      final imageBytes = await imageFile.readAsBytes();
+      final base64Image = base64Encode(imageBytes);
       
-      request.headers.addAll(uploadHeaders);
-      request.files.add(
-        await http.MultipartFile.fromPath(
-          'profile_picture',
-          imageFile.path,
-        ),
+      // Get file extension for content type
+      final fileName = imageFile.path.split('/').last.toLowerCase();
+      String contentType = 'image/jpeg'; // default
+      if (fileName.endsWith('.png')) {
+        contentType = 'image/png';
+      } else if (fileName.endsWith('.gif')) {
+        contentType = 'image/gif';
+      } else if (fileName.endsWith('.heic') || fileName.endsWith('.heif')) {
+        contentType = 'image/heic';
+      }
+      
+      print('🔄 UPLOAD PICTURE: File size: ${imageBytes.length} bytes, Type: $contentType');
+      
+      // Use SecureHttpClient for the upload
+      final response = await _httpClient.post(
+        'auth/profile/upload-picture/',
+        body: {
+          'profile_picture_base64': base64Image,
+          'content_type': contentType,
+          'filename': fileName,
+        },
+        requireAuth: true,
       );
-
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
 
       print('🔄 UPLOAD PICTURE - Status: ${response.statusCode}');
-      print('🔄 UPLOAD PICTURE - Response: ${response.body}');
+      print('🔄 UPLOAD PICTURE - Response: ${response.data}');
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+      if (response.isSuccess && response.data != null) {
+        final data = response.data as Map<String, dynamic>;
         // Django returns {success: true, gym_owner: {...}, user: {...}, profile_picture_url: "..."}
         if (data['success'] == true) {
           final gymOwner = data['gym_owner'];
@@ -261,7 +299,7 @@ class UserProfileProvider with ChangeNotifier {
           return false;
         }
       } else {
-        _errorMessage = 'Failed to upload profile picture: ${response.statusCode}';
+        _errorMessage = 'Failed to upload profile picture: ${response.errorMessage ?? 'Unknown error'}';
         _isLoading = false;
         notifyListeners();
         return false;
@@ -283,26 +321,24 @@ class UserProfileProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final headers = await _authService.getAuthHeaders();
-      final response = await http.post(
-        Uri.parse('${SecurityConfig.apiUrl}/auth/profile/change-password/'),
-        headers: headers,
-        body: jsonEncode({
+      final response = await _httpClient.post(
+        'auth/profile/change-password/',
+        body: {
           'current_password': currentPassword,
           'new_password': newPassword,
-        }),
+        },
+        requireAuth: true,
       );
 
       print('🔄 CHANGE PASSWORD - Status: ${response.statusCode}');
 
-      if (response.statusCode == 200) {
+      if (response.isSuccess) {
         _isLoading = false;
         notifyListeners();
         print('✅ Password changed successfully');
         return true;
       } else {
-        final data = jsonDecode(response.body);
-        _errorMessage = data['error'] ?? 'Failed to change password';
+        _errorMessage = response.errorMessage ?? 'Failed to change password';
         _isLoading = false;
         notifyListeners();
         return false;

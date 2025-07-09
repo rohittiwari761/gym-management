@@ -14,7 +14,7 @@ class SecurityConfig {
   static const String _localApiUrl = 'http://127.0.0.1:8000/api';
   static const String _macNetworkApiUrl = 'http://192.168.1.14:8000/api';
   
-  // Use production URL by default
+  // Use production URL for deployment
   static String get apiUrl {
     return _prodApiUrl;
   }

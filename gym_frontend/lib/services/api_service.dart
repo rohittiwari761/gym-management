@@ -10,6 +10,7 @@ import '../security/secure_http_client.dart';
 import '../security/security_config.dart';
 import '../security/input_validator.dart';
 import '../utils/timezone_utils.dart';
+import '../utils/debouncer.dart';
 
 class ApiService {
   static final ApiService _instance = ApiService._internal();
@@ -17,6 +18,10 @@ class ApiService {
   ApiService._internal();
 
   final SecureHttpClient _httpClient = SecureHttpClient();
+  final CacheManager<List<Member>> _membersCache = CacheManager();
+  final CacheManager<List<Trainer>> _trainersCache = CacheManager();
+  final CacheManager<List<Equipment>> _equipmentCache = CacheManager();
+  final Throttler _requestThrottler = Throttler(duration: const Duration(milliseconds: 500));
 
   /// Initialize API service
   void initialize() {

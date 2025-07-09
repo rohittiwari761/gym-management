@@ -22,6 +22,7 @@ class JWTManager {
   static const String _userIdKey = 'user_id';
   static const String _userRoleKey = 'user_role';
   static const String _sessionIdKey = 'session_id';
+  static const String _sessionPersistentKey = 'session_persistent';
 
   /// Check if a token is a JWT token (has 3 parts separated by dots)
   static bool _isJWTToken(String token) {
@@ -35,6 +36,7 @@ class JWTManager {
     required String userId,
     required String userRole,
     required String sessionId,
+    bool persistent = false,
   }) async {
     try {
       // Set expiry time only for JWT tokens, not Django tokens
@@ -52,6 +54,7 @@ class JWTManager {
         _storage.write(key: _userIdKey, value: userId),
         _storage.write(key: _userRoleKey, value: userRole),
         _storage.write(key: _sessionIdKey, value: sessionId),
+        _storage.write(key: _sessionPersistentKey, value: persistent.toString()),
       ];
       
       // Only store expiry for JWT tokens
@@ -65,6 +68,7 @@ class JWTManager {
         'userId': userId,
         'role': userRole,
         'sessionId': sessionId,
+        'persistent': persistent,
       });
     } catch (e) {
       SecurityConfig.logSecurityEvent('TOKEN_STORE_ERROR', {
@@ -78,6 +82,7 @@ class JWTManager {
   static Future<String?> getAccessToken() async {
     try {
       final token = await _storage.read(key: _accessTokenKey);
+      
       if (token == null) return null;
 
       // Only check expiry for JWT tokens, not Django tokens
@@ -130,6 +135,8 @@ class JWTManager {
       final userId = await _storage.read(key: _userIdKey);
       final userRole = await _storage.read(key: _userRoleKey);
       final sessionId = await _storage.read(key: _sessionIdKey);
+      final persistentString = await _storage.read(key: _sessionPersistentKey);
+      final isPersistent = persistentString == 'true';
 
       if (userId == null || userRole == null || sessionId == null) {
         return null;
@@ -139,6 +146,7 @@ class JWTManager {
         userId: userId,
         role: UserRole.fromString(userRole),
         sessionId: sessionId,
+        isPersistent: isPersistent,
       );
     } catch (e) {
       SecurityConfig.logSecurityEvent('USER_INFO_RETRIEVAL_ERROR', {
@@ -158,6 +166,7 @@ class JWTManager {
         _storage.delete(key: _userIdKey),
         _storage.delete(key: _userRoleKey),
         _storage.delete(key: _sessionIdKey),
+        _storage.delete(key: _sessionPersistentKey),
       ]);
 
       SecurityConfig.logSecurityEvent('TOKENS_CLEARED', {});
@@ -261,7 +270,10 @@ class JWTManager {
   static Future<bool> ensureValidToken() async {
     try {
       final accessToken = await getAccessToken();
-      if (accessToken == null) return false;
+      
+      if (accessToken == null) {
+        return false;
+      }
 
       // For JWT tokens, check expiry and refresh if needed
       if (_isJWTToken(accessToken)) {
@@ -272,6 +284,16 @@ class JWTManager {
       // Django tokens don't expire, so they're always valid if they exist
 
       return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Check if current session is persistent (Google Auth)
+  static Future<bool> isSessionPersistent() async {
+    try {
+      final persistentString = await _storage.read(key: _sessionPersistentKey);
+      return persistentString == 'true';
     } catch (e) {
       return false;
     }
@@ -291,21 +313,24 @@ class UserInfo {
   final String userId;
   final UserRole role;
   final String sessionId;
+  final bool isPersistent;
 
   const UserInfo({
     required this.userId,
     required this.role,
     required this.sessionId,
+    this.isPersistent = false,
   });
 
   Map<String, dynamic> toJson() => {
     'userId': userId,
     'role': role.name,
     'sessionId': sessionId,
+    'isPersistent': isPersistent,
   };
 
   @override
-  String toString() => 'UserInfo(userId: $userId, role: ${role.name}, sessionId: $sessionId)';
+  String toString() => 'UserInfo(userId: $userId, role: ${role.name}, sessionId: $sessionId, persistent: $isPersistent)';
 }
 
 enum UserRole {
