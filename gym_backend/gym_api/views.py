@@ -584,9 +584,23 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
-        # Filter attendance by gym owner
+        # Filter attendance by gym owner and optionally by date
         if hasattr(self.request.user, 'gymowner'):
-            return Attendance.objects.filter(gym_owner=self.request.user.gymowner)
+            queryset = Attendance.objects.filter(gym_owner=self.request.user.gymowner)
+            
+            # Check for date parameter in query string
+            date_param = self.request.query_params.get('date')
+            if date_param:
+                try:
+                    # Parse date from YYYY-MM-DD format
+                    from datetime import datetime
+                    filter_date = datetime.strptime(date_param, '%Y-%m-%d').date()
+                    queryset = queryset.filter(date=filter_date)
+                    print(f'📅 ATTENDANCE: Filtering by date {filter_date}')
+                except ValueError:
+                    print(f'❌ ATTENDANCE: Invalid date format {date_param}, returning all records')
+            
+            return queryset.order_by('-date', '-check_in_time')
         return Attendance.objects.none()
     
     def perform_create(self, serializer):

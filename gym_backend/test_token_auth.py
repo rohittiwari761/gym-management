@@ -21,6 +21,9 @@ def test_login_and_members():
         headers={"Content-Type": "application/json"}
     )
     
+    print(f"Login Response Headers: {dict(login_response.headers)}")
+    print(f"Login Response Body: {login_response.text[:500]}")
+    
     print(f"Login Status: {login_response.status_code}")
     if login_response.status_code == 200:
         login_data = login_response.json()
