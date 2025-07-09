@@ -13,6 +13,8 @@ django-extensions==3.2.3  # Database shell plus and other utilities
 djangorestframework-simplejwt==5.3.0
 django-cors-headers==4.3.1
 django-ratelimit==4.1.0
+google-auth==2.23.4  # Google OAuth2 verification
+requests==2.31.0  # HTTP requests for profile picture download
 
 # WSGI Server
 gunicorn==21.2.0  # WSGI server

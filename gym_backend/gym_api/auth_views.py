@@ -8,6 +8,7 @@ from django.contrib.auth.models import User
 from django.db import transaction
 from .models import GymOwner
 from .serializers import GymOwnerSerializer
+from .google_auth import handle_google_auth
 import uuid
 
 # Try to import JWT components (available in production)
@@ -241,22 +242,41 @@ def gym_owner_update_profile(request):
         gym_owner = request.user.gymowner
         user = request.user
         
+        print(f"🔄 PROFILE UPDATE: Received data: {request.data}")
+        
         # Update user fields
         user_fields = ['first_name', 'last_name', 'email']
+        updated_user_fields = []
         for field in user_fields:
-            if field in request.data:
+            if field in request.data and request.data[field] is not None:
                 setattr(user, field, request.data[field])
-        user.save()
+                updated_user_fields.append(field)
+        
+        if updated_user_fields:
+            user.save()
+            print(f"✅ PROFILE UPDATE: Updated user fields: {updated_user_fields}")
         
         # Update gym owner fields
         gym_fields = ['gym_name', 'gym_address', 'gym_description', 'phone_number', 'gym_established_date', 'subscription_plan']
+        updated_gym_fields = []
         for field in gym_fields:
-            if field in request.data:
+            if field in request.data and request.data[field] is not None:
                 setattr(gym_owner, field, request.data[field])
-        gym_owner.save()
+                updated_gym_fields.append(field)
+        
+        if updated_gym_fields:
+            gym_owner.save()
+            print(f"✅ PROFILE UPDATE: Updated gym owner fields: {updated_gym_fields}")
+        
+        # Log fields that were sent but not processed (for debugging)
+        processed_fields = set(user_fields + gym_fields)
+        sent_fields = set(request.data.keys())
+        ignored_fields = sent_fields - processed_fields
+        if ignored_fields:
+            print(f"⚠️ PROFILE UPDATE: Ignored fields (not in model): {ignored_fields}")
         
         # Serialize updated data
-        serializer = GymOwnerSerializer(gym_owner)
+        serializer = GymOwnerSerializer(gym_owner, context={'request': request})
         
         return Response({
             'success': True,
@@ -271,6 +291,9 @@ def gym_owner_update_profile(request):
         }, status=status.HTTP_200_OK)
         
     except Exception as e:
+        print(f"❌ PROFILE UPDATE ERROR: {str(e)}")
+        import traceback
+        print(f"❌ PROFILE UPDATE TRACEBACK: {traceback.format_exc()}")
         return Response({
             'error': f'Failed to update profile: {str(e)}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -345,11 +368,86 @@ def verify_qr_token(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+def _handle_base64_upload(request):
+    """
+    Handle base64 profile picture upload
+    """
+    try:
+        gym_owner = request.user.gymowner
+        
+        base64_data = request.data.get('profile_picture_base64')
+        content_type = request.data.get('content_type', 'image/jpeg')
+        filename = request.data.get('filename', 'profile_picture.jpg')
+        
+        print(f"📤 BASE64 UPLOAD: Content type: {content_type}")
+        print(f"📤 BASE64 UPLOAD: Filename: {filename}")
+        print(f"📤 BASE64 UPLOAD: Base64 data length: {len(base64_data)} characters")
+        
+        # Validate content type
+        allowed_types = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/heic', 'image/heif']
+        if content_type not in allowed_types:
+            return Response({
+                'error': f'Invalid file type. Only JPEG, PNG, GIF, and HEIC images are allowed. Received: {content_type}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate base64 data
+        try:
+            import base64
+            file_content = base64.b64decode(base64_data)
+            file_size = len(file_content)
+            print(f"📤 BASE64 UPLOAD: Decoded file size: {file_size} bytes")
+            
+            # Check file size (max 5MB)
+            if file_size > 5 * 1024 * 1024:
+                return Response({
+                    'error': 'File size too large. Maximum size is 5MB.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+                
+        except Exception as e:
+            print(f"❌ BASE64 UPLOAD: Invalid base64 data: {e}")
+            return Response({
+                'error': 'Invalid base64 image data'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Store the base64 data directly (Railway-compatible approach)
+        gym_owner.profile_picture_base64 = base64_data
+        gym_owner.profile_picture_content_type = content_type
+        gym_owner.save()
+        
+        print(f"✅ BASE64 UPLOAD: Profile picture saved successfully")
+        
+        # Return updated profile data with data URL
+        serializer = GymOwnerSerializer(gym_owner, context={'request': request})
+        
+        # Create a data URL for immediate use
+        data_url = f"data:{content_type};base64,{base64_data}"
+        
+        return Response({
+            'success': True,
+            'message': 'Profile picture uploaded successfully',
+            'gym_owner': serializer.data,
+            'profile_picture_url': data_url,
+            'user': {
+                'id': request.user.id,
+                'email': request.user.email,
+                'first_name': request.user.first_name,
+                'last_name': request.user.last_name
+            }
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        print(f"❌ BASE64 UPLOAD ERROR: {str(e)}")
+        return Response({
+            'error': f'Failed to upload profile picture: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def gym_owner_upload_picture(request):
     """
     Upload profile picture for current gym owner
+    Supports both multipart file upload and base64 data
     """
     try:
         # Check if user is a gym owner
@@ -358,9 +456,14 @@ def gym_owner_upload_picture(request):
                 'error': 'User is not a gym owner'
             }, status=status.HTTP_403_FORBIDDEN)
         
+        # Check if this is a base64 upload (new method)
+        if 'profile_picture_base64' in request.data:
+            return _handle_base64_upload(request)
+        
+        # Legacy multipart file upload
         if 'profile_picture' not in request.FILES:
             return Response({
-                'error': 'No profile picture file provided'
+                'error': 'No profile picture file provided (use profile_picture for file upload or profile_picture_base64 for base64 data)'
             }, status=status.HTTP_400_BAD_REQUEST)
         
         gym_owner = request.user.gymowner
@@ -488,3 +591,13 @@ def gym_owner_change_password(request):
         return Response({
             'error': f'Failed to change password: {str(e)}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def google_auth(request):
+    """
+    Google OAuth 2.0 authentication endpoint
+    Authenticates users with Google ID tokens and creates or logs in gym owners
+    """
+    return handle_google_auth(request)
