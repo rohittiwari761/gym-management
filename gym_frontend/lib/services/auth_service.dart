@@ -978,6 +978,77 @@ class AuthService {
     }
   }
 
+  /// Callback function to trigger AuthProvider refresh after successful authentication
+  static Function()? _authStateChangeCallback;
+  
+  /// Set callback for auth state changes (called by AuthProvider)
+  static void setAuthStateChangeCallback(Function()? callback) {
+    _authStateChangeCallback = callback;
+  }
+
+  /// Login with Google authentication data (called by GoogleAuthService)
+  Future<void> loginWithGoogleData({
+    required Map<String, dynamic> userData,
+    required String token,
+    bool isPersistentSession = false,
+  }) async {
+    try {
+      SecurityConfig.logSecurityEvent('GOOGLE_LOGIN_DATA_RECEIVED', {
+        'userId': userData['id'].toString(),
+        'email': userData['email'],
+      });
+
+      // Generate secure session
+      final sessionId = JWTManager.generateSessionId();
+      final refreshToken = SecurityConfig.generateSecureToken(64);
+      
+      // Store tokens securely with session persistence flag
+      await JWTManager.storeTokens(
+        accessToken: token,
+        refreshToken: refreshToken,
+        userId: userData['id'].toString(),
+        userRole: 'admin',
+        sessionId: sessionId,
+        persistent: isPersistentSession,
+      );
+
+      // Create user object
+      final user = GymOwner(
+        id: userData['id'],
+        firstName: userData['firstName'],
+        lastName: userData['lastName'],
+        email: userData['email'],
+        phoneNumber: userData['phoneNumber'] ?? '',
+        gymName: userData['gymName'],
+        gymAddress: userData['gymAddress'],
+        gymDescription: userData['gymDescription'],
+        createdAt: DateTime.parse(userData['createdAt'] ?? DateTime.now().toIso8601String()),
+        updatedAt: DateTime.now(),
+        gymEstablishedDate: DateTime.parse(userData['gymEstablishedDate'] ?? DateTime.now().subtract(const Duration(days: 365)).toIso8601String()),
+      );
+
+      // Store user data securely
+      await _storeUserData(user);
+
+      SecurityConfig.logSecurityEvent('GOOGLE_LOGIN_STORED', {
+        'userId': userData['id'].toString(),
+        'sessionId': sessionId,
+        'persistent': isPersistentSession,
+      });
+
+      // Trigger immediate AuthProvider refresh to update login state
+      if (_authStateChangeCallback != null) {
+        _authStateChangeCallback!();
+      }
+
+    } catch (e) {
+      SecurityConfig.logSecurityEvent('GOOGLE_LOGIN_STORAGE_ERROR', {
+        'error': e.toString(),
+      });
+      throw Exception('Failed to store Google authentication data: $e');
+    }
+  }
+
   /// Dispose of resources
   void dispose() {
     _httpClient.dispose();

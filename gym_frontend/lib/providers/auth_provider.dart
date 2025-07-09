@@ -5,6 +5,8 @@ import '../services/auth_service.dart';
 import '../services/gym_data_service.dart';
 import '../services/database_reset_service.dart';
 import '../services/data_refresh_service.dart';
+import '../services/google_auth_service.dart';
+import '../security/jwt_manager.dart';
 import 'member_provider.dart';
 import 'attendance_provider.dart';
 import 'trainer_provider.dart';
@@ -28,32 +30,31 @@ class AuthProvider with ChangeNotifier {
   String? get errorMessage => _errorMessage;
 
   AuthProvider() {
+    // Register callback with AuthService for immediate state updates
+    AuthService.setAuthStateChangeCallback(() {
+      _checkLoginStatus();
+    });
     _checkLoginStatus();
   }
 
   Future<void> _checkLoginStatus() async {
-    print('🔐 AuthProvider: Checking login status...');
     _isLoading = true;
     notifyListeners();
 
     try {
       _isLoggedIn = await _authService.isLoggedIn();
-      print('🔐 AuthProvider: Login status: $_isLoggedIn');
       if (_isLoggedIn) {
         _currentUser = await _authService.getCurrentUser();
-        print('🔐 AuthProvider: Current user: ${_currentUser?.firstName}');
         
         // Initialize gym-specific data isolation with mock data enabled
         GymDataService().initialize(_currentUser, enableMockData: true);
       }
     } catch (e) {
-      print('💥 AuthProvider ERROR in _checkLoginStatus: $e');
       _errorMessage = e.toString();
     }
 
     _isLoading = false;
     notifyListeners();
-    print('🔐 AuthProvider: Login check completed. Logged in: $_isLoggedIn');
   }
 
   Future<Map<String, dynamic>> login(String email, String password) async {
@@ -180,6 +181,17 @@ class AuthProvider with ChangeNotifier {
       _isLoading = true;
       notifyListeners();
 
+      // Check if this is a Google session and sign out from Google
+      if (await JWTManager.isSessionPersistent()) {
+        try {
+          final googleAuthService = GoogleAuthService();
+          await googleAuthService.signOut();
+          print('✅ AUTH: Signed out from Google successfully');
+        } catch (e) {
+          print('⚠️ AUTH: Error signing out from Google: $e');
+        }
+      }
+
       // Get all providers and clear their data immediately
       final memberProvider = Provider.of<MemberProvider>(context, listen: false);
       final attendanceProvider = Provider.of<AttendanceProvider>(context, listen: false);
@@ -260,6 +272,19 @@ class AuthProvider with ChangeNotifier {
 
   void clearError() {
     _errorMessage = null;
+    notifyListeners();
+  }
+  
+  /// Refresh authentication status (public method to trigger _checkLoginStatus)
+  Future<void> refreshAuthStatus() async {
+    print('🔄 AuthProvider.refreshAuthStatus: Starting refresh...');
+    await _checkLoginStatus();
+    print('✅ AuthProvider.refreshAuthStatus: Completed. isLoggedIn = $_isLoggedIn, user = ${_currentUser?.email}');
+  }
+  
+  /// Set loading state (used by UI components)
+  void setLoading(bool loading) {
+    _isLoading = loading;
     notifyListeners();
   }
   

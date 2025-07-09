@@ -7,6 +7,7 @@ import 'screens/login_screen.dart';
 import 'services/api_service.dart';
 import 'services/offline_handler.dart';
 import 'services/auth_service.dart';
+import 'services/google_auth_service.dart';
 import 'services/health_service.dart';
 import 'providers/member_provider.dart';
 import 'providers/trainer_provider.dart';
@@ -50,16 +51,15 @@ void main() {
   final authService = AuthService();
   authService.initialize();
   
+  // Initialize Google Auth service
+  final googleAuthService = GoogleAuthService();
+  googleAuthService.initialize();
+  
   // Run health check on startup (async, don't block startup)
   HealthService.runFullHealthCheck().then((results) {
-    print('🏥 STARTUP HEALTH CHECK COMPLETED');
-    if (results['overall_status'] == 'healthy') {
-      print('✅ All backend services are healthy');
-    } else {
-      print('⚠️ Backend health issues detected - check logs above');
-    }
+    // Health check completed
   }).catchError((error) {
-    print('💥 Health check failed: $error');
+    // Health check failed
   });
   
   runApp(const MyApp());

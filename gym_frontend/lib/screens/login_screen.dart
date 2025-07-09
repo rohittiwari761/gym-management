@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../security/input_validator.dart';
+import '../services/google_auth_service.dart';
 import 'register_screen.dart';
 import 'home_screen.dart';
 
@@ -214,6 +215,57 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 16),
                         
+                        // Google Sign-In Button
+                        SizedBox(
+                          width: double.infinity,
+                          height: 56,
+                          child: OutlinedButton.icon(
+                            onPressed: () => _signInWithGoogle(),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Colors.red, width: 2),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              backgroundColor: Colors.red[50],
+                              textStyle: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            icon: const Icon(
+                              Icons.account_circle,
+                              color: Colors.red,
+                              size: 24,
+                            ),
+                            label: const Text(
+                              'Continue with Google',
+                              style: TextStyle(color: Colors.red),
+                            ),
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 20),
+                        
+                        // Divider
+                        Row(
+                          children: [
+                            Expanded(child: Divider(color: Colors.grey[400])),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              child: Text(
+                                'OR',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                            Expanded(child: Divider(color: Colors.grey[400])),
+                          ],
+                        ),
+                        
+                        const SizedBox(height: 16),
+                        
                         // Login credentials hint
                         Container(
                           padding: const EdgeInsets.all(12),
@@ -312,6 +364,76 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } else {
       print('⚠️ LOGIN: Form validation failed');
+    }
+  }
+
+  Future<void> _signInWithGoogle() async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      
+      // Show loading indicator
+      authProvider.setLoading(true);
+      
+      // Initialize Google Auth Service if not already done
+      final googleAuthService = GoogleAuthService();
+      googleAuthService.initialize();
+      
+      final result = await googleAuthService.signInWithGoogle();
+      
+      authProvider.setLoading(false);
+      
+      // Handle both boolean true and string 'true'
+      bool isSuccess = result['success'] == true || result['success'] == 'true';
+      
+      if (isSuccess) {
+        // Google sign-in successful, AuthProvider will handle navigation
+        // Force refresh of the auth state to ensure immediate navigation
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        authProvider.setLoading(true);
+        
+        // Give a brief moment for the AuthProvider to update
+        await Future.delayed(const Duration(milliseconds: 200));
+        
+        // Manually trigger a state refresh to ensure navigation
+        authProvider.setLoading(false);
+        return;
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['error'] ?? 'Google sign-in failed'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e, stackTrace) {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      authProvider.setLoading(false);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Google sign-in error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+    
+    print('🔚 GOOGLE SIGNIN: Method completed');
+  }
+
+  void _navigateToHomeAlternative() {
+    print('🔄 GOOGLE SIGNIN: Attempting alternative navigation to home screen');
+    
+    // Try to use the navigator key from the app's main context
+    try {
+      // Since the user is authenticated, we can trigger app restart or use a different method
+      // For now, we'll show a success message and let the user manually go to home
+      print('✅ GOOGLE SIGNIN: User successfully authenticated - app should refresh automatically');
+    } catch (e) {
+      print('❌ GOOGLE SIGNIN: Alternative navigation also failed: $e');
     }
   }
 }
