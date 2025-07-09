@@ -57,6 +57,11 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  // Public method to manually trigger login status check
+  Future<void> checkLoginStatus() async {
+    await _checkLoginStatus();
+  }
+
   Future<Map<String, dynamic>> login(String email, String password) async {
     _isLoading = true;
     _errorMessage = null;

@@ -380,24 +380,21 @@ class _LoginScreenState extends State<LoginScreen> {
       
       final result = await googleAuthService.signInWithGoogle();
       
-      authProvider.setLoading(false);
-      
       // Handle both boolean true and string 'true'
       bool isSuccess = result['success'] == true || result['success'] == 'true';
       
       if (isSuccess) {
-        // Google sign-in successful, AuthProvider will handle navigation
-        // Force refresh of the auth state to ensure immediate navigation
-        final authProvider = Provider.of<AuthProvider>(context, listen: false);
-        authProvider.setLoading(true);
+        // Google sign-in successful - manually refresh AuthProvider
+        // Wait a bit for the auth service to store the data
+        await Future.delayed(const Duration(milliseconds: 300));
         
-        // Give a brief moment for the AuthProvider to update
-        await Future.delayed(const Duration(milliseconds: 200));
+        // Force AuthProvider to check login status immediately
+        await authProvider.checkLoginStatus();
         
-        // Manually trigger a state refresh to ensure navigation
-        authProvider.setLoading(false);
+        // AuthProvider should now navigate to home screen
         return;
       } else {
+        authProvider.setLoading(false);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
