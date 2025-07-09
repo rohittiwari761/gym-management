@@ -21,6 +21,7 @@ class SecureHttpClient {
     
     // In a real implementation, you would configure certificate pinning here
     // For now, we'll ensure HTTPS is used and add security headers
+    print('🔐 SECURE_HTTP: HTTP client initialized for production use');
   }
 
   /// Create HTTP client with timeout
@@ -231,9 +232,21 @@ class SecureHttpClient {
     // First try the primary URL
     try {
       final uri = _buildSecureUri(endpoint, null);
-      return await _executeRequest(method, uri, headers, body, timeout);
+      print('🌐 SECURE_HTTP: Attempting primary URL: $uri');
+      final response = await _executeRequest(method, uri, headers, body, timeout);
+      print('✅ SECURE_HTTP: Primary URL successful: ${response.statusCode}');
+      return response;
     } catch (e) {
-      // Try fallback URLs for local development
+      print('❌ SECURE_HTTP: Primary URL failed: $e');
+      
+      // For production Railway URL, don't try fallback URLs
+      if (SecurityConfig.apiUrl.contains('railway.app')) {
+        print('🚫 SECURE_HTTP: Production Railway URL - not trying fallbacks');
+        throw e;
+      }
+      
+      // Try fallback URLs for local development only
+      print('🔄 SECURE_HTTP: Trying fallback URLs...');
       for (final fallbackUrl in SecurityConfig.localFallbackUrls) {
         try {
           final fullUrl = endpoint.startsWith('/') 
@@ -241,14 +254,18 @@ class SecureHttpClient {
               : '$fallbackUrl/$endpoint';
           final uri = Uri.parse(fullUrl);
           
+          print('🔍 SECURE_HTTP: Trying fallback: $fallbackUrl');
           final response = await _executeRequest(method, uri, headers, body, timeout);
+          print('✅ SECURE_HTTP: Fallback URL successful: $fallbackUrl');
           return response;
         } catch (fallbackError) {
+          print('❌ SECURE_HTTP: Fallback failed: $fallbackUrl - $fallbackError');
           continue;
         }
       }
       
       // If all URLs fail, throw the original error
+      print('💥 SECURE_HTTP: All URLs failed, throwing original error');
       rethrow;
     }
   }

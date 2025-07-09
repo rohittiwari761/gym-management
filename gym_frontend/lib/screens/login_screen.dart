@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../security/input_validator.dart';
 import '../services/google_auth_service.dart';
+import '../utils/network_test.dart';
 import 'register_screen.dart';
 import 'home_screen.dart';
 
@@ -266,30 +267,42 @@ class _LoginScreenState extends State<LoginScreen> {
                         
                         const SizedBox(height: 16),
                         
-                        // Login credentials hint
+                        // Login info hint
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.blue.withOpacity(0.1),
+                            color: Colors.orange.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                            border: Border.all(color: Colors.orange.withOpacity(0.3)),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                'Demo Login Credentials:',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.blue,
-                                ),
+                              const Row(
+                                children: [
+                                  Icon(Icons.info_outline, color: Colors.orange, size: 20),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Getting Started',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.orange,
+                                    ),
+                                  ),
+                                ],
                               ),
                               const SizedBox(height: 8),
-                              const Text('Email: admin@gym.com'),
-                              const Text('Password: admin123'),
-                              const SizedBox(height: 4),
-                              const Text('Email: owner@fitnesscenter.com'),
-                              const Text('Password: owner123'),
+                              const Text('• Create a new account using the register button below'),
+                              const Text('• Or use Google Sign-In for quick access'),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Connected to: gym-management-production-4343.up.railway.app',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -343,6 +356,9 @@ class _LoginScreenState extends State<LoginScreen> {
     if (_formKey.currentState!.validate()) {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       
+      // Add network test before attempting login
+      print('🔍 LOGIN: Starting network test before login...');
+      await NetworkTest.testNetworkConnection();
       
       final result = await authProvider.login(
         _emailController.text.trim(),
