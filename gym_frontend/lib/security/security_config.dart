@@ -6,13 +6,30 @@ class SecurityConfig {
   // Environment-based configuration
   static const bool _isProduction = bool.fromEnvironment('dart.vm.product');
   
-  // API Configuration
-  static const String _devApiUrl = 'http://127.0.0.1:8000/api';
-  // Railway deployment URL
+  // Production URL
   static const String _prodApiUrl = 'https://gym-management-production-4343.up.railway.app/api';
   
-  // Force Railway URL for testing (change back to _isProduction check if needed)
-  static String get apiUrl => _prodApiUrl; // Always use Railway for now
+  // Local development URLs (fallback only)
+  static const String _localhostApiUrl = 'http://localhost:8000/api';
+  static const String _localApiUrl = 'http://127.0.0.1:8000/api';
+  static const String _macNetworkApiUrl = 'http://192.168.1.14:8000/api';
+  
+  // Use production URL by default
+  static String get apiUrl {
+    return _prodApiUrl;
+  }
+  
+  /// Alternative local URLs to try if primary fails (ordered by likelihood of success)
+  static List<String> get localFallbackUrls => [
+    'http://localhost:8000/api', // iOS Simulator compatible (first fallback)
+    'http://127.0.0.1:8000/api', // Direct localhost 
+    'http://192.168.1.13:8000/api', // Previous IP (if changed)
+    'http://192.168.1.6:8000/api', // Older IP (if changed)
+    'http://192.168.1.1:8000/api', // Router gateway IP
+    'http://10.0.0.1:8000/api', // Alternative gateway
+    'http://172.16.0.1:8000/api', // Alternative private IP
+  ];
+  
   
   // Security Settings
   static const int tokenExpiryDuration = 3600; // 1 hour in seconds
@@ -98,11 +115,8 @@ class SecurityConfig {
   
   // Security logging (without sensitive data)
   static void logSecurityEvent(String event, Map<String, dynamic> metadata) {
-    if (!_isProduction) {
-      print('🔒 SECURITY EVENT: $event');
-      print('📊 METADATA: ${metadata.keys.join(', ')}'); // Only log keys, not values
-    }
     // In production, send to secure logging service
+    // For now, events are logged silently
   }
   
   // Sanitize log data

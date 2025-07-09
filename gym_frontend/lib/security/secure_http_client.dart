@@ -96,12 +96,14 @@ class SecureHttpClient {
   Future<SecureHttpResponse> delete(
     String endpoint, {
     Map<String, String>? headers,
+    Map<String, dynamic>? body,
     bool requireAuth = true,
   }) async {
     return _makeRequest(
       'DELETE',
       endpoint,
       headers: headers,
+      body: body,
       requireAuth: requireAuth,
     );
   }
@@ -122,14 +124,17 @@ class SecureHttpClient {
       }
 
       // Validate endpoint
+      print('🔍 SECURE_HTTP: Validating endpoint: "$endpoint"');
       final validation = InputValidator.validateTextInput(
         endpoint,
         maxLength: 500,
         fieldName: 'Endpoint',
       );
       if (!validation.isValid) {
+        print('❌ SECURE_HTTP: Endpoint validation failed for: "$endpoint"');
         throw SecurityException('Invalid endpoint: ${validation.message}');
       }
+      print('✅ SECURE_HTTP: Endpoint validation passed for: "$endpoint"');
 
       // Build URL
       final uri = _buildSecureUri(endpoint, queryParams);
@@ -140,46 +145,23 @@ class SecureHttpClient {
       // Prepare body
       String? jsonBody;
       if (body != null) {
+        print('🔍 SECURE_HTTP: Processing request body with ${body.length} fields');
         // Validate and sanitize body
         final sanitizedBody = _sanitizeRequestBody(body);
         jsonBody = jsonEncode(sanitizedBody);
+        print('✅ SECURE_HTTP: Request body processed successfully');
       }
 
-      // Make request with timeout
-      http.Response response;
-      const timeout = Duration(seconds: 30); // 30 second timeout
+      // Make request with timeout and fallback URLs
+      const timeout = Duration(seconds: 8); // Reduced timeout for faster fallback
       
-      switch (method.toUpperCase()) {
-        case 'GET':
-          response = await _client.get(uri, headers: secureHeaders).timeout(timeout);
-          break;
-        case 'POST':
-          response = await _client.post(
-            uri,
-            headers: secureHeaders,
-            body: jsonBody,
-          ).timeout(timeout);
-          break;
-        case 'PUT':
-          response = await _client.put(
-            uri,
-            headers: secureHeaders,
-            body: jsonBody,
-          ).timeout(timeout);
-          break;
-        case 'PATCH':
-          response = await _client.patch(
-            uri,
-            headers: secureHeaders,
-            body: jsonBody,
-          ).timeout(timeout);
-          break;
-        case 'DELETE':
-          response = await _client.delete(uri, headers: secureHeaders).timeout(timeout);
-          break;
-        default:
-          throw SecurityException('Unsupported HTTP method: $method');
-      }
+      final response = await _makeRequestWithFallback(
+        method,
+        endpoint,
+        secureHeaders,
+        jsonBody,
+        timeout,
+      );
 
       // Validate response
       final secureResponse = await _validateResponse(response);
@@ -236,6 +218,63 @@ class SecureHttpClient {
     }
 
     return uri;
+  }
+
+  /// Try multiple URLs for local development
+  Future<http.Response> _makeRequestWithFallback(
+    String method,
+    String endpoint,
+    Map<String, String> headers,
+    String? body,
+    Duration timeout,
+  ) async {
+    // First try the primary URL
+    try {
+      final uri = _buildSecureUri(endpoint, null);
+      return await _executeRequest(method, uri, headers, body, timeout);
+    } catch (e) {
+      // Try fallback URLs for local development
+      for (final fallbackUrl in SecurityConfig.localFallbackUrls) {
+        try {
+          final fullUrl = endpoint.startsWith('/') 
+              ? '$fallbackUrl$endpoint' 
+              : '$fallbackUrl/$endpoint';
+          final uri = Uri.parse(fullUrl);
+          
+          final response = await _executeRequest(method, uri, headers, body, timeout);
+          return response;
+        } catch (fallbackError) {
+          continue;
+        }
+      }
+      
+      // If all URLs fail, throw the original error
+      rethrow;
+    }
+  }
+
+  /// Execute HTTP request for a specific URI
+  Future<http.Response> _executeRequest(
+    String method,
+    Uri uri,
+    Map<String, String> headers,
+    String? body,
+    Duration timeout,
+  ) async {
+    switch (method.toUpperCase()) {
+      case 'GET':
+        return await _client.get(uri, headers: headers).timeout(timeout);
+      case 'POST':
+        return await _client.post(uri, headers: headers, body: body).timeout(timeout);
+      case 'PUT':
+        return await _client.put(uri, headers: headers, body: body).timeout(timeout);
+      case 'PATCH':
+        return await _client.patch(uri, headers: headers, body: body).timeout(timeout);
+      case 'DELETE':
+        return await _client.delete(uri, headers: headers, body: body).timeout(timeout);
+      default:
+        throw SecurityException('Unsupported HTTP method: $method');
+    }
   }
 
   /// Build secure headers including authentication

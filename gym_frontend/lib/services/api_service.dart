@@ -9,6 +9,7 @@ import '../models/workout_session.dart';
 import '../security/secure_http_client.dart';
 import '../security/security_config.dart';
 import '../security/input_validator.dart';
+import '../utils/timezone_utils.dart';
 
 class ApiService {
   static final ApiService _instance = ApiService._internal();
@@ -103,7 +104,6 @@ class ApiService {
         if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
           // Paginated response from Django REST Framework
           jsonList = responseData['results'] as List<dynamic>;
-          print('📊 API: Received paginated response with ${responseData['count']} total members');
         } else if (responseData is List<dynamic>) {
           // Direct list response (fallback)
           jsonList = responseData;
@@ -202,7 +202,6 @@ class ApiService {
         if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
           // Paginated response from Django REST Framework
           jsonList = responseData['results'] as List<dynamic>;
-          print('📊 API: Received paginated response with ${responseData['count']} total trainers');
         } else if (responseData is List<dynamic>) {
           // Direct list response (fallback)
           jsonList = responseData;
@@ -234,7 +233,6 @@ class ApiService {
         if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
           // Paginated response from Django REST Framework
           jsonList = responseData['results'] as List<dynamic>;
-          print('📊 API: Received paginated response with ${responseData['count']} available trainers');
         } else if (responseData is List<dynamic>) {
           // Direct list response (fallback)
           jsonList = responseData;
@@ -404,7 +402,6 @@ class ApiService {
         if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
           // Paginated response from Django REST Framework
           jsonList = responseData['results'] as List<dynamic>;
-          print('📊 API: Received paginated response with ${responseData['count']} total equipment');
         } else if (responseData is List<dynamic>) {
           // Direct list response (fallback)
           jsonList = responseData;
@@ -433,7 +430,6 @@ class ApiService {
         if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
           // Paginated response from Django REST Framework
           jsonList = responseData['results'] as List<dynamic>;
-          print('📊 API: Received paginated response with ${responseData['count']} working equipment');
         } else if (responseData is List<dynamic>) {
           // Direct list response (fallback)
           jsonList = responseData;
@@ -450,6 +446,87 @@ class ApiService {
     }
   }
 
+  /// Create new equipment
+  Future<bool> createEquipment(Equipment equipment) async {
+    try {
+      SecurityConfig.logSecurityEvent('API_REQUEST', {
+        'endpoint': 'equipment',
+        'method': 'POST',
+      });
+
+      final response = await _httpClient.post(
+        'equipment/',
+        body: equipment.toJson(),
+        requireAuth: true,
+      );
+
+      if (response.isSuccess) {
+        SecurityConfig.logSecurityEvent('EQUIPMENT_CREATED', {
+          'equipment_name': equipment.name,
+        });
+        return true;
+      } else {
+        return false;
+      }
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Update existing equipment
+  Future<bool> updateEquipment(Equipment equipment) async {
+    try {
+      SecurityConfig.logSecurityEvent('API_REQUEST', {
+        'endpoint': 'equipment/${equipment.id}',
+        'method': 'PUT',
+      });
+
+      final response = await _httpClient.put(
+        'equipment/${equipment.id}/',
+        body: equipment.toJson(),
+        requireAuth: true,
+      );
+
+      if (response.isSuccess) {
+        SecurityConfig.logSecurityEvent('EQUIPMENT_UPDATED', {
+          'equipment_id': equipment.id,
+          'equipment_name': equipment.name,
+        });
+        return true;
+      } else {
+        return false;
+      }
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Delete equipment
+  Future<bool> deleteEquipment(int equipmentId) async {
+    try {
+      SecurityConfig.logSecurityEvent('API_REQUEST', {
+        'endpoint': 'equipment/$equipmentId',
+        'method': 'DELETE',
+      });
+
+      final response = await _httpClient.delete(
+        'equipment/$equipmentId/',
+        requireAuth: true,
+      );
+
+      if (response.isSuccess) {
+        SecurityConfig.logSecurityEvent('EQUIPMENT_DELETED', {
+          'equipment_id': equipmentId,
+        });
+        return true;
+      } else {
+        return false;
+      }
+    } catch (e) {
+      return false;
+    }
+  }
+
   // Workout Sessions API
   Future<List<WorkoutSession>> getUpcomingSessions() async {
     try {
@@ -463,7 +540,6 @@ class ApiService {
         if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
           // Paginated response from Django REST Framework
           jsonList = responseData['results'] as List<dynamic>;
-          print('📊 API: Received paginated response with ${responseData['count']} upcoming sessions');
         } else if (responseData is List<dynamic>) {
           // Direct list response (fallback)
           jsonList = responseData;
@@ -606,7 +682,8 @@ class ApiService {
       Map<String, dynamic>? queryParams;
 
       if (date != null) {
-        final dateStr = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+        // Use IST timezone for date formatting
+        final dateStr = TimezoneUtils.getAPIDateString(date);
         queryParams = {'date': dateStr};
       }
 
@@ -637,8 +714,29 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> getTodayAttendances() async {
-    final today = DateTime.now();
-    return getAttendances(date: today);
+    try {
+      SecurityConfig.logSecurityEvent('TODAY_ATTENDANCE_REQUEST', {});
+
+      final response = await _httpClient.get('attendance/today_attendance/');
+
+      if (response.isSuccess) {
+        SecurityConfig.logSecurityEvent('TODAY_ATTENDANCE_SUCCESS', {});
+        // Handle the specific format from today_attendance endpoint
+        if (response.data != null && response.data is Map<String, dynamic>) {
+          final responseData = response.data as Map<String, dynamic>;
+          final attendances = responseData['attendances'] as List<dynamic>? ?? [];
+          return {'success': true, 'data': attendances};
+        }
+        return {'success': true, 'data': []};
+      } else {
+        return {'success': false, 'message': response.errorMessage ?? 'Failed to fetch today\'s attendances'};
+      }
+    } catch (e) {
+      SecurityConfig.logSecurityEvent('TODAY_ATTENDANCE_ERROR', {
+        'error': e.toString(),
+      });
+      return _handleSecureError('get_today_attendances', e);
+    }
   }
 
   Future<Map<String, dynamic>> getAttendanceAnalytics() async {
@@ -679,7 +777,6 @@ class ApiService {
         if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
           // Paginated response from Django REST Framework
           jsonList = responseData['results'] as List<dynamic>;
-          print('📊 API: Received paginated response with ${responseData['count']} trainer-member associations');
         } else if (responseData is List<dynamic>) {
           // Direct list response (fallback)
           jsonList = responseData;
@@ -717,7 +814,6 @@ class ApiService {
         if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
           // Paginated response from Django REST Framework
           jsonList = responseData['results'] as List<dynamic>;
-          print('📊 API: Received paginated response with ${responseData['count']} trainer members');
         } else if (responseData is List<dynamic>) {
           // Direct list response (fallback)
           jsonList = responseData;
@@ -763,14 +859,12 @@ class ApiService {
         });
         return true;
       } else {
-        print('Failed to associate member: ${response.errorMessage}');
         return false;
       }
     } catch (e) {
       SecurityConfig.logSecurityEvent('MEMBER_ASSOCIATION_ERROR', {
         'error': e.toString(),
       });
-      print('Error associating member: $e');
       return false;
     }
   }
@@ -784,7 +878,9 @@ class ApiService {
       });
 
       final response = await _httpClient.delete(
-        'trainers/$trainerId/unassociate_member/?member_id=$memberId',
+        'trainers/$trainerId/unassociate_member/',
+        headers: {'Content-Type': 'application/json'},
+        body: {'member_id': memberId},
         requireAuth: true,
       );
 
@@ -795,14 +891,12 @@ class ApiService {
         });
         return true;
       } else {
-        print('Failed to unassociate member: ${response.errorMessage}');
         return false;
       }
     } catch (e) {
       SecurityConfig.logSecurityEvent('MEMBER_UNASSOCIATION_ERROR', {
         'error': e.toString(),
       });
-      print('Error unassociating member: $e');
       return false;
     }
   }

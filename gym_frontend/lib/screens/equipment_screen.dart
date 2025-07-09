@@ -1021,19 +1021,32 @@ class _EquipmentScreenState extends State<EquipmentScreen> with SingleTickerProv
     final brandController = TextEditingController(text: equipment?.brand ?? '');
     final notesController = TextEditingController(text: equipment?.maintenanceNotes ?? '');
     
-    // Ensure the selected type matches exactly with dropdown items
-    final availableTypes = ['Cardio', 'Strength', 'Free Weights', 'Functional', 'Recovery'];
-    String selectedType = equipment?.equipmentType ?? 'Cardio';
+    // Map display names to Django model values
+    final typeMapping = {
+      'Cardio': 'cardio',
+      'Strength': 'strength',
+      'Free Weights': 'free_weights',
+      'Functional': 'functional',
+      'Recovery': 'recovery',
+      'Flexibility': 'flexibility',
+      'Accessories': 'accessories',
+    };
     
-    // Fix case sensitivity issues - find matching type regardless of case
-    if (equipment?.equipmentType != null) {
-      final matchingType = availableTypes.firstWhere(
-        (type) => type.toLowerCase() == equipment!.equipmentType.toLowerCase(),
-        orElse: () => 'Cardio',
-      );
-      selectedType = matchingType;
-      print('🔧 EQUIPMENT DIALOG: Original type: "${equipment!.equipmentType}", Selected: "$selectedType"');
-    }
+    // Reverse mapping for display
+    final reverseTypeMapping = {
+      'cardio': 'Cardio',
+      'strength': 'Strength',
+      'free_weights': 'Free Weights',
+      'functional': 'Functional',
+      'recovery': 'Recovery',
+      'flexibility': 'Flexibility',
+      'accessories': 'Accessories',
+    };
+    
+    final availableTypes = typeMapping.keys.toList();
+    String selectedType = equipment?.equipmentType != null 
+        ? reverseTypeMapping[equipment!.equipmentType] ?? 'Cardio'
+        : 'Cardio';
     
     DateTime purchaseDate = equipment?.purchaseDate ?? DateTime.now();
     DateTime warrantyDate = equipment?.warrantyExpiry ?? DateTime.now().add(const Duration(days: 365));
@@ -1182,11 +1195,13 @@ class _EquipmentScreenState extends State<EquipmentScreen> with SingleTickerProv
                   id: equipment?.id,
                   name: nameController.text.trim(),
                   brand: brandController.text.trim(),
-                  equipmentType: selectedType,
+                  equipmentType: typeMapping[selectedType] ?? 'cardio', // Convert display name to Django value
                   purchaseDate: purchaseDate,
                   warrantyExpiry: warrantyDate,
                   isWorking: isWorking,
+                  condition: isWorking ? 'excellent' : 'maintenance',
                   maintenanceNotes: notesController.text.trim(),
+                  quantity: 1, // Default quantity
                 );
 
                 bool success;

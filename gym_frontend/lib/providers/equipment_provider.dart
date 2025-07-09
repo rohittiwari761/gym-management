@@ -84,27 +84,17 @@ class EquipmentProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      print('🔧 EQUIPMENT: Fetching all equipment...');
       _equipment = await _apiService.getEquipment();
-      print('✅ EQUIPMENT: Loaded ${_equipment.length} equipment items from Django backend');
-      
-      // Don't create mock data - use real backend data only
     } catch (e) {
-      print('💥 EQUIPMENT ERROR: $e');
-      
       // Handle network errors with user-friendly messages
       final errorResult = OfflineHandler.handleNetworkError(e);
       _errorMessage = errorResult['message'];
       
       // Only use mock data if backend is completely unreachable (network error)
-      // Don't create mock data if backend returns 401, 403, or empty arrays
       if (e.toString().contains('SocketException') || 
           e.toString().contains('Connection refused') ||
           e.toString().contains('Connection failed')) {
-        print('🔌 EQUIPMENT: Backend unreachable, using mock data');
         _createMockEquipment();
-      } else {
-        print('🔌 EQUIPMENT: Backend reachable but returned error - no mock data');
       }
     } finally {
       _isLoading = false;
@@ -118,11 +108,8 @@ class EquipmentProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      print('🔧 EQUIPMENT: Fetching working equipment...');
       _workingEquipment = await _apiService.getWorkingEquipment();
-      print('✅ EQUIPMENT: Loaded ${_workingEquipment.length} working equipment items');
     } catch (e) {
-      print('💥 EQUIPMENT ERROR: $e');
       
       // Handle network errors with user-friendly messages
       final errorResult = OfflineHandler.handleNetworkError(e);
@@ -138,65 +125,92 @@ class EquipmentProvider with ChangeNotifier {
 
   Future<bool> addEquipment(Equipment equipment) async {
     try {
-      print('➕ EQUIPMENT: Adding new equipment: ${equipment.name}');
+      _setLoading(true);
       
-      // For now, add to local list (API integration would go here)
-      final newEquipment = Equipment(
-        id: DateTime.now().millisecondsSinceEpoch,
-        name: equipment.name,
-        equipmentType: equipment.equipmentType,
-        brand: equipment.brand,
-        purchaseDate: equipment.purchaseDate,
-        warrantyExpiry: equipment.warrantyExpiry,
-        isWorking: equipment.isWorking,
-        maintenanceNotes: equipment.maintenanceNotes,
-      );
+      // Call API to create equipment on backend
+      final success = await _apiService.createEquipment(equipment);
       
-      _equipment.add(newEquipment);
-      notifyListeners();
-      
-      print('✅ EQUIPMENT: Successfully added ${equipment.name}');
-      return true;
+      if (success) {
+        // Refresh data from backend to get the actual ID and updated list
+        await fetchEquipment();
+        _errorMessage = '';
+        _setLoading(false);
+        return true;
+      } else {
+        _errorMessage = 'Failed to add equipment to server';
+        _setLoading(false);
+        return false;
+      }
     } catch (e) {
-      print('💥 EQUIPMENT ADD ERROR: $e');
       _errorMessage = 'Failed to add equipment: $e';
+      _setLoading(false);
       return false;
     }
   }
 
   Future<bool> updateEquipment(Equipment equipment) async {
     try {
-      print('📝 EQUIPMENT: Updating equipment: ${equipment.name}');
+      _setLoading(true);
       
-      final index = _equipment.indexWhere((e) => e.id == equipment.id);
-      if (index != -1) {
-        _equipment[index] = equipment;
-        notifyListeners();
-        print('✅ EQUIPMENT: Successfully updated ${equipment.name}');
+      // Call API to update equipment on backend
+      final success = await _apiService.updateEquipment(equipment);
+      
+      if (success) {
+        // Update local data if API call was successful
+        final index = _equipment.indexWhere((e) => e.id == equipment.id);
+        if (index != -1) {
+          _equipment[index] = equipment;
+          _errorMessage = '';
+        }
+        
+        // Refresh working equipment list if status changed
+        if (equipment.isWorking) {
+          final workingIndex = _workingEquipment.indexWhere((e) => e.id == equipment.id);
+          if (workingIndex != -1) {
+            _workingEquipment[workingIndex] = equipment;
+          } else {
+            _workingEquipment.add(equipment);
+          }
+        } else {
+          _workingEquipment.removeWhere((e) => e.id == equipment.id);
+        }
+        
+        _setLoading(false);
         return true;
       } else {
-        _errorMessage = 'Equipment not found';
+        _errorMessage = 'Failed to update equipment on server';
+        _setLoading(false);
         return false;
       }
     } catch (e) {
-      print('💥 EQUIPMENT UPDATE ERROR: $e');
       _errorMessage = 'Failed to update equipment: $e';
+      _setLoading(false);
       return false;
     }
   }
 
   Future<bool> deleteEquipment(int equipmentId) async {
     try {
-      print('🗑️ EQUIPMENT: Deleting equipment ID: $equipmentId');
+      _setLoading(true);
       
-      _equipment.removeWhere((e) => e.id == equipmentId);
-      notifyListeners();
+      // Call API to delete equipment on backend
+      final success = await _apiService.deleteEquipment(equipmentId);
       
-      print('✅ EQUIPMENT: Successfully deleted equipment');
-      return true;
+      if (success) {
+        // Remove from local data if API call was successful
+        _equipment.removeWhere((e) => e.id == equipmentId);
+        _workingEquipment.removeWhere((e) => e.id == equipmentId);
+        _errorMessage = '';
+        _setLoading(false);
+        return true;
+      } else {
+        _errorMessage = 'Failed to delete equipment from server';
+        _setLoading(false);
+        return false;
+      }
     } catch (e) {
-      print('💥 EQUIPMENT DELETE ERROR: $e');
       _errorMessage = 'Failed to delete equipment: $e';
+      _setLoading(false);
       return false;
     }
   }
@@ -204,11 +218,12 @@ class EquipmentProvider with ChangeNotifier {
   Future<bool> updateMaintenanceStatus(int equipmentId, bool isWorking, String notes) async {
     try {
       print('🔧 EQUIPMENT: Updating maintenance status for ID: $equipmentId');
+      _setLoading(true);
       
       final index = _equipment.indexWhere((e) => e.id == equipmentId);
       if (index != -1) {
         final equipment = _equipment[index];
-        _equipment[index] = Equipment(
+        final updatedEquipment = Equipment(
           id: equipment.id,
           name: equipment.name,
           equipmentType: equipment.equipmentType,
@@ -218,16 +233,44 @@ class EquipmentProvider with ChangeNotifier {
           isWorking: isWorking,
           maintenanceNotes: notes,
         );
-        notifyListeners();
-        print('✅ EQUIPMENT: Updated maintenance status');
-        return true;
+        
+        // Call API to update equipment on backend
+        final success = await _apiService.updateEquipment(updatedEquipment);
+        
+        if (success) {
+          // Update local data if API call was successful
+          _equipment[index] = updatedEquipment;
+          
+          // Update working equipment list
+          if (isWorking) {
+            final workingIndex = _workingEquipment.indexWhere((e) => e.id == equipmentId);
+            if (workingIndex != -1) {
+              _workingEquipment[workingIndex] = updatedEquipment;
+            } else {
+              _workingEquipment.add(updatedEquipment);
+            }
+          } else {
+            _workingEquipment.removeWhere((e) => e.id == equipmentId);
+          }
+          
+          _errorMessage = '';
+          print('✅ EQUIPMENT: Updated maintenance status');
+          _setLoading(false);
+          return true;
+        } else {
+          _errorMessage = 'Failed to update maintenance status on server';
+          _setLoading(false);
+          return false;
+        }
       } else {
         _errorMessage = 'Equipment not found';
+        _setLoading(false);
         return false;
       }
     } catch (e) {
       print('💥 EQUIPMENT MAINTENANCE ERROR: $e');
       _errorMessage = 'Failed to update maintenance status: $e';
+      _setLoading(false);
       return false;
     }
   }
@@ -369,5 +412,11 @@ class EquipmentProvider with ChangeNotifier {
     print('🔄 EQUIPMENT: Force refreshing equipment data');
     clearAllData();
     await fetchEquipment();
+  }
+
+  /// Set loading state and notify listeners
+  void _setLoading(bool loading) {
+    _isLoading = loading;
+    notifyListeners();
   }
 }

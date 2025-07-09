@@ -5,6 +5,7 @@ import '../providers/attendance_provider.dart';
 import '../providers/member_provider.dart';
 import '../models/attendance.dart';
 import '../utils/app_theme.dart';
+import '../utils/timezone_utils.dart';
 import 'qr_scanner_screen.dart';
 
 class AttendanceScreen extends StatefulWidget {
@@ -60,29 +61,22 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
 
   Future<void> _loadData() async {
     try {
-      print('📋 ATTENDANCE SCREEN: Starting data load sequence');
-      
       // First load members to populate the cache
-      print('👥 ATTENDANCE SCREEN: Loading members first...');
       await _memberProvider!.fetchMembers();
-      print('👥 ATTENDANCE SCREEN: Loaded ${_memberProvider!.members.length} members');
       
       // Update attendance provider with members cache for name resolution
       if (_memberProvider != null && _attendanceProvider != null) {
         _attendanceProvider!.updateMembersCache(_memberProvider!.members);
-        print('📇 ATTENDANCE SCREEN: Updated attendance provider with member cache');
       }
       
       // Then load attendance data (which can now use the member names)
-      print('📋 ATTENDANCE SCREEN: Loading attendance data...');
       await Future.wait([
         _attendanceProvider!.fetchAttendances(),
+        _attendanceProvider!.fetchTodaysAttendance(),
         _attendanceProvider!.fetchStats(),
       ]);
-      
-      print('✅ ATTENDANCE SCREEN: Data load sequence completed');
     } catch (e) {
-      print('❌ ATTENDANCE SCREEN: Error in data load sequence: $e');
+      // Handle error silently
     }
   }
 
@@ -671,12 +665,36 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
               const SizedBox(width: 16),
               ElevatedButton.icon(
                 onPressed: () {
-                  _attendanceProvider?.setSelectedDate(DateTime.now());
+                  _attendanceProvider?.setSelectedDate(TimezoneUtils.todayIST);
                 },
                 icon: const Icon(Icons.today),
                 label: const Text('Today'),
               ),
             ],
+          ),
+        ),
+        
+        // Date Info Header
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Consumer<AttendanceProvider>(
+            builder: (context, attendanceProvider, child) {
+              final selectedDate = TimezoneUtils.formatISTDate(attendanceProvider.selectedDate);
+              return Row(
+                children: [
+                  Icon(Icons.calendar_today, size: 16, color: Theme.of(context).colorScheme.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Attendance for $selectedDate (IST)',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ),
         
@@ -689,8 +707,19 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
               }
 
               final attendances = attendanceProvider.attendances;
+              final selectedDate = TimezoneUtils.formatISTDate(attendanceProvider.selectedDate);
               
-              if (attendances.isEmpty) {
+              // Filter attendances to only show records from the selected date (client-side validation)
+              final selectedDateIST = attendanceProvider.selectedDate;
+              final filteredAttendances = attendances.where((attendance) {
+                final attendanceDateIST = TimezoneUtils.toIST(attendance.checkInTime);
+                final isSameDate = attendanceDateIST.year == selectedDateIST.year &&
+                                   attendanceDateIST.month == selectedDateIST.month &&
+                                   attendanceDateIST.day == selectedDateIST.day;
+                return isSameDate;
+              }).toList();
+              
+              if (filteredAttendances.isEmpty) {
                 return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -708,9 +737,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
               
               return ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: attendances.length,
+                itemCount: filteredAttendances.length,
                 itemBuilder: (context, index) {
-                  final attendance = attendances[index];
+                  final attendance = filteredAttendances[index];
                   return _buildAttendanceListItem(attendance);
                 },
               );
@@ -945,9 +974,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
   Future<void> _selectDate() async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: _attendanceProvider?.selectedDate ?? DateTime.now(),
+      initialDate: _attendanceProvider?.selectedDate ?? TimezoneUtils.todayIST,
       firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
+      lastDate: TimezoneUtils.todayIST, // Don't allow future dates in IST
     );
     
     if (picked != null && _attendanceProvider != null) {
