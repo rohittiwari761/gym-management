@@ -1134,9 +1134,7 @@ class DashboardScreen extends StatelessWidget {
                   );
                   
                   // Force refresh all data when returning from payment creation
-                  if (mounted) {
-                    _refreshData();
-                  }
+                  _refreshData(context);
                 },
               ),
               _buildActionCard(
