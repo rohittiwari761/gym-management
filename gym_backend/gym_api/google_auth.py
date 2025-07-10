@@ -24,6 +24,12 @@ class GoogleAuthService:
         """
         try:
             print(f"🔐 GOOGLE_AUTH: Verifying token with length: {len(google_token)}")
+            
+            # Check if Google OAuth is configured
+            if not settings.GOOGLE_OAUTH2_CLIENT_ID:
+                print("❌ GOOGLE_AUTH: GOOGLE_OAUTH2_CLIENT_ID environment variable not set")
+                return None
+            
             print(f"🔑 GOOGLE_AUTH: Client ID: {settings.GOOGLE_OAUTH2_CLIENT_ID}")
             print(f"🔑 GOOGLE_AUTH: Token starts with: {google_token[:50]}...")
             

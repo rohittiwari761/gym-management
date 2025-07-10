@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 from pathlib import Path
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -134,6 +135,10 @@ CORS_ALLOW_CREDENTIALS = True
 # Google OAuth 2.0 settings
 GOOGLE_OAUTH2_CLIENT_ID = os.getenv('GOOGLE_OAUTH2_CLIENT_ID')
 GOOGLE_OAUTH2_CLIENT_SECRET = os.getenv('GOOGLE_OAUTH2_CLIENT_SECRET')
+
+# Debug: Print environment variables (remove in production)
+print(f"🔑 DJANGO_SETTINGS: GOOGLE_OAUTH2_CLIENT_ID = {GOOGLE_OAUTH2_CLIENT_ID}")
+print(f"🔑 DJANGO_SETTINGS: Environment variables loaded = {bool(GOOGLE_OAUTH2_CLIENT_ID)}")
 
 # REST Framework settings
 REST_FRAMEWORK = {
