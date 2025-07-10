@@ -1,32 +1,5 @@
 Watching for file changes with StatReloader
-[28/Jun/2025 16:38:21] "GET /api/members/ HTTP/1.1" 200 2
-Not Found: /
-[28/Jun/2025 16:38:48] "GET / HTTP/1.1" 404 2215
-Not Found: /favicon.ico
-[28/Jun/2025 16:38:48] "GET /favicon.ico HTTP/1.1" 404 2266
-Not Found: /
-[28/Jun/2025 16:39:20] "GET / HTTP/1.1" 404 2215
-Not Found: /
-[28/Jun/2025 16:43:36] "GET / HTTP/1.1" 404 2215
-[28/Jun/2025 16:45:13] "GET /api/members/ HTTP/1.1" 200 2
-[28/Jun/2025 16:45:13] "GET /api/trainers/ HTTP/1.1" 200 2
-Not Found: /
-[28/Jun/2025 16:46:11] "GET / HTTP/1.1" 404 2215
-[28/Jun/2025 16:48:16] "GET /api/members/ HTTP/1.1" 200 337
-[28/Jun/2025 16:48:24] "GET /api/trainers/ HTTP/1.1" 200 262
-[28/Jun/2025 16:48:29] "GET /api/equipment/ HTTP/1.1" 200 178
-[28/Jun/2025 17:52:59] "GET /api/members/ HTTP/1.1" 200 337
-[28/Jun/2025 18:06:50] "GET /api/members/ HTTP/1.1" 200 337
-[28/Jun/2025 18:07:42] "GET /api/trainers/ HTTP/1.1" 200 262
-[28/Jun/2025 18:07:42] "GET /api/members/ HTTP/1.1" 200 337
-[28/Jun/2025 18:07:42] "GET /api/equipment/ HTTP/1.1" 200 178
-[28/Jun/2025 18:07:44] "GET /api/members/ HTTP/1.1" 200 337
-[28/Jun/2025 18:07:44] "GET /api/equipment/ HTTP/1.1" 200 178
-[28/Jun/2025 18:07:44] "GET /api/trainers/ HTTP/1.1" 200 262
-[28/Jun/2025 18:07:46,880] - Broken pipe from ('127.0.0.1', 52860)
-[28/Jun/2025 18:07:46,881] - Broken pipe from ('127.0.0.1', 52861)
-[28/Jun/2025 18:07:46,881] - Broken pipe from ('127.0.0.1', 52862)
-Not Found: /api/attendance/check_out/
-[28/Jun/2025 18:08:13] "POST /api/attendance/check_out/ HTTP/1.1" 404 46
-Not Found: /
-[28/Jun/2025 18:08:25] "GET / HTTP/1.1" 404 2215
+/Users/rohittiwari/Desktop/STUDY/funproject/gymBro/gym-management-system/venv/lib/python3.9/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+Method Not Allowed: /api/auth/google/
+[06/Jul/2025 12:27:24] "GET /api/auth/google/ HTTP/1.1" 405 40

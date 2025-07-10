@@ -139,6 +139,7 @@ GOOGLE_OAUTH2_CLIENT_SECRET = os.getenv('GOOGLE_OAUTH2_CLIENT_SECRET')
 # Debug: Print environment variables (remove in production)
 print(f"🔑 DJANGO_SETTINGS: GOOGLE_OAUTH2_CLIENT_ID = {GOOGLE_OAUTH2_CLIENT_ID}")
 print(f"🔑 DJANGO_SETTINGS: Environment variables loaded = {bool(GOOGLE_OAUTH2_CLIENT_ID)}")
+print(f"🚀 DJANGO_SETTINGS: Deployment timestamp: July 10, 2025 - 09:40 IST")
 
 # REST Framework settings
 REST_FRAMEWORK = {
