@@ -2,6 +2,7 @@
 Google OAuth 2.0 authentication for gym management system
 """
 import json
+import os
 import requests
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
@@ -25,19 +26,33 @@ class GoogleAuthService:
         try:
             print(f"🔐 GOOGLE_AUTH: Verifying token with length: {len(google_token)}")
             
-            # Check if Google OAuth is configured
-            if not settings.GOOGLE_OAUTH2_CLIENT_ID:
-                print("❌ GOOGLE_AUTH: GOOGLE_OAUTH2_CLIENT_ID environment variable not set")
+            # Get Google OAuth Client ID directly from environment
+            google_client_id = os.getenv('GOOGLE_OAUTH2_CLIENT_ID')
+            print(f"🔧 GOOGLE_AUTH: Direct env lookup - GOOGLE_OAUTH2_CLIENT_ID: {google_client_id}")
+            
+            # Also try to get from Django settings as fallback
+            try:
+                settings_client_id = getattr(settings, 'GOOGLE_OAUTH2_CLIENT_ID', None)
+                print(f"🔧 GOOGLE_AUTH: Django settings lookup - GOOGLE_OAUTH2_CLIENT_ID: {settings_client_id}")
+            except Exception as e:
+                print(f"🔧 GOOGLE_AUTH: Django settings error: {e}")
+                settings_client_id = None
+            
+            # Use direct environment variable if available, otherwise try settings
+            client_id = google_client_id or settings_client_id
+            
+            if not client_id:
+                print("❌ GOOGLE_AUTH: GOOGLE_OAUTH2_CLIENT_ID not found in environment or settings")
                 return None
             
-            print(f"🔑 GOOGLE_AUTH: Client ID: {settings.GOOGLE_OAUTH2_CLIENT_ID}")
+            print(f"🔑 GOOGLE_AUTH: Using Client ID: {client_id}")
             print(f"🔑 GOOGLE_AUTH: Token starts with: {google_token[:50]}...")
             
             # Verify the token with Google
             idinfo = id_token.verify_oauth2_token(
                 google_token, 
                 google_requests.Request(), 
-                settings.GOOGLE_OAUTH2_CLIENT_ID
+                client_id
             )
             
             print(f"✅ GOOGLE_AUTH: Token verification successful for user: {idinfo.get('email')}")
@@ -156,7 +171,7 @@ def handle_google_auth(request):
     Handle Google authentication request
     """
     print("🚀 GOOGLE_AUTH: Received Google authentication request")
-    print("🕒 GOOGLE_AUTH: July 10, 2025 - 10:12 IST - New deployment active")
+    print("🕒 GOOGLE_AUTH: July 10, 2025 - 10:27 IST - Direct env variable fix active")
     
     google_token = request.data.get('google_token')
     if not google_token:
