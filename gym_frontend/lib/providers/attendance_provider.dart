@@ -9,18 +9,24 @@ class AttendanceProvider with ChangeNotifier {
   
   List<Attendance> _attendances = [];
   List<Attendance> _todayAttendances = [];
+  List<Attendance> _historyAttendances = []; // Dedicated history data
   AttendanceStats? _stats;
   bool _isLoading = false;
+  bool _isLoadingHistory = false; // Separate loading for history
   String _errorMessage = '';
   DateTime _selectedDate = TimezoneUtils.todayIST;
+  DateTime? _historyDate; // Separate date tracking for history
   List<Member> _members = []; // Cache members for name resolution
 
   List<Attendance> get attendances => _attendances;
   List<Attendance> get todayAttendances => _todayAttendances;
+  List<Attendance> get historyAttendances => _historyAttendances;
   AttendanceStats? get stats => _stats;
   bool get isLoading => _isLoading;
+  bool get isLoadingHistory => _isLoadingHistory;
   String get errorMessage => _errorMessage;
   DateTime get selectedDate => _selectedDate;
+  DateTime? get historyDate => _historyDate;
 
   // Get currently checked-in members
   List<Attendance> get currentlyCheckedIn => 
@@ -44,9 +50,23 @@ class AttendanceProvider with ChangeNotifier {
       );
       
       if (response['success'] == true) {
-        _attendances = (response['data'] as List)
-            .map((item) => Attendance.fromJson(item))
-            .toList();
+        // Handle both direct array and paginated response formats
+        List<dynamic> data;
+        final responseData = response['data'];
+        
+        if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
+          // Paginated response format
+          data = responseData['results'] as List<dynamic>;
+          print('📋 ATTENDANCE: Using paginated format with ${data.length} results');
+        } else if (responseData is List<dynamic>) {
+          // Direct array format
+          data = responseData;
+          print('📋 ATTENDANCE: Using direct array format with ${data.length} items');
+        } else {
+          throw Exception('Unexpected response format: expected array or paginated object');
+        }
+        
+        _attendances = data.map((item) => Attendance.fromJson(item)).toList();
         
         // Debug: Check member names after parsing
         print('📋 ATTENDANCE: Fetched ${_attendances.length} attendances for $dateForDisplay');
@@ -59,9 +79,23 @@ class AttendanceProvider with ChangeNotifier {
         if (date == null) {
           final todayResponse = await _apiService.getTodayAttendances();
           if (todayResponse['success'] == true) {
-            _todayAttendances = (todayResponse['data'] as List)
-                .map((item) => Attendance.fromJson(item))
-                .toList();
+            // Handle both direct array and paginated response formats
+            List<dynamic> todayData;
+            final todayResponseData = todayResponse['data'];
+            
+            if (todayResponseData is Map<String, dynamic> && todayResponseData.containsKey('results')) {
+              // Paginated response format
+              todayData = todayResponseData['results'] as List<dynamic>;
+              print('📋 TODAY ATTENDANCE: Using paginated format with ${todayData.length} results');
+            } else if (todayResponseData is List<dynamic>) {
+              // Direct array format
+              todayData = todayResponseData;
+              print('📋 TODAY ATTENDANCE: Using direct array format with ${todayData.length} items');
+            } else {
+              throw Exception('Unexpected today attendance response format: expected array or paginated object');
+            }
+            
+            _todayAttendances = todayData.map((item) => Attendance.fromJson(item)).toList();
             
             // Debug: Check today's member names after parsing
             for (final attendance in _todayAttendances) {
@@ -74,9 +108,23 @@ class AttendanceProvider with ChangeNotifier {
             final today = DateTime.now();
             final todayAttendances = await _apiService.getAttendances(date: today);
             if (todayAttendances['success'] == true) {
-              _todayAttendances = (todayAttendances['data'] as List)
-                  .map((item) => Attendance.fromJson(item))
-                  .toList();
+              // Handle both direct array and paginated response formats
+              List<dynamic> fallbackData;
+              final fallbackResponseData = todayAttendances['data'];
+              
+              if (fallbackResponseData is Map<String, dynamic> && fallbackResponseData.containsKey('results')) {
+                // Paginated response format
+                fallbackData = fallbackResponseData['results'] as List<dynamic>;
+                print('📋 FALLBACK ATTENDANCE: Using paginated format with ${fallbackData.length} results');
+              } else if (fallbackResponseData is List<dynamic>) {
+                // Direct array format
+                fallbackData = fallbackResponseData;
+                print('📋 FALLBACK ATTENDANCE: Using direct array format with ${fallbackData.length} items');
+              } else {
+                throw Exception('Unexpected fallback attendance response format: expected array or paginated object');
+              }
+              
+              _todayAttendances = fallbackData.map((item) => Attendance.fromJson(item)).toList();
             } else {
               _todayAttendances = [];
             }
@@ -93,8 +141,18 @@ class AttendanceProvider with ChangeNotifier {
         print('❌ ATTENDANCE ERROR: $_errorMessage');
       }
     } catch (e) {
-      _errorMessage = 'Error fetching attendances: $e';
       print('💥 ATTENDANCE ERROR: $e');
+      print('💥 ATTENDANCE ERROR TYPE: ${e.runtimeType}');
+      
+      // Handle JSON parsing errors specifically
+      if (e.toString().contains('FormatException') || 
+          e.toString().contains('type') ||
+          e.toString().contains('Unexpected response format')) {
+        _errorMessage = 'Server returned invalid data format. Please try again.';
+        print('❌ ATTENDANCE: JSON parsing error detected');
+      } else {
+        _errorMessage = 'Error fetching attendances: $e';
+      }
       
       // Only use mock data if backend is completely unreachable (network error)
       if (e.toString().contains('SocketException') || 
@@ -120,9 +178,23 @@ class AttendanceProvider with ChangeNotifier {
       
       final todayResponse = await _apiService.getTodayAttendances();
       if (todayResponse['success'] == true) {
-        _todayAttendances = (todayResponse['data'] as List)
-            .map((item) => Attendance.fromJson(item))
-            .toList();
+        // Handle both direct array and paginated response formats
+        List<dynamic> todayData;
+        final todayResponseData = todayResponse['data'];
+        
+        if (todayResponseData is Map<String, dynamic> && todayResponseData.containsKey('results')) {
+          // Paginated response format
+          todayData = todayResponseData['results'] as List<dynamic>;
+          print('📋 FETCH TODAY: Using paginated format with ${todayData.length} results');
+        } else if (todayResponseData is List<dynamic>) {
+          // Direct array format
+          todayData = todayResponseData;
+          print('📋 FETCH TODAY: Using direct array format with ${todayData.length} items');
+        } else {
+          throw Exception('Unexpected fetch today response format: expected array or paginated object');
+        }
+        
+        _todayAttendances = todayData.map((item) => Attendance.fromJson(item)).toList();
         
         // Fix member names using cache
         _fixTodayAttendanceNames();
@@ -139,9 +211,23 @@ class AttendanceProvider with ChangeNotifier {
         final today = TimezoneUtils.todayIST;
         final todayAttendances = await _apiService.getAttendances(date: today);
         if (todayAttendances['success'] == true) {
-          _todayAttendances = (todayAttendances['data'] as List)
-              .map((item) => Attendance.fromJson(item))
-              .toList();
+          // Handle both direct array and paginated response formats
+          List<dynamic> fallbackTodayData;
+          final fallbackTodayResponseData = todayAttendances['data'];
+          
+          if (fallbackTodayResponseData is Map<String, dynamic> && fallbackTodayResponseData.containsKey('results')) {
+            // Paginated response format
+            fallbackTodayData = fallbackTodayResponseData['results'] as List<dynamic>;
+            print('📋 FALLBACK TODAY: Using paginated format with ${fallbackTodayData.length} results');
+          } else if (fallbackTodayResponseData is List<dynamic>) {
+            // Direct array format
+            fallbackTodayData = fallbackTodayResponseData;
+            print('📋 FALLBACK TODAY: Using direct array format with ${fallbackTodayData.length} items');
+          } else {
+            throw Exception('Unexpected fallback today response format: expected array or paginated object');
+          }
+          
+          _todayAttendances = fallbackTodayData.map((item) => Attendance.fromJson(item)).toList();
           _fixTodayAttendanceNames();
           notifyListeners();
         } else {
@@ -718,9 +804,23 @@ class AttendanceProvider with ChangeNotifier {
       
       final todayResponse = await _apiService.getTodayAttendances();
       if (todayResponse['success'] == true) {
-        _todayAttendances = (todayResponse['data'] as List)
-            .map((item) => Attendance.fromJson(item))
-            .toList();
+        // Handle both direct array and paginated response formats
+        List<dynamic> refreshData;
+        final refreshResponseData = todayResponse['data'];
+        
+        if (refreshResponseData is Map<String, dynamic> && refreshResponseData.containsKey('results')) {
+          // Paginated response format
+          refreshData = refreshResponseData['results'] as List<dynamic>;
+          print('📋 REFRESH TODAY: Using paginated format with ${refreshData.length} results');
+        } else if (refreshResponseData is List<dynamic>) {
+          // Direct array format
+          refreshData = refreshResponseData;
+          print('📋 REFRESH TODAY: Using direct array format with ${refreshData.length} items');
+        } else {
+          throw Exception('Unexpected refresh today response format: expected array or paginated object');
+        }
+        
+        _todayAttendances = refreshData.map((item) => Attendance.fromJson(item)).toList();
         print('✅ ATTENDANCE: Refreshed ${_todayAttendances.length} today\'s attendances (${_todayAttendances.where((a) => a.isCheckedIn).length} checked in, ${_todayAttendances.where((a) => a.isCheckedOut).length} checked out)');
       } else {
         print('⚠️ ATTENDANCE: Failed to refresh today\'s data: ${todayResponse['message']}');
@@ -739,8 +839,11 @@ class AttendanceProvider with ChangeNotifier {
       // Clear all local data
       _attendances.clear();
       _todayAttendances.clear();
+      _historyAttendances.clear();
       _stats = null;
       _errorMessage = '';
+      _historyDate = null;
+      _isLoadingHistory = false;
 
       print('🗑️ ATTENDANCE: All attendance data has been reset locally');
       
@@ -755,5 +858,112 @@ class AttendanceProvider with ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  /// Fetch historical attendance data for a specific date
+  Future<void> fetchHistoryAttendances(DateTime date) async {
+    _isLoadingHistory = true;
+    _historyDate = date;
+    notifyListeners();
+
+    try {
+      final dateStr = TimezoneUtils.formatISTDate(date);
+      print('📋 HISTORY: Fetching attendance history for $dateStr...');
+      
+      final response = await _apiService.getAttendances(date: date);
+      
+      if (response['success'] == true) {
+        // Handle both direct array and paginated response formats
+        List<dynamic> data;
+        final responseData = response['data'];
+        
+        if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
+          // Paginated response format
+          data = responseData['results'] as List<dynamic>;
+          print('📋 HISTORY: Using paginated format with ${data.length} results');
+        } else if (responseData is List<dynamic>) {
+          // Direct array format
+          data = responseData;
+          print('📋 HISTORY: Using direct array format with ${data.length} items');
+        } else {
+          throw Exception('Unexpected history response format: expected array or paginated object');
+        }
+        
+        _historyAttendances = data.map((item) => Attendance.fromJson(item)).toList();
+        
+        print('✅ HISTORY: Loaded ${_historyAttendances.length} attendance records for $dateStr');
+        for (final attendance in _historyAttendances) {
+          print('📋 HISTORY: Member ID: ${attendance.memberId}, Name: "${attendance.memberName}", Check-in: ${TimezoneUtils.formatTime(attendance.checkInTime)}');
+        }
+        
+        _errorMessage = '';
+      } else {
+        _errorMessage = response['message'] ?? 'Failed to fetch history attendance';
+        _historyAttendances = [];
+        print('❌ HISTORY ERROR: $_errorMessage');
+      }
+    } catch (e) {
+      print('💥 HISTORY ERROR: $e');
+      
+      // Handle JSON parsing errors specifically
+      if (e.toString().contains('FormatException') || 
+          e.toString().contains('type') ||
+          e.toString().contains('Unexpected response format')) {
+        _errorMessage = 'Server returned invalid data format. Please try again.';
+        print('❌ HISTORY: JSON parsing error detected');
+      } else {
+        _errorMessage = 'Error fetching history: $e';
+      }
+      
+      _historyAttendances = [];
+    } finally {
+      _isLoadingHistory = false;
+      notifyListeners();
+    }
+  }
+
+  /// Set the selected date for history and fetch data
+  void setHistoryDate(DateTime date) {
+    final istDate = TimezoneUtils.toIST(date);
+    final selectedDate = DateTime(istDate.year, istDate.month, istDate.day);
+    
+    print('📅 HISTORY: Selected history date set to: ${TimezoneUtils.formatISTDate(selectedDate)} (IST)');
+    
+    // Only fetch if it's a different date
+    if (_historyDate == null || 
+        _historyDate!.year != selectedDate.year ||
+        _historyDate!.month != selectedDate.month ||
+        _historyDate!.day != selectedDate.day) {
+      fetchHistoryAttendances(selectedDate);
+    }
+  }
+
+  /// Clear history data
+  void clearHistory() {
+    _historyAttendances.clear();
+    _historyDate = null;
+    _isLoadingHistory = false;
+    print('🗑️ HISTORY: Cleared history attendance data');
+    notifyListeners();
+  }
+
+  /// Get history stats for the selected date
+  Map<String, int> get historyStats {
+    if (_historyAttendances.isEmpty) {
+      return {
+        'total': 0,
+        'checkedIn': 0,
+        'checkedOut': 0,
+      };
+    }
+
+    final checkedIn = _historyAttendances.where((a) => a.isCheckedIn).length;
+    final checkedOut = _historyAttendances.where((a) => a.isCheckedOut).length;
+
+    return {
+      'total': _historyAttendances.length,
+      'checkedIn': checkedIn,
+      'checkedOut': checkedOut,
+    };
   }
 }

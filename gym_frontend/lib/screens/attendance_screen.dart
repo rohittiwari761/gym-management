@@ -655,8 +655,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
                   icon: const Icon(Icons.calendar_today),
                   label: Consumer<AttendanceProvider>(
                     builder: (context, attendanceProvider, child) {
+                      final displayDate = attendanceProvider.historyDate ?? TimezoneUtils.todayIST;
                       return Text(
-                        DateFormat('MMM dd, yyyy').format(attendanceProvider.selectedDate),
+                        DateFormat('MMM dd, yyyy').format(displayDate),
                       );
                     },
                   ),
@@ -665,7 +666,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
               const SizedBox(width: 16),
               ElevatedButton.icon(
                 onPressed: () {
-                  _attendanceProvider?.setSelectedDate(TimezoneUtils.todayIST);
+                  _attendanceProvider?.setHistoryDate(TimezoneUtils.todayIST);
                 },
                 icon: const Icon(Icons.today),
                 label: const Text('Today'),
@@ -679,13 +680,16 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Consumer<AttendanceProvider>(
             builder: (context, attendanceProvider, child) {
-              final selectedDate = TimezoneUtils.formatISTDate(attendanceProvider.selectedDate);
+              final historyDate = attendanceProvider.historyDate;
+              final dateStr = historyDate != null 
+                ? TimezoneUtils.formatISTDate(historyDate)
+                : 'No date selected';
               return Row(
                 children: [
-                  Icon(Icons.calendar_today, size: 16, color: Theme.of(context).colorScheme.primary),
+                  Icon(Icons.history, size: 16, color: Theme.of(context).colorScheme.primary),
                   const SizedBox(width: 8),
                   Text(
-                    'Attendance for $selectedDate (IST)',
+                    'History for $dateStr (IST)',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
@@ -702,24 +706,16 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
         Expanded(
           child: Consumer<AttendanceProvider>(
             builder: (context, attendanceProvider, child) {
-              if (attendanceProvider.isLoading) {
+              if (attendanceProvider.isLoadingHistory) {
                 return const Center(child: CircularProgressIndicator());
               }
 
-              final attendances = attendanceProvider.attendances;
-              final selectedDate = TimezoneUtils.formatISTDate(attendanceProvider.selectedDate);
+              // Use dedicated history data instead of filtered main data
+              final historyAttendances = attendanceProvider.historyAttendances;
+              final historyDate = attendanceProvider.historyDate;
+              final dateStr = historyDate != null ? TimezoneUtils.formatISTDate(historyDate) : 'No date selected';
               
-              // Filter attendances to only show records from the selected date (client-side validation)
-              final selectedDateIST = attendanceProvider.selectedDate;
-              final filteredAttendances = attendances.where((attendance) {
-                final attendanceDateIST = TimezoneUtils.toIST(attendance.checkInTime);
-                final isSameDate = attendanceDateIST.year == selectedDateIST.year &&
-                                   attendanceDateIST.month == selectedDateIST.month &&
-                                   attendanceDateIST.day == selectedDateIST.day;
-                return isSameDate;
-              }).toList();
-              
-              if (filteredAttendances.isEmpty) {
+              if (historyAttendances.isEmpty) {
                 return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -727,21 +723,49 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
                       Icon(Icons.history, size: 64, color: Theme.of(context).colorScheme.onSurfaceVariant),
                       const SizedBox(height: 16),
                       Text(
-                        'No attendance records for selected date',
+                        historyDate == null 
+                          ? 'Select a date to view attendance history'
+                          : 'No attendance records for $dateStr',
                         style: TextStyle(fontSize: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        textAlign: TextAlign.center,
                       ),
                     ],
                   ),
                 );
               }
               
-              return ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: filteredAttendances.length,
-                itemBuilder: (context, index) {
-                  final attendance = filteredAttendances[index];
-                  return _buildAttendanceListItem(attendance);
-                },
+              return Column(
+                children: [
+                  // History stats summary
+                  Container(
+                    margin: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _buildHistoryStat('Total', attendanceProvider.historyStats['total']!, Icons.people),
+                        _buildHistoryStat('Checked In', attendanceProvider.historyStats['checkedIn']!, Icons.login),
+                        _buildHistoryStat('Checked Out', attendanceProvider.historyStats['checkedOut']!, Icons.logout),
+                      ],
+                    ),
+                  ),
+                  
+                  // History attendance list
+                  Expanded(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: historyAttendances.length,
+                      itemBuilder: (context, index) {
+                        final attendance = historyAttendances[index];
+                        return _buildAttendanceListItem(attendance);
+                      },
+                    ),
+                  ),
+                ],
               );
             },
           ),
@@ -974,13 +998,14 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
   Future<void> _selectDate() async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: _attendanceProvider?.selectedDate ?? TimezoneUtils.todayIST,
+      initialDate: _attendanceProvider?.historyDate ?? TimezoneUtils.todayIST,
       firstDate: DateTime(2020),
       lastDate: TimezoneUtils.todayIST, // Don't allow future dates in IST
     );
     
     if (picked != null && _attendanceProvider != null) {
-      _attendanceProvider!.setSelectedDate(picked);
+      // Use new history date method for history tab
+      _attendanceProvider!.setHistoryDate(picked);
     }
   }
 
@@ -1096,6 +1121,28 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
         ),
       );
     }
+  }
+
+  Widget _buildHistoryStat(String label, int value, IconData icon) {
+    return Column(
+      children: [
+        Icon(icon, size: 24, color: Theme.of(context).colorScheme.primary),
+        const SizedBox(height: 4),
+        Text(
+          value.toString(),
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        ),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
   }
 
 }
