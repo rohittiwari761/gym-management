@@ -260,12 +260,30 @@ class GoogleAuthService {
           };
         }
       } else {
-        // Check if it's a 404 error (Google auth endpoint not available)
+        // Check for specific error cases
         if (response.statusCode == 404) {
           print('⚠️ GOOGLE_AUTH: Google authentication endpoint not available on server');
           return {
             'success': false,
             'error': 'Google Sign-In is temporarily unavailable. Please use email registration instead.',
+          };
+        } else if (response.statusCode == 401) {
+          print('🔑 GOOGLE_AUTH: Authentication failed (401) - checking error details...');
+          final errorData = response.data;
+          if (errorData is Map<String, dynamic>) {
+            final errorMsg = errorData['error'] ?? 'Authentication failed';
+            print('❌ GOOGLE_AUTH: Server error: $errorMsg');
+            
+            if (errorMsg.toString().contains('Invalid Google token')) {
+              return {
+                'success': false,
+                'error': 'Google Sign-In failed. Please try again or use email registration.',
+              };
+            }
+          }
+          return {
+            'success': false,
+            'error': 'Google authentication failed. Please try email registration instead.',
           };
         }
         
