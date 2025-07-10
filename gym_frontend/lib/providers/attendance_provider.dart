@@ -893,7 +893,7 @@ class AttendanceProvider with ChangeNotifier {
         
         print('✅ HISTORY: Loaded ${_historyAttendances.length} attendance records for $dateStr');
         for (final attendance in _historyAttendances) {
-          print('📋 HISTORY: Member ID: ${attendance.memberId}, Name: "${attendance.memberName}", Check-in: ${TimezoneUtils.formatTime(attendance.checkInTime)}');
+          print('📋 HISTORY: Member ID: ${attendance.memberId}, Name: "${attendance.memberName}", Check-in: ${TimezoneUtils.formatISTTime(attendance.checkInTime)}');
         }
         
         _errorMessage = '';
