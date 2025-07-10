@@ -207,14 +207,9 @@ class _CreatePaymentScreenState extends State<CreatePaymentScreen> {
                             decoration: const InputDecoration(
                               labelText: 'Select Subscription Plan',
                               border: OutlineInputBorder(),
-                              helperText: 'Choose a plan for the membership extension',
+                              helperText: 'Required: Choose a subscription plan for the payment',
                             ),
-                            items: [
-                              const DropdownMenuItem<SubscriptionPlan>(
-                                value: null,
-                                child: Text('No specific plan (Custom)'),
-                              ),
-                              ...plans.map((plan) {
+                            items: plans.map((plan) {
                                 return DropdownMenuItem<SubscriptionPlan>(
                                   value: plan,
                                   child: Column(
@@ -232,8 +227,7 @@ class _CreatePaymentScreenState extends State<CreatePaymentScreen> {
                                     ],
                                   ),
                                 );
-                              }),
-                            ],
+                              }).toList(),
                             onChanged: (plan) {
                               setState(() {
                                 _selectedSubscriptionPlan = plan;
@@ -244,6 +238,12 @@ class _CreatePaymentScreenState extends State<CreatePaymentScreen> {
                                   _membershipMonthsController.text = _membershipMonths.toString();
                                 }
                               });
+                            },
+                            validator: (value) {
+                              if (value == null) {
+                                return 'Please select a subscription plan';
+                              }
+                              return null;
                             },
                           );
                         },
@@ -505,6 +505,17 @@ class _CreatePaymentScreenState extends State<CreatePaymentScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Selected member does not have a valid ID. Please select a different member.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+      
+      // Validate that a subscription plan is selected
+      if (_selectedSubscriptionPlan == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please select a subscription plan for this payment.'),
             backgroundColor: Colors.red,
           ),
         );
