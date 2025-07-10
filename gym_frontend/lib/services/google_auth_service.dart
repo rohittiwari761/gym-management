@@ -197,8 +197,11 @@ class GoogleAuthService {
   /// Authenticate with Django backend using Google ID token
   Future<Map<String, dynamic>> _authenticateWithBackend(String googleIdToken) async {
     try {
-
-      // Try connecting to local Django server
+      print('🔐 GOOGLE_AUTH: Sending token to backend...');
+      print('🔑 GOOGLE_AUTH: Token length: ${googleIdToken.length}');
+      print('🔑 GOOGLE_AUTH: Token starts with: ${googleIdToken.substring(0, 50)}...');
+      
+      // Try connecting to Django server
       final response = await _httpClient.post(
         'auth/google/',
         body: {
@@ -206,9 +209,9 @@ class GoogleAuthService {
         },
         requireAuth: false,
       ).timeout(
-        const Duration(seconds: 10), // 10 second timeout for local server
+        const Duration(seconds: 10), // 10 second timeout
         onTimeout: () {
-          throw Exception('Local server timeout - please ensure Django server is running on localhost:8000');
+          throw Exception('Server timeout - please ensure Django server is accessible');
         },
       );
 

@@ -23,12 +23,18 @@ class GoogleAuthService:
         Verify Google ID token and return user info
         """
         try:
+            print(f"🔐 GOOGLE_AUTH: Verifying token with length: {len(google_token)}")
+            print(f"🔑 GOOGLE_AUTH: Client ID: {settings.GOOGLE_OAUTH2_CLIENT_ID}")
+            print(f"🔑 GOOGLE_AUTH: Token starts with: {google_token[:50]}...")
+            
             # Verify the token with Google
             idinfo = id_token.verify_oauth2_token(
                 google_token, 
                 google_requests.Request(), 
                 settings.GOOGLE_OAUTH2_CLIENT_ID
             )
+            
+            print(f"✅ GOOGLE_AUTH: Token verification successful for user: {idinfo.get('email')}")
             
             # Token is valid, return user info
             return {
@@ -41,8 +47,10 @@ class GoogleAuthService:
             }
         except ValueError as e:
             # Invalid token
+            print(f"❌ GOOGLE_AUTH: Token verification failed (ValueError): {e}")
             return None
         except Exception as e:
+            print(f"❌ GOOGLE_AUTH: Token verification failed (Exception): {e}")
             return None
     
     @staticmethod
@@ -141,20 +149,28 @@ def handle_google_auth(request):
     """
     Handle Google authentication request
     """
+    print("🚀 GOOGLE_AUTH: Received Google authentication request")
+    
     google_token = request.data.get('google_token')
     if not google_token:
+        print("❌ GOOGLE_AUTH: No Google token provided in request")
         return Response(
             {'error': 'Google token is required'}, 
             status=status.HTTP_400_BAD_REQUEST
         )
     
+    print(f"📥 GOOGLE_AUTH: Received token, attempting verification...")
+    
     # Verify Google token
     google_user_info = GoogleAuthService.verify_google_token(google_token)
     if not google_user_info:
+        print("❌ GOOGLE_AUTH: Google token verification failed")
         return Response(
             {'error': 'Invalid Google token'}, 
             status=status.HTTP_401_UNAUTHORIZED
         )
+        
+    print(f"✅ GOOGLE_AUTH: Token verified for user: {google_user_info.get('email')}")
     
     # Authenticate or create user
     auth_result, error = GoogleAuthService.authenticate_or_create_user(google_user_info)
