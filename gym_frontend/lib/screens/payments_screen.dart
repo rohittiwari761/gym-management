@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../providers/payment_provider.dart';
+import '../providers/member_provider.dart';
 import '../models/payment.dart';
 import '../widgets/network_error_widget.dart';
 import 'create_payment_screen.dart';
@@ -43,12 +44,18 @@ class _PaymentsScreenState extends State<PaymentsScreen> with SingleTickerProvid
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: () {
-              Navigator.of(context).push(
+            onPressed: () async {
+              final result = await Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (context) => const CreatePaymentScreen(),
                 ),
               );
+              
+              // Force refresh payments and members when returning from payment creation
+              if (mounted) {
+                Provider.of<PaymentProvider>(context, listen: false).fetchPayments();
+                Provider.of<MemberProvider>(context, listen: false).fetchMembers(forceRefresh: true);
+              }
             },
           ),
         ],
@@ -125,12 +132,18 @@ class _PaymentsScreenState extends State<PaymentsScreen> with SingleTickerProvid
                 ),
                 const SizedBox(height: 16),
                 ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).push(
+                  onPressed: () async {
+                    final result = await Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (context) => const CreatePaymentScreen(),
                       ),
                     );
+                    
+                    // Force refresh payments and members when returning from payment creation
+                    if (mounted) {
+                      Provider.of<PaymentProvider>(context, listen: false).fetchPayments();
+                      Provider.of<MemberProvider>(context, listen: false).fetchMembers(forceRefresh: true);
+                    }
                   },
                   icon: const Icon(Icons.add),
                   label: const Text('Record Payment'),

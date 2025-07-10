@@ -1128,10 +1128,15 @@ class DashboardScreen extends StatelessWidget {
                 'Record Payment',
                 Icons.payment,
                 Colors.green,
-                () {
-                  Navigator.of(context).push(
+                () async {
+                  final result = await Navigator.of(context).push(
                     MaterialPageRoute(builder: (context) => const CreatePaymentScreen()),
                   );
+                  
+                  // Force refresh all data when returning from payment creation
+                  if (mounted) {
+                    _refreshData();
+                  }
                 },
               ),
               _buildActionCard(

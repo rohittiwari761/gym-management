@@ -538,19 +538,26 @@ class _CreatePaymentScreenState extends State<CreatePaymentScreen> {
         });
 
         if (success && mounted) {
-          // Refresh member data to show updated membership expiry
-          await Provider.of<MemberProvider>(context, listen: false).fetchMembers();
+          // First, refresh member data to get updated information from backend
+          print('💳 UI: Force refreshing member data after payment...');
+          await Provider.of<MemberProvider>(context, listen: false).fetchMembers(forceRefresh: true);
           
-          // Refresh the selected member data to show updated expiry
+          // Update the selected member with fresh data from the backend
           if (_selectedMember != null) {
             final memberProvider = Provider.of<MemberProvider>(context, listen: false);
             final updatedMember = memberProvider.members.firstWhere(
               (m) => m.id == _selectedMember!.id,
               orElse: () => _selectedMember!,
             );
+            
+            print('💳 UI: Member expiry updated from ${_selectedMember!.membershipExpiry} to ${updatedMember.membershipExpiry}');
+            
             setState(() {
               _selectedMember = updatedMember;
             });
+            
+            // Give UI time to update before showing success message
+            await Future.delayed(const Duration(milliseconds: 500));
           }
           
           Navigator.of(context).pop();
@@ -558,6 +565,7 @@ class _CreatePaymentScreenState extends State<CreatePaymentScreen> {
             const SnackBar(
               content: Text('Payment recorded successfully! Membership extended.'),
               backgroundColor: Colors.green,
+              duration: Duration(seconds: 4),
             ),
           );
         } else if (mounted) {
