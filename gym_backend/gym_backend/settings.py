@@ -133,13 +133,22 @@ CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 
 # Google OAuth 2.0 settings
-GOOGLE_OAUTH2_CLIENT_ID = os.getenv('GOOGLE_OAUTH2_CLIENT_ID')
-GOOGLE_OAUTH2_CLIENT_SECRET = os.getenv('GOOGLE_OAUTH2_CLIENT_SECRET')
-
-# Debug: Print environment variables (remove in production)
-print(f"🔑 DJANGO_SETTINGS: GOOGLE_OAUTH2_CLIENT_ID = {GOOGLE_OAUTH2_CLIENT_ID}")
-print(f"🔑 DJANGO_SETTINGS: Environment variables loaded = {bool(GOOGLE_OAUTH2_CLIENT_ID)}")
-print(f"🚀 DJANGO_SETTINGS: Deployment timestamp: July 10, 2025 - 09:40 IST")
+try:
+    print("🔧 DJANGO_SETTINGS: Loading Google OAuth environment variables...")
+    GOOGLE_OAUTH2_CLIENT_ID = os.getenv('GOOGLE_OAUTH2_CLIENT_ID')
+    GOOGLE_OAUTH2_CLIENT_SECRET = os.getenv('GOOGLE_OAUTH2_CLIENT_SECRET')
+    print(f"🔑 DJANGO_SETTINGS: GOOGLE_OAUTH2_CLIENT_ID = {GOOGLE_OAUTH2_CLIENT_ID}")
+    print(f"🔑 DJANGO_SETTINGS: Environment variables loaded = {bool(GOOGLE_OAUTH2_CLIENT_ID)}")
+    print(f"🚀 DJANGO_SETTINGS: Deployment timestamp: July 10, 2025 - 10:15 IST")
+    
+    # Ensure they exist as module attributes
+    globals()['GOOGLE_OAUTH2_CLIENT_ID'] = GOOGLE_OAUTH2_CLIENT_ID
+    globals()['GOOGLE_OAUTH2_CLIENT_SECRET'] = GOOGLE_OAUTH2_CLIENT_SECRET
+    print("✅ DJANGO_SETTINGS: Google OAuth settings configured successfully")
+except Exception as e:
+    print(f"❌ DJANGO_SETTINGS: Error configuring Google OAuth: {e}")
+    GOOGLE_OAUTH2_CLIENT_ID = None
+    GOOGLE_OAUTH2_CLIENT_SECRET = None
 
 # REST Framework settings
 REST_FRAMEWORK = {
