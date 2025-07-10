@@ -7,6 +7,7 @@ import '../providers/subscription_provider.dart';
 import '../models/payment.dart';
 import '../models/member.dart';
 import '../models/member_subscription.dart';
+import '../models/subscription_plan.dart';
 
 class CreatePaymentScreen extends StatefulWidget {
   const CreatePaymentScreen({super.key});
@@ -20,19 +21,24 @@ class _CreatePaymentScreenState extends State<CreatePaymentScreen> {
   final _amountController = TextEditingController();
   final _transactionIdController = TextEditingController();
   final _notesController = TextEditingController();
+  final _membershipMonthsController = TextEditingController();
 
   Member? _selectedMember;
   MemberSubscription? _selectedSubscription;
+  SubscriptionPlan? _selectedSubscriptionPlan;
   PaymentMethod _selectedMethod = PaymentMethod.cash;
   DateTime? _paymentDate;
+  int _membershipMonths = 1;
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
     _paymentDate = DateTime.now(); // Default to today
+    _membershipMonthsController.text = _membershipMonths.toString();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<MemberProvider>(context, listen: false).fetchMembers();
+      Provider.of<SubscriptionProvider>(context, listen: false).fetchSubscriptionPlans();
       Provider.of<SubscriptionProvider>(context, listen: false).fetchMemberSubscriptions();
     });
   }
@@ -42,6 +48,7 @@ class _CreatePaymentScreenState extends State<CreatePaymentScreen> {
     _amountController.dispose();
     _transactionIdController.dispose();
     _notesController.dispose();
+    _membershipMonthsController.dispose();
     super.dispose();
   }
 
@@ -53,13 +60,14 @@ class _CreatePaymentScreenState extends State<CreatePaymentScreen> {
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
@@ -98,6 +106,8 @@ class _CreatePaymentScreenState extends State<CreatePaymentScreen> {
                               setState(() {
                                 _selectedMember = member;
                                 _selectedSubscription = null;
+                                _selectedSubscriptionPlan = null;
+                                _amountController.clear();
                               });
                               _loadMemberSubscriptions();
                             },
@@ -111,7 +121,202 @@ class _CreatePaymentScreenState extends State<CreatePaymentScreen> {
                         },
                       ),
                       const SizedBox(height: 16),
+                      // Current Member Status
                       if (_selectedMember != null)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: _getMemberStatusColor().withOpacity(0.1),
+                            border: Border.all(color: _getMemberStatusColor()),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    _getMemberStatusIcon(),
+                                    color: _getMemberStatusColor(),
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Current Status',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: _getMemberStatusColor(),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Membership: ${_getMembershipStatus()}',
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                              if (_selectedMember!.membershipExpiry != null)
+                                Text(
+                                  'Expires: ${DateFormat('MMM dd, yyyy').format(_selectedMember!.membershipExpiry!)}',
+                                  style: const TextStyle(fontSize: 14),
+                                ),
+                              if (_getDaysUntilExpiry() != null)
+                                Text(
+                                  _getDaysUntilExpiry()!,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontStyle: FontStyle.italic,
+                                    color: _getMemberStatusColor(),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              
+              // Subscription Plan Selection Card
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Subscription Plan',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Consumer<SubscriptionProvider>(
+                        builder: (context, subscriptionProvider, child) {
+                          if (subscriptionProvider.isLoading) {
+                            return const Center(child: CircularProgressIndicator());
+                          }
+
+                          final plans = subscriptionProvider.activeSubscriptionPlans;
+
+                          return DropdownButtonFormField<SubscriptionPlan>(
+                            value: _selectedSubscriptionPlan,
+                            decoration: const InputDecoration(
+                              labelText: 'Select Subscription Plan',
+                              border: OutlineInputBorder(),
+                              helperText: 'Choose a plan for the membership extension',
+                            ),
+                            items: [
+                              const DropdownMenuItem<SubscriptionPlan>(
+                                value: null,
+                                child: Text('No specific plan (Custom)'),
+                              ),
+                              ...plans.map((plan) {
+                                return DropdownMenuItem<SubscriptionPlan>(
+                                  value: plan,
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        plan.name,
+                                        style: const TextStyle(fontWeight: FontWeight.bold),
+                                      ),
+                                      Text(
+                                        '₹${plan.formattedPrice} - ${plan.formattedDuration}',
+                                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }),
+                            ],
+                            onChanged: (plan) {
+                              setState(() {
+                                _selectedSubscriptionPlan = plan;
+                                if (plan != null) {
+                                  _amountController.text = plan.price.toString();
+                                  // Calculate months based on plan duration
+                                  _membershipMonths = _calculateMonthsFromPlan(plan);
+                                  _membershipMonthsController.text = _membershipMonths.toString();
+                                }
+                              });
+                            },
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: _membershipMonthsController,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                labelText: 'Membership Duration (Months)',
+                                border: OutlineInputBorder(),
+                                helperText: 'How many months to extend membership',
+                              ),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please enter duration';
+                                }
+                                final months = int.tryParse(value);
+                                if (months == null || months <= 0) {
+                                  return 'Please enter a valid number of months';
+                                }
+                                if (months > 36) {
+                                  return 'Maximum 36 months allowed';
+                                }
+                                return null;
+                              },
+                              onChanged: (value) {
+                                final months = int.tryParse(value);
+                                if (months != null && months > 0) {
+                                  setState(() {
+                                    _membershipMonths = months;
+                                  });
+                                }
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          ElevatedButton.icon(
+                            onPressed: () => _showQuickDurationOptions(),
+                            icon: const Icon(Icons.schedule),
+                            label: const Text('Quick'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.grey[100],
+                              foregroundColor: Colors.blue,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              
+              // Member Subscriptions Card
+              if (_selectedMember != null)
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Existing Subscriptions',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
                         Consumer<SubscriptionProvider>(
                           builder: (context, subscriptionProvider, child) {
                             final memberSubscriptions = subscriptionProvider.memberSubscriptions
@@ -277,7 +482,9 @@ class _CreatePaymentScreenState extends State<CreatePaymentScreen> {
                       : const Text('Record Payment'),
                 ),
               ),
+              const SizedBox(height: 32), // Extra padding at bottom
             ],
+            ),
           ),
         ),
       ),
@@ -313,9 +520,10 @@ class _CreatePaymentScreenState extends State<CreatePaymentScreen> {
       try {
         final success = await paymentProvider.createPayment(
           memberId: _selectedMember!.id!,
-          subscriptionPlanId: _selectedSubscription?.subscriptionPlanId,
+          subscriptionPlanId: _selectedSubscriptionPlan?.id,
           amount: double.parse(_amountController.text),
           method: _selectedMethod,
+          membershipMonths: _membershipMonths,
           transactionId: _transactionIdController.text.trim().isEmpty 
               ? null 
               : _transactionIdController.text.trim(),
@@ -400,6 +608,171 @@ class _CreatePaymentScreenState extends State<CreatePaymentScreen> {
         return 'UPI';
       case PaymentMethod.bankTransfer:
         return 'Bank Transfer';
+    }
+  }
+
+  int _calculateMonthsFromPlan(SubscriptionPlan plan) {
+    // The SubscriptionPlan model already has durationInMonths
+    return plan.durationInMonths;
+  }
+
+  void _showQuickDurationOptions() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Quick Duration Selection',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _buildDurationChip('1 Month', 1),
+                  _buildDurationChip('3 Months', 3),
+                  _buildDurationChip('6 Months', 6),
+                  _buildDurationChip('12 Months', 12),
+                  _buildDurationChip('24 Months', 24),
+                ],
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDurationChip(String label, int months) {
+    return ActionChip(
+      label: Text(label),
+      onPressed: () {
+        setState(() {
+          _membershipMonths = months;
+          _membershipMonthsController.text = months.toString();
+        });
+        Navigator.pop(context);
+      },
+      backgroundColor: _membershipMonths == months ? Colors.blue : Colors.grey[200],
+      labelStyle: TextStyle(
+        color: _membershipMonths == months ? Colors.white : Colors.black,
+      ),
+    );
+  }
+
+  // Member status helper methods
+  Color _getMemberStatusColor() {
+    if (_selectedMember == null) return Colors.grey;
+    
+    final now = DateTime.now();
+    final expiry = _selectedMember!.membershipExpiry;
+    
+    if (expiry == null) return Colors.grey;
+    
+    if (!_selectedMember!.isActive) {
+      return Colors.red;
+    }
+    
+    if (expiry.isBefore(now)) {
+      return Colors.red;
+    }
+    
+    final daysUntilExpiry = expiry.difference(now).inDays;
+    if (daysUntilExpiry <= 7) {
+      return Colors.orange;
+    }
+    
+    return Colors.green;
+  }
+  
+  IconData _getMemberStatusIcon() {
+    if (_selectedMember == null) return Icons.help_outline;
+    
+    final now = DateTime.now();
+    final expiry = _selectedMember!.membershipExpiry;
+    
+    if (expiry == null) return Icons.help_outline;
+    
+    if (!_selectedMember!.isActive) {
+      return Icons.block;
+    }
+    
+    if (expiry.isBefore(now)) {
+      return Icons.error;
+    }
+    
+    final daysUntilExpiry = expiry.difference(now).inDays;
+    if (daysUntilExpiry <= 7) {
+      return Icons.warning;
+    }
+    
+    return Icons.check_circle;
+  }
+  
+  String _getMembershipStatus() {
+    if (_selectedMember == null) return 'No member selected';
+    
+    final now = DateTime.now();
+    final expiry = _selectedMember!.membershipExpiry;
+    
+    if (expiry == null) return 'No expiry date set';
+    
+    if (!_selectedMember!.isActive) {
+      return 'Inactive';
+    }
+    
+    if (expiry.isBefore(now)) {
+      return 'Expired';
+    }
+    
+    final daysUntilExpiry = expiry.difference(now).inDays;
+    if (daysUntilExpiry <= 7) {
+      return 'Expiring Soon';
+    }
+    
+    return 'Active';
+  }
+  
+  String? _getDaysUntilExpiry() {
+    if (_selectedMember == null || _selectedMember!.membershipExpiry == null) {
+      return null;
+    }
+    
+    final now = DateTime.now();
+    final expiry = _selectedMember!.membershipExpiry!;
+    
+    if (expiry.isBefore(now)) {
+      final daysExpired = now.difference(expiry).inDays;
+      return 'Expired $daysExpired day${daysExpired != 1 ? 's' : ''} ago';
+    }
+    
+    final daysUntilExpiry = expiry.difference(now).inDays;
+    if (daysUntilExpiry == 0) {
+      return 'Expires today';
+    } else if (daysUntilExpiry == 1) {
+      return 'Expires tomorrow';
+    } else {
+      return 'Expires in $daysUntilExpiry days';
     }
   }
 }

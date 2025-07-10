@@ -481,6 +481,8 @@ class MembershipPayment(models.Model):
         return f"{self.member} - ₹{self.amount} - {self.payment_date.strftime('%Y-%m-%d')} - {self.gym_owner.gym_name}"
     
     def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        
         if not self.payment_id:
             # Generate unique payment ID for this gym
             last_payment = MembershipPayment.objects.filter(gym_owner=self.gym_owner).order_by('-id').first()
@@ -500,7 +502,61 @@ class MembershipPayment(models.Model):
             while MembershipPayment.objects.filter(gym_owner=self.gym_owner, payment_id=self.payment_id).exists():
                 self.payment_id = f"PAY-{int(base_payment_id.split('-')[-1]) + counter:04d}"
                 counter += 1
+        
         super().save(*args, **kwargs)
+        
+        # Auto-extend membership when payment is created
+        if is_new and self.member and self.membership_months and self.status == 'completed':
+            print(f'💳 PAYMENT: Auto-extending membership for payment ID {self.id}')
+            print(f'💳 PAYMENT: Member: {self.member.user.get_full_name()}')
+            print(f'💳 PAYMENT: Membership months: {self.membership_months}')
+            print(f'💳 PAYMENT: Current member expiry: {self.member.membership_expiry}')
+            
+            from datetime import timedelta
+            from django.utils import timezone
+            
+            member = self.member
+            today = timezone.now().date()
+            
+            # Calculate new expiry date
+            if member.membership_expiry and member.membership_expiry > today:
+                # Extend from current expiry date if still valid
+                new_expiry = member.membership_expiry + timedelta(days=self.membership_months * 30)
+                print(f'💳 PAYMENT: Extending membership from {member.membership_expiry} to {new_expiry}')
+            else:
+                # Start from today if membership is expired
+                new_expiry = today + timedelta(days=self.membership_months * 30)
+                print(f'💳 PAYMENT: Starting new membership from {today} to {new_expiry}')
+            
+            # Update member's expiry date and reactivate if needed
+            member.membership_expiry = new_expiry
+            if not member.is_active:
+                member.is_active = True
+                print(f'💳 PAYMENT: Reactivating member {member.user.get_full_name()}')
+            
+            member.save()
+            
+            # Create or update MemberSubscription if subscription_plan is specified
+            if self.subscription_plan:
+                member_subscription, created = MemberSubscription.objects.get_or_create(
+                    member=member,
+                    subscription_plan=self.subscription_plan,
+                    defaults={
+                        'gym_owner': self.gym_owner,
+                        'start_date': member.membership_expiry - timedelta(days=self.membership_months * 30),
+                        'end_date': member.membership_expiry,
+                        'status': 'active',
+                        'amount_paid': self.amount,
+                        'payment_method': self.payment_method
+                    }
+                )
+                if not created:
+                    # Update existing subscription
+                    member_subscription.end_date = member.membership_expiry
+                    member_subscription.status = 'active'
+                    member_subscription.save()
+            
+            print(f'✅ PAYMENT: Member {member.user.get_full_name()} membership extended to {new_expiry}')
         
         # Invalidate revenue analytics cache when payment is created/updated
         from django.core.cache import cache
@@ -628,3 +684,102 @@ class TrainerMemberAssociation(models.Model):
         """Activate this association"""
         self.is_active = True
         self.save()
+
+
+class Notification(models.Model):
+    """
+    Model for managing gym owner notifications
+    """
+    NOTIFICATION_TYPES = [
+        ('member_expiry', 'Member Expiry'),
+        ('member_expiring_soon', 'Member Expiring Soon'),
+        ('payment_received', 'Payment Received'),
+        ('system_alert', 'System Alert'),
+    ]
+    
+    PRIORITY_LEVELS = [
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High'),
+        ('urgent', 'Urgent'),
+    ]
+    
+    gym_owner = models.ForeignKey(GymOwner, on_delete=models.CASCADE, related_name='notifications')
+    type = models.CharField(max_length=20, choices=NOTIFICATION_TYPES)
+    priority = models.CharField(max_length=10, choices=PRIORITY_LEVELS, default='medium')
+    title = models.CharField(max_length=200)
+    message = models.TextField()
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+    
+    # Optional related objects
+    related_member = models.ForeignKey(Member, on_delete=models.CASCADE, null=True, blank=True)
+    related_payment = models.ForeignKey('MembershipPayment', on_delete=models.CASCADE, null=True, blank=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['gym_owner', 'is_read']),
+            models.Index(fields=['gym_owner', 'type']),
+            models.Index(fields=['created_at']),
+        ]
+    
+    def __str__(self):
+        return f"{self.title} - {self.gym_owner.gym_name}"
+    
+    def mark_as_read(self):
+        """Mark notification as read"""
+        if not self.is_read:
+            self.is_read = True
+            self.read_at = timezone.now()
+            self.save()
+    
+    @classmethod
+    def create_member_expiry_notification(cls, gym_owner, expired_members):
+        """Create notification for expired members"""
+        member_count = len(expired_members)
+        if member_count == 1:
+            member = expired_members[0]
+            title = f"Member Expired: {member.user.get_full_name()}"
+            message = f"The membership for {member.user.get_full_name()} has expired and they have been automatically deactivated."
+        else:
+            title = f"{member_count} Members Expired"
+            member_names = ", ".join([m.user.get_full_name() for m in expired_members[:3]])
+            if member_count > 3:
+                member_names += f" and {member_count - 3} others"
+            message = f"The following members have expired memberships and have been automatically deactivated: {member_names}"
+        
+        return cls.objects.create(
+            gym_owner=gym_owner,
+            type='member_expiry',
+            priority='high',
+            title=title,
+            message=message,
+            related_member=expired_members[0] if member_count == 1 else None
+        )
+    
+    @classmethod
+    def create_expiring_soon_notification(cls, gym_owner, expiring_members):
+        """Create notification for members expiring soon"""
+        member_count = len(expiring_members)
+        if member_count == 1:
+            member = expiring_members[0]
+            days_left = (member.membership_expiry - get_ist_date()).days
+            title = f"Member Expiring Soon: {member.user.get_full_name()}"
+            message = f"The membership for {member.user.get_full_name()} will expire in {days_left} days."
+        else:
+            title = f"{member_count} Members Expiring Soon"
+            member_names = ", ".join([m.user.get_full_name() for m in expiring_members[:3]])
+            if member_count > 3:
+                member_names += f" and {member_count - 3} others"
+            message = f"The following members have memberships expiring within 7 days: {member_names}"
+        
+        return cls.objects.create(
+            gym_owner=gym_owner,
+            type='member_expiring_soon',
+            priority='medium',
+            title=title,
+            message=message,
+            related_member=expiring_members[0] if member_count == 1 else None
+        )
