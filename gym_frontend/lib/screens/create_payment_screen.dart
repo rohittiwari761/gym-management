@@ -21,7 +21,6 @@ class _CreatePaymentScreenState extends State<CreatePaymentScreen> {
   final _amountController = TextEditingController();
   final _transactionIdController = TextEditingController();
   final _notesController = TextEditingController();
-  final _membershipMonthsController = TextEditingController();
 
   Member? _selectedMember;
   MemberSubscription? _selectedSubscription;
@@ -35,7 +34,6 @@ class _CreatePaymentScreenState extends State<CreatePaymentScreen> {
   void initState() {
     super.initState();
     _paymentDate = DateTime.now(); // Default to today
-    _membershipMonthsController.text = _membershipMonths.toString();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<MemberProvider>(context, listen: false).fetchMembers();
       Provider.of<SubscriptionProvider>(context, listen: false).fetchSubscriptionPlans();
@@ -48,7 +46,6 @@ class _CreatePaymentScreenState extends State<CreatePaymentScreen> {
     _amountController.dispose();
     _transactionIdController.dispose();
     _notesController.dispose();
-    _membershipMonthsController.dispose();
     super.dispose();
   }
 
@@ -235,8 +232,7 @@ class _CreatePaymentScreenState extends State<CreatePaymentScreen> {
                                   _amountController.text = plan.price.toString();
                                   // Calculate months based on plan duration
                                   _membershipMonths = _calculateMonthsFromPlan(plan);
-                                  _membershipMonthsController.text = _membershipMonths.toString();
-                                }
+                                                              }
                               });
                             },
                             validator: (value) {
@@ -249,51 +245,47 @@ class _CreatePaymentScreenState extends State<CreatePaymentScreen> {
                         },
                       ),
                       const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: _membershipMonthsController,
-                              keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(
-                                labelText: 'Membership Duration (Months)',
-                                border: OutlineInputBorder(),
-                                helperText: 'How many months to extend membership',
+                      // Display-only membership duration from selected plan
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey[300]!),
+                          borderRadius: BorderRadius.circular(8),
+                          color: Colors.grey[50],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Membership Duration',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blue,
                               ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Please enter duration';
-                                }
-                                final months = int.tryParse(value);
-                                if (months == null || months <= 0) {
-                                  return 'Please enter a valid number of months';
-                                }
-                                if (months > 36) {
-                                  return 'Maximum 36 months allowed';
-                                }
-                                return null;
-                              },
-                              onChanged: (value) {
-                                final months = int.tryParse(value);
-                                if (months != null && months > 0) {
-                                  setState(() {
-                                    _membershipMonths = months;
-                                  });
-                                }
-                              },
                             ),
-                          ),
-                          const SizedBox(width: 16),
-                          ElevatedButton.icon(
-                            onPressed: () => _showQuickDurationOptions(),
-                            icon: const Icon(Icons.schedule),
-                            label: const Text('Quick'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.grey[100],
-                              foregroundColor: Colors.blue,
+                            const SizedBox(height: 8),
+                            Text(
+                              _selectedSubscriptionPlan != null 
+                                  ? '${_selectedSubscriptionPlan!.durationInMonths} months (${_selectedSubscriptionPlan!.formattedDuration})'
+                                  : 'Select a plan to see duration',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 4),
+                            Text(
+                              'Duration is automatically set by the selected subscription plan',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -650,69 +642,6 @@ class _CreatePaymentScreenState extends State<CreatePaymentScreen> {
     return plan.durationInMonths;
   }
 
-  void _showQuickDurationOptions() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return Container(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Quick Duration Selection',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _buildDurationChip('1 Month', 1),
-                  _buildDurationChip('3 Months', 3),
-                  _buildDurationChip('6 Months', 6),
-                  _buildDurationChip('12 Months', 12),
-                  _buildDurationChip('24 Months', 24),
-                ],
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildDurationChip(String label, int months) {
-    return ActionChip(
-      label: Text(label),
-      onPressed: () {
-        setState(() {
-          _membershipMonths = months;
-          _membershipMonthsController.text = months.toString();
-        });
-        Navigator.pop(context);
-      },
-      backgroundColor: _membershipMonths == months ? Colors.blue : Colors.grey[200],
-      labelStyle: TextStyle(
-        color: _membershipMonths == months ? Colors.white : Colors.black,
-      ),
-    );
-  }
 
   // Member status helper methods
   Color _getMemberStatusColor() {
