@@ -156,6 +156,7 @@ def handle_google_auth(request):
     Handle Google authentication request
     """
     print("🚀 GOOGLE_AUTH: Received Google authentication request")
+    print("🕒 GOOGLE_AUTH: July 10, 2025 - 10:12 IST - New deployment active")
     
     google_token = request.data.get('google_token')
     if not google_token:
