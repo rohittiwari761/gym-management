@@ -869,6 +869,10 @@ class AttendanceProvider with ChangeNotifier {
     try {
       final dateStr = TimezoneUtils.formatISTDate(date);
       print('📋 HISTORY: Fetching attendance history for $dateStr...');
+      print('📋 HISTORY: Clear previous history data before fetching new date');
+      
+      // Clear previous history data to avoid confusion
+      _historyAttendances.clear();
       
       final response = await _apiService.getAttendances(date: date);
       
@@ -892,8 +896,15 @@ class AttendanceProvider with ChangeNotifier {
         _historyAttendances = data.map((item) => Attendance.fromJson(item)).toList();
         
         print('✅ HISTORY: Loaded ${_historyAttendances.length} attendance records for $dateStr');
-        for (final attendance in _historyAttendances) {
-          print('📋 HISTORY: Member ID: ${attendance.memberId}, Name: "${attendance.memberName}", Check-in: ${TimezoneUtils.formatISTTime(attendance.checkInTime)}');
+        print('📋 HISTORY: API Response Data Count: ${data.length}');
+        
+        if (_historyAttendances.isEmpty) {
+          print('📋 HISTORY: No attendance records found for $dateStr - this is correct if no one attended that day');
+        } else {
+          for (final attendance in _historyAttendances) {
+            final attendanceDate = TimezoneUtils.formatISTDate(attendance.checkInTime);
+            print('📋 HISTORY: Member ID: ${attendance.memberId}, Name: "${attendance.memberName}", Date: $attendanceDate, Check-in: ${TimezoneUtils.formatISTTime(attendance.checkInTime)}');
+          }
         }
         
         _errorMessage = '';

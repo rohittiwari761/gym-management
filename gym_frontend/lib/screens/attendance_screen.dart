@@ -544,7 +544,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
           return const Center(child: CircularProgressIndicator());
         }
 
+        // Today tab should ONLY show today's data, regardless of history date selection
         final todayAttendances = attendanceProvider.todayAttendances;
+        print('🔵 TODAY TAB: Displaying ${todayAttendances.length} attendance records for today only');
         
         return Column(
           children: [
@@ -714,6 +716,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
               final historyAttendances = attendanceProvider.historyAttendances;
               final historyDate = attendanceProvider.historyDate;
               final dateStr = historyDate != null ? TimezoneUtils.formatISTDate(historyDate) : 'No date selected';
+              
+              print('🔴 HISTORY TAB: Displaying ${historyAttendances.length} attendance records for $dateStr');
               
               if (historyAttendances.isEmpty) {
                 return Center(
