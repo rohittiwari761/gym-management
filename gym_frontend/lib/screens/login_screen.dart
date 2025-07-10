@@ -4,6 +4,8 @@ import '../providers/auth_provider.dart';
 import '../security/input_validator.dart';
 import '../services/google_auth_service.dart';
 import '../utils/network_test.dart';
+import '../widgets/optimized_text_field.dart';
+import '../widgets/input_field_warmer.dart';
 import 'register_screen.dart';
 import 'home_screen.dart';
 
@@ -14,11 +16,15 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen> with TextFieldOptimizationMixin {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  bool _obscurePassword = true;
+
+  @override
+  void initState() {
+    super.initState(); // This will call the mixin's initState
+  }
 
   @override
   void dispose() {
@@ -33,7 +39,8 @@ class _LoginScreenState extends State<LoginScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isSmallScreen = screenHeight < 700 || screenWidth < 400;
 
-    return Scaffold(
+    return InputFieldWarmer(
+      child: Scaffold(
       body: Container(
         width: double.infinity,
         height: double.infinity,
@@ -99,30 +106,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                         SizedBox(height: isSmallScreen ? 20.0 : 32.0),
-                        TextFormField(
+                        OptimizedTextFields.email(
                           controller: _emailController,
-                          keyboardType: TextInputType.emailAddress,
-                          style: const TextStyle(fontSize: 18),
-                          decoration: InputDecoration(
-                            labelText: 'Email Address',
-                            labelStyle: const TextStyle(fontSize: 16),
-                            prefixIcon: const Icon(Icons.email, size: 24),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(width: 2),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: Colors.grey.shade300, width: 2),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Colors.blue, width: 2),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-                            filled: true,
-                            fillColor: Colors.grey.shade50,
-                          ),
+                          autofocus: true,
                           validator: (value) {
                             if (value == null || value.isEmpty) {
                               return 'Please enter your email';
@@ -132,41 +118,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           },
                         ),
                         const SizedBox(height: 20),
-                        TextFormField(
+                        OptimizedTextFields.password(
                           controller: _passwordController,
-                          obscureText: _obscurePassword,
-                          style: const TextStyle(fontSize: 18),
-                          decoration: InputDecoration(
-                            labelText: 'Password',
-                            labelStyle: const TextStyle(fontSize: 16),
-                            prefixIcon: const Icon(Icons.lock, size: 24),
-                            suffixIcon: IconButton(
-                              icon: Icon(
-                                _obscurePassword ? Icons.visibility : Icons.visibility_off,
-                                size: 24,
-                              ),
-                              onPressed: () {
-                                setState(() {
-                                  _obscurePassword = !_obscurePassword;
-                                });
-                              },
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(width: 2),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: Colors.grey.shade300, width: 2),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Colors.blue, width: 2),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-                            filled: true,
-                            fillColor: Colors.grey.shade50,
-                          ),
                           validator: (value) {
                             if (value == null || value.isEmpty) {
                               return 'Please enter your password';
@@ -348,6 +301,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
         ),
+      ),
       ),
     );
   }

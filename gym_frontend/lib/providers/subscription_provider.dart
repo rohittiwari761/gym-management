@@ -50,15 +50,42 @@ class SubscriptionProvider with ChangeNotifier {
       print('🔄 FETCH PLANS - Response: ${response.body}');
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
+        final responseData = jsonDecode(response.body);
+        print('🔍 FETCH PLANS - Parsed response structure: ${responseData.runtimeType}');
+        
+        // Handle both direct array and paginated response formats
+        List<dynamic> data;
+        if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
+          // Paginated response format
+          data = responseData['results'] as List<dynamic>;
+          print('🔍 FETCH PLANS - Using paginated format with ${data.length} results');
+        } else if (responseData is List<dynamic>) {
+          // Direct array format
+          data = responseData;
+          print('🔍 FETCH PLANS - Using direct array format with ${data.length} items');
+        } else {
+          throw Exception('Unexpected response format: expected array or paginated object');
+        }
+        
         _subscriptionPlans = data.map((json) => SubscriptionPlan.fromJson(json)).toList();
         print('✅ Successfully fetched ${_subscriptionPlans.length} subscription plans');
       } else {
         throw Exception('Failed to fetch subscription plans: ${response.statusCode}');
       }
     } catch (e) {
-      final errorResult = OfflineHandler.handleNetworkError(e);
-      _errorMessage = errorResult['message'];
+      print('❌ FETCH PLANS EXCEPTION: $e');
+      print('❌ FETCH PLANS EXCEPTION TYPE: ${e.runtimeType}');
+      
+      // Handle JSON parsing errors specifically
+      if (e.toString().contains('FormatException') || 
+          e.toString().contains('type') ||
+          e.toString().contains('Unexpected response format')) {
+        _errorMessage = 'Server returned invalid data format. Please try again.';
+        print('❌ FETCH PLANS: JSON parsing error detected');
+      } else {
+        final errorResult = OfflineHandler.handleNetworkError(e);
+        _errorMessage = errorResult['message'];
+      }
       print('❌ FETCH PLANS ERROR: $_errorMessage');
     }
 
@@ -79,8 +106,22 @@ class SubscriptionProvider with ChangeNotifier {
       ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
+        final responseData = jsonDecode(response.body);
+        
+        // Handle both direct array and paginated response formats
+        List<dynamic> data;
+        if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
+          // Paginated response format
+          data = responseData['results'] as List<dynamic>;
+        } else if (responseData is List<dynamic>) {
+          // Direct array format
+          data = responseData;
+        } else {
+          throw Exception('Unexpected response format for member subscriptions');
+        }
+        
         _memberSubscriptions = data.map((item) => MemberSubscription.fromJson(item)).toList();
+        print('✅ Successfully fetched ${_memberSubscriptions.length} member subscriptions');
       } else {
         _errorMessage = 'Failed to fetch member subscriptions';
       }

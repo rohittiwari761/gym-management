@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'dart:ui';
 import 'screens/home_screen.dart';
@@ -21,7 +22,7 @@ import 'providers/theme_provider.dart';
 import 'utils/app_theme.dart';
 import 'widgets/common_widgets.dart' as common_widgets;
 
-void main() {
+void main() async {
   // Enable detailed error reporting
   FlutterError.onError = (FlutterErrorDetails details) {
     FlutterError.presentError(details);
@@ -34,6 +35,9 @@ void main() {
 
   // Initialize services
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Pre-warm text input system to reduce first-tap delay
+  await _preWarmTextInput();
 
   // Reset offline state on app start
   OfflineHandler.reset();
@@ -136,5 +140,30 @@ class AuthWrapper extends StatelessWidget {
             : const LoginScreen();
       },
     );
+  }
+}
+
+/// Pre-warm text input system to reduce first-tap delay on input fields
+Future<void> _preWarmTextInput() async {
+  try {
+    // Initialize text input services
+    await SystemChannels.textInput.invokeMethod('TextInput.hide');
+    
+    // Pre-warm keyboard services (platform-specific)
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      await SystemChannels.textInput.invokeMethod('TextInput.setClient', [
+        -1, // Temporary client ID
+        {
+          'inputType': {'name': 'TextInputType.text'},
+          'inputAction': 'TextInputAction.done',
+        }
+      ]);
+      await SystemChannels.textInput.invokeMethod('TextInput.clearClient');
+    }
+    
+    print('✅ TEXT_INPUT: Pre-warming completed successfully');
+  } catch (e) {
+    print('⚠️ TEXT_INPUT: Pre-warming failed (non-critical): $e');
+    // Don't block app startup if pre-warming fails
   }
 }
