@@ -538,10 +538,25 @@ class _CreatePaymentScreenState extends State<CreatePaymentScreen> {
         });
 
         if (success && mounted) {
+          // Refresh member data to show updated membership expiry
+          await Provider.of<MemberProvider>(context, listen: false).fetchMembers();
+          
+          // Refresh the selected member data to show updated expiry
+          if (_selectedMember != null) {
+            final memberProvider = Provider.of<MemberProvider>(context, listen: false);
+            final updatedMember = memberProvider.members.firstWhere(
+              (m) => m.id == _selectedMember!.id,
+              orElse: () => _selectedMember!,
+            );
+            setState(() {
+              _selectedMember = updatedMember;
+            });
+          }
+          
           Navigator.of(context).pop();
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Payment recorded successfully!'),
+              content: Text('Payment recorded successfully! Membership extended.'),
               backgroundColor: Colors.green,
             ),
           );
