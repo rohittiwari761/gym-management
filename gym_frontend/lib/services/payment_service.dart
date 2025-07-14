@@ -51,6 +51,7 @@ class PaymentService {
     int? subscriptionPlanId,
     required double amount,
     required PaymentMethod method,
+    int membershipMonths = 1,
     String? transactionId,
     String? notes,
     DateTime? paymentDate,
@@ -62,7 +63,7 @@ class PaymentService {
         'amount': amount,
         'payment_method': method.toString().split('.').last,
         'transaction_id': transactionId,
-        'membership_months': 1, // Default to 1 month, should be calculated based on subscription
+        'membership_months': membershipMonths,
         'notes': notes,
         'payment_date': (paymentDate ?? DateTime.now()).toIso8601String(),
       });

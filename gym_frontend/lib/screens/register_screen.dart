@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/enhanced_password_field.dart';
 import '../security/input_validator.dart';
+import '../services/debug_api_service.dart';
+import '../services/web_api_service.dart';
 import 'home_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -386,6 +389,47 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 );
                               },
                             ),
+                            
+                            // Debug button for web testing
+                            if (kIsWeb) ...[
+                              const SizedBox(height: 16),
+                              SizedBox(
+                                width: double.infinity,
+                                height: 48,
+                                child: OutlinedButton(
+                                  onPressed: _debugTestRegistration,
+                                  style: OutlinedButton.styleFrom(
+                                    side: const BorderSide(color: Colors.orange, width: 2),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    'Debug: Test Direct API Call',
+                                    style: TextStyle(color: Colors.orange),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              SizedBox(
+                                width: double.infinity,
+                                height: 48,
+                                child: ElevatedButton(
+                                  onPressed: _webApiTest,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.green,
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    'Web API: Test Registration',
+                                    style: TextStyle(color: Colors.white),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -421,6 +465,170 @@ class _RegisterScreenState extends State<RegisterScreen> {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (context) => const HomeScreen(),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _debugTestRegistration() async {
+    if (!_formKey.currentState!.validate()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please fill in all required fields first'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    try {
+      // First test connectivity
+      final connectivityResult = await DebugApiService.testConnectivity();
+      
+      if (!connectivityResult['success']) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Connectivity test failed: ${connectivityResult['message']}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Then test registration
+      final result = await DebugApiService.testRegistration(
+        firstName: _firstNameController.text.trim(),
+        lastName: _lastNameController.text.trim(),
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+        gymName: _gymNameController.text.trim().isEmpty 
+            ? 'Test Gym' 
+            : _gymNameController.text.trim(),
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result['success'] 
+                  ? 'Debug Success: ${result['message']}' 
+                  : 'Debug Failed: ${result['message']}',
+            ),
+            backgroundColor: result['success'] ? Colors.green : Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+
+      // Print detailed debug info to console
+      print('🚀 DEBUG REGISTRATION RESULT:');
+      print('Success: ${result['success']}');
+      print('Message: ${result['message']}');
+      if (result.containsKey('error')) {
+        print('Error: ${result['error']}');
+      }
+      if (result.containsKey('statusCode')) {
+        print('Status Code: ${result['statusCode']}');
+      }
+      
+    } catch (e) {
+      print('❌ DEBUG TEST ERROR: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Debug test error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _webApiTest() async {
+    if (!_formKey.currentState!.validate()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please fill in all required fields first'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      return;
+    }
+
+    try {
+      // Test connectivity first
+      final connectivityResult = await WebApiService.testConnectivity();
+      print('🌐 WEB API TEST: Connectivity result: $connectivityResult');
+      
+      if (connectivityResult['statusCode'] == 405) {
+        print('✅ WEB API TEST: Server is reachable (405 = Method Not Allowed for GET)');
+      } else if (!connectivityResult['success']) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Connectivity failed: ${connectivityResult['message']}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Test registration
+      final result = await WebApiService.register(
+        firstName: _firstNameController.text.trim(),
+        lastName: _lastNameController.text.trim(),
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+        gymName: _gymNameController.text.trim().isEmpty 
+            ? 'Test Gym' 
+            : _gymNameController.text.trim(),
+        gymAddress: _gymAddressController.text.trim().isEmpty 
+            ? 'Test Address' 
+            : _gymAddressController.text.trim(),
+        gymDescription: _gymDescriptionController.text.trim().isEmpty 
+            ? 'Test Description' 
+            : _gymDescriptionController.text.trim(),
+        phoneNumber: _phoneController.text.trim().isEmpty 
+            ? null 
+            : _phoneController.text.trim(),
+      );
+
+      print('🌐 WEB API TEST: Registration result: $result');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result['success'] 
+                  ? 'Web API Success! Status: ${result['statusCode']}' 
+                  : 'Web API Failed: ${result['message']} (${result['statusCode']})',
+            ),
+            backgroundColor: result['success'] ? Colors.green : Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+
+      // If successful, try to navigate to home screen
+      if (result['success'] && mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => const HomeScreen(),
+          ),
+        );
+      }
+      
+    } catch (e) {
+      print('❌ WEB API TEST ERROR: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Web API test error: $e'),
+            backgroundColor: Colors.red,
           ),
         );
       }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../security/input_validator.dart';
@@ -169,54 +170,56 @@ class _LoginScreenState extends State<LoginScreen> with TextFieldOptimizationMix
                         ),
                         const SizedBox(height: 16),
                         
-                        // Google Sign-In Button
-                        SizedBox(
-                          width: double.infinity,
-                          height: 56,
-                          child: OutlinedButton.icon(
-                            onPressed: () => _signInWithGoogle(),
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: Colors.red, width: 2),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              backgroundColor: Colors.red[50],
-                              textStyle: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            icon: const Icon(
-                              Icons.account_circle,
-                              color: Colors.red,
-                              size: 24,
-                            ),
-                            label: const Text(
-                              'Continue with Google',
-                              style: TextStyle(color: Colors.red),
-                            ),
-                          ),
-                        ),
-                        
-                        const SizedBox(height: 20),
-                        
-                        // Divider
-                        Row(
-                          children: [
-                            Expanded(child: Divider(color: Colors.grey[400])),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
-                              child: Text(
-                                'OR',
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontWeight: FontWeight.w500,
+                        // Google Sign-In Button (only show on mobile platforms)
+                        if (!kIsWeb)
+                          SizedBox(
+                            width: double.infinity,
+                            height: 56,
+                            child: OutlinedButton.icon(
+                              onPressed: () => _signInWithGoogle(),
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: Colors.red, width: 2),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                backgroundColor: Colors.red[50],
+                                textStyle: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
+                              icon: const Icon(
+                                Icons.account_circle,
+                                color: Colors.red,
+                                size: 24,
+                              ),
+                              label: const Text(
+                                'Continue with Google',
+                                style: TextStyle(color: Colors.red),
+                              ),
                             ),
-                            Expanded(child: Divider(color: Colors.grey[400])),
-                          ],
-                        ),
+                          ),
+                        
+                        if (!kIsWeb) const SizedBox(height: 20),
+                        
+                        // Divider (only show on mobile when Google Sign-In is available)
+                        if (!kIsWeb)
+                          Row(
+                            children: [
+                              Expanded(child: Divider(color: Colors.grey[400])),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                child: Text(
+                                  'OR',
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                              Expanded(child: Divider(color: Colors.grey[400])),
+                            ],
+                          ),
                         
                         const SizedBox(height: 16),
                         
@@ -246,7 +249,8 @@ class _LoginScreenState extends State<LoginScreen> with TextFieldOptimizationMix
                               ),
                               const SizedBox(height: 8),
                               const Text('• Create a new account using the register button below'),
-                              const Text('• Or use Google Sign-In for quick access'),
+                              if (!kIsWeb) const Text('• Or use Google Sign-In for quick access'),
+                              if (kIsWeb) const Text('• Web version supports email authentication only'),
                               const SizedBox(height: 8),
                               Text(
                                 'Connected to: gym-management-production-4343.up.railway.app',

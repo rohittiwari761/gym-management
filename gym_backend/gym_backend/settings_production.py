@@ -365,10 +365,42 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:3000",
     "http://192.168.1.7:3000",
     "https://yourdomain.com",  # Production domain
+    # Add Netlify domains for web deployment
+    "https://*.netlify.app",  # All Netlify apps
+    "https://shiny-chebakia-43b733.netlify.app",  # Specific Netlify domain
 ]
+
+# Temporarily allow all origins for Netlify deployment
+# You can restrict this later by adding your specific Netlify URL
+CORS_ALLOW_ALL_ORIGINS = True
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_PREFLIGHT_MAX_AGE = 86400  # 24 hours
+
+# Additional CORS settings for web compatibility
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+    'access-control-allow-origin',
+    'access-control-allow-methods',
+    'access-control-allow-headers',
+]
+
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
 
 # Email Configuration for Production
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'

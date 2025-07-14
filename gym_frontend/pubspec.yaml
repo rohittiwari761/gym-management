@@ -31,8 +31,8 @@ dependencies:
   # Image handling
   image_picker: ^1.0.7
   
-  # QR Code scanning (mobile only)
-  qr_code_scanner: ^1.0.1
+  # QR Code scanning (mobile only) - temporarily disabled for iOS build
+  # mobile_scanner: ^5.0.0
   
   # Google Sign-In
   google_sign_in: ^6.2.1

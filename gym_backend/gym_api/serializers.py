@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import GymOwner, Member, Trainer, Equipment, WorkoutPlan, Exercise, WorkoutSession, MembershipPayment, Attendance, SubscriptionPlan, MemberSubscription, TrainerMemberAssociation
+from .models import GymOwner, Member, Trainer, Equipment, WorkoutPlan, Exercise, WorkoutSession, MembershipPayment, Attendance, SubscriptionPlan, MemberSubscription, TrainerMemberAssociation, Notification
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -436,3 +436,30 @@ class TrainerMemberAssociationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(f"Invalid member or trainer: {str(e)}")
         
         return super().create(validated_data)
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    """Serializer for notifications"""
+    related_member_name = serializers.SerializerMethodField()
+    time_ago = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Notification
+        fields = [
+            'id', 'type', 'priority', 'title', 'message', 
+            'is_read', 'created_at', 'read_at',
+            'related_member', 'related_member_name', 'related_payment',
+            'time_ago'
+        ]
+        read_only_fields = ['id', 'created_at', 'read_at', 'related_member_name', 'time_ago']
+    
+    def get_related_member_name(self, obj):
+        """Get the name of the related member if exists"""
+        if obj.related_member:
+            return obj.related_member.user.get_full_name()
+        return None
+    
+    def get_time_ago(self, obj):
+        """Get human-readable time since notification was created"""
+        from django.utils.timesince import timesince
+        return timesince(obj.created_at)

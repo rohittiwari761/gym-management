@@ -9,18 +9,26 @@ import 'auth_service.dart';
 class GoogleAuthService {
   static final GoogleAuthService _instance = GoogleAuthService._internal();
   factory GoogleAuthService() => _instance;
-  GoogleAuthService._internal();
+  
+  late final GoogleSignIn _googleSignIn;
 
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
-    scopes: [
-      'email',
-      'profile',
-    ],
-    // Use the iOS client ID that matches GoogleService-Info.plist
-    serverClientId: '818835282138-8h3qf505eco222l28feg0o1t3tvu0v8g.apps.googleusercontent.com',
-    // Force account picker
-    forceCodeForRefreshToken: true,
-  );
+  GoogleAuthService._internal() {
+    // Configure GoogleSignIn based on platform
+    if (kIsWeb) {
+      _googleSignIn = GoogleSignIn(
+        scopes: ['email', 'profile'],
+        // For web, use the web client ID (you'll need to get this from Google Console)
+        clientId: '818835282138-8h3qf505eco222l28feg0o1t3tvu0v8g.apps.googleusercontent.com',
+        serverClientId: '818835282138-8h3qf505eco222l28feg0o1t3tvu0v8g.apps.googleusercontent.com',
+      );
+    } else {
+      _googleSignIn = GoogleSignIn(
+        scopes: ['email', 'profile'],
+        serverClientId: '818835282138-8h3qf505eco222l28feg0o1t3tvu0v8g.apps.googleusercontent.com',
+        forceCodeForRefreshToken: true,
+      );
+    }
+  }
 
   final SecureHttpClient _httpClient = SecureHttpClient();
 
@@ -102,7 +110,9 @@ class GoogleAuthService {
       if (!await _isGoogleSignInConfigured()) {
         return {
           'success': false,
-          'error': 'Google Sign-In is not properly configured. Please check GoogleService-Info.plist for iOS or google-services.json for Android.',
+          'error': kIsWeb 
+              ? 'Google Sign-In is not properly configured for web. Please check your web client ID configuration.'
+              : 'Google Sign-In is not properly configured. Please check GoogleService-Info.plist for iOS or google-services.json for Android.',
         };
       }
 
@@ -112,6 +122,31 @@ class GoogleAuthService {
       try {
         googleUser = await _googleSignIn.signIn();
       } catch (error) {
+        
+        // Handle web-specific errors
+        if (kIsWeb) {
+          if (error.toString().contains('popup') || 
+              error.toString().contains('blocked') ||
+              error.toString().contains('network_error')) {
+            return {
+              'success': false,
+              'error': 'Google Sign-In popup was blocked or failed. Please enable popups for this site and try again.',
+            };
+          }
+          
+          if (error.toString().contains('idpiframe') || 
+              error.toString().contains('gapi')) {
+            return {
+              'success': false,
+              'error': 'Google Sign-In failed to load. Please check your internet connection and try again.',
+            };
+          }
+          
+          return {
+            'success': false,
+            'error': 'Google Sign-In failed on web. Please try refreshing the page or use email login instead.',
+          };
+        }
         
         // Handle specific iOS simulator issues
         if (error.toString().contains('simulator') || 

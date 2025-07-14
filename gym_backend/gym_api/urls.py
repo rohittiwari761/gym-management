@@ -4,7 +4,7 @@ from .views import (
     GymOwnerViewSet, MemberViewSet, TrainerViewSet, EquipmentViewSet,
     WorkoutPlanViewSet, ExerciseViewSet, WorkoutSessionViewSet,
     MembershipPaymentViewSet, AttendanceViewSet, SubscriptionPlanViewSet, MemberSubscriptionViewSet,
-    TrainerMemberAssociationViewSet
+    TrainerMemberAssociationViewSet, NotificationViewSet
 )
 from . import auth_views
 
@@ -21,6 +21,7 @@ router.register(r'attendance', AttendanceViewSet, basename='attendance')
 router.register(r'subscription-plans', SubscriptionPlanViewSet, basename='subscriptionplan')
 router.register(r'member-subscriptions', MemberSubscriptionViewSet, basename='membersubscription')
 router.register(r'trainer-member-associations', TrainerMemberAssociationViewSet, basename='trainermemberassociation')
+router.register(r'notifications', NotificationViewSet, basename='notification')
 
 urlpatterns = [
     path('', include(router.urls)),

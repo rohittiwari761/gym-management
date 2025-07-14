@@ -1,5 +1,16 @@
-Watching for file changes with StatReloader
-/Users/rohittiwari/Desktop/STUDY/funproject/gymBro/gym-management-system/venv/lib/python3.9/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
-  warnings.warn(
-Method Not Allowed: /api/auth/google/
-[06/Jul/2025 12:27:24] "GET /api/auth/google/ HTTP/1.1" 405 40
+Traceback (most recent call last):
+  File "/Users/rohittiwari/Downloads/flutter-projects/GYMPROJECT/gym-management-system/gym_backend/manage.py", line 11, in main
+    from django.core.management import execute_from_command_line
+ModuleNotFoundError: No module named 'django'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/rohittiwari/Downloads/flutter-projects/GYMPROJECT/gym-management-system/gym_backend/manage.py", line 22, in <module>
+    main()
+    ~~~~^^
+  File "/Users/rohittiwari/Downloads/flutter-projects/GYMPROJECT/gym-management-system/gym_backend/manage.py", line 13, in main
+    raise ImportError(
+    ...<3 lines>...
+    ) from exc
+ImportError: Couldn't import Django. Are you sure it's installed and available on your PYTHONPATH environment variable? Did you forget to activate a virtual environment?

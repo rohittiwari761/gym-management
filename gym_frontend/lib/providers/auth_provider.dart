@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import '../models/gym_owner.dart';
 import '../services/auth_service.dart';
+import '../services/web_api_service.dart';
 import '../services/gym_data_service.dart';
 import '../services/database_reset_service.dart';
 import '../services/data_refresh_service.dart';
@@ -69,7 +71,30 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final result = await _authService.login(email, password);
+      Map<String, dynamic> result;
+      
+      // Use WebApiService for web platform, AuthService for mobile
+      if (kIsWeb) {
+        print('🌐 AUTH_PROVIDER: Using WebApiService for web login');
+        result = await WebApiService.login(
+          email: email,
+          password: password,
+        );
+        
+        // Convert WebApiService response to AuthService format
+        if (result['success']) {
+          final responseData = result['data'] as Map<String, dynamic>;
+          result = {
+            'success': true,
+            'userData': responseData['gym_owner'],
+            'token': responseData['token'],
+            'message': responseData['message'],
+          };
+        }
+      } else {
+        print('📱 AUTH_PROVIDER: Using AuthService for mobile login');
+        result = await _authService.login(email, password);
+      }
       
       if (result['success']) {
         // Convert userData map to GymOwner object
@@ -93,6 +118,18 @@ class AuthProvider with ChangeNotifier {
         }
         _isLoggedIn = true;
         
+        // Store token if provided
+        if (result['token'] != null) {
+          await JWTManager.storeTokens(
+            accessToken: result['token'],
+            refreshToken: result['token'],
+            userId: _currentUser?.id.toString() ?? '',
+            userRole: 'gym_owner',
+            sessionId: DateTime.now().millisecondsSinceEpoch.toString(),
+            persistent: true,
+          );
+        }
+        
         // Initialize gym-specific data isolation with mock data enabled
         GymDataService().initialize(_currentUser, enableMockData: true);
         
@@ -100,12 +137,13 @@ class AuthProvider with ChangeNotifier {
         notifyListeners();
         return {'success': true, 'user': _currentUser};
       } else {
-        _errorMessage = result['error'];
+        _errorMessage = result['error'] ?? result['message'] ?? 'Login failed';
         _isLoading = false;
         notifyListeners();
-        return {'success': false, 'error': result['error']};
+        return {'success': false, 'error': _errorMessage};
       }
     } catch (e) {
+      print('❌ AUTH_PROVIDER: Login error: $e');
       _errorMessage = e.toString();
       _isLoading = false;
       notifyListeners();
@@ -128,20 +166,61 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final result = await _authService.register(
-        email: email,
-        password: password,
-        firstName: firstName,
-        lastName: lastName,
-        phoneNumber: phoneNumber,
-        gymName: gymName,
-        gymAddress: gymAddress,
-        gymDescription: gymDescription,
-      );
+      Map<String, dynamic> result;
+      
+      // Use WebApiService for web platform, AuthService for mobile
+      if (kIsWeb) {
+        print('🌐 AUTH_PROVIDER: Using WebApiService for web registration');
+        result = await WebApiService.register(
+          firstName: firstName,
+          lastName: lastName,
+          email: email,
+          password: password,
+          gymName: gymName ?? 'My Gym',
+          gymAddress: gymAddress ?? 'Default Address',
+          gymDescription: gymDescription ?? 'Default Description',
+          phoneNumber: phoneNumber,
+        );
+        
+        // Convert WebApiService response to AuthService format
+        if (result['success']) {
+          final responseData = result['data'] as Map<String, dynamic>;
+          result = {
+            'success': true,
+            'user': responseData['gym_owner'],
+            'token': responseData['token'],
+            'message': responseData['message'],
+          };
+        }
+      } else {
+        print('📱 AUTH_PROVIDER: Using AuthService for mobile registration');
+        result = await _authService.register(
+          email: email,
+          password: password,
+          firstName: firstName,
+          lastName: lastName,
+          phoneNumber: phoneNumber,
+          gymName: gymName,
+          gymAddress: gymAddress,
+          gymDescription: gymDescription,
+        );
+      }
       
       if (result['success']) {
         _currentUser = result['user'];
         _isLoggedIn = true;
+        
+        // Store token if provided
+        if (result['token'] != null) {
+          await JWTManager.storeTokens(
+            accessToken: result['token'],
+            refreshToken: result['token'],
+            userId: _currentUser?.id.toString() ?? '',
+            userRole: 'gym_owner',
+            sessionId: DateTime.now().millisecondsSinceEpoch.toString(),
+            persistent: true,
+          );
+        }
         
         // Initialize gym-specific data isolation for new account with mock data enabled
         GymDataService().initialize(_currentUser, enableMockData: true);
@@ -150,12 +229,13 @@ class AuthProvider with ChangeNotifier {
         notifyListeners();
         return true;
       } else {
-        _errorMessage = result['error'];
+        _errorMessage = result['error'] ?? result['message'] ?? 'Registration failed';
         _isLoading = false;
         notifyListeners();
         return false;
       }
     } catch (e) {
+      print('❌ AUTH_PROVIDER: Registration error: $e');
       _errorMessage = e.toString();
       _isLoading = false;
       notifyListeners();

@@ -16,13 +16,13 @@ logger = logging.getLogger(__name__)
 from .models import (
     GymOwner, Member, Trainer, Equipment, WorkoutPlan, Exercise, WorkoutSession, 
     MembershipPayment, Attendance, SubscriptionPlan, MemberSubscription, TrainerMemberAssociation,
-    get_ist_now, get_ist_date
+    Notification, get_ist_now, get_ist_date
 )
 from .serializers import (
     UserSerializer, GymOwnerSerializer, MemberSerializer, TrainerSerializer, EquipmentSerializer,
     WorkoutPlanSerializer, ExerciseSerializer, WorkoutSessionSerializer,
     MembershipPaymentSerializer, AttendanceSerializer, SubscriptionPlanSerializer, MemberSubscriptionSerializer,
-    TrainerMemberAssociationSerializer
+    TrainerMemberAssociationSerializer, NotificationSerializer
 )
 
 
@@ -428,9 +428,60 @@ class MembershipPaymentViewSet(viewsets.ModelViewSet):
         return MembershipPayment.objects.none()
     
     def perform_create(self, serializer):
-        # Automatically assign gym owner on creation
+        # Automatically assign gym owner on creation and extend membership
         if hasattr(self.request.user, 'gymowner'):
-            serializer.save(gym_owner=self.request.user.gymowner)
+            payment = serializer.save(gym_owner=self.request.user.gymowner)
+            
+            print(f'💳 PAYMENT: Created payment ID {payment.id} for member {payment.member.user.get_full_name()}')
+            print(f'💳 PAYMENT: Membership months: {payment.membership_months}')
+            print(f'💳 PAYMENT: Amount: {payment.amount}')
+            print(f'💳 PAYMENT: Current member expiry: {payment.member.membership_expiry}')
+            
+            # Extend member's membership expiry based on payment
+            if payment.member and payment.membership_months:
+                member = payment.member
+                today = timezone.now().date()
+                
+                # Calculate new expiry date
+                if member.membership_expiry and member.membership_expiry > today:
+                    # Extend from current expiry date if still valid
+                    new_expiry = member.membership_expiry + timedelta(days=payment.membership_months * 30)
+                    print(f'💳 PAYMENT: Extending membership from {member.membership_expiry} to {new_expiry}')
+                else:
+                    # Start from today if membership is expired
+                    new_expiry = today + timedelta(days=payment.membership_months * 30)
+                    print(f'💳 PAYMENT: Starting new membership from {today} to {new_expiry}')
+                
+                # Update member's expiry date and reactivate if needed
+                member.membership_expiry = new_expiry
+                if not member.is_active:
+                    member.is_active = True
+                    print(f'💳 PAYMENT: Reactivating member {member.user.get_full_name()}')
+                
+                member.save()
+                
+                # Create or update MemberSubscription
+                subscription_plan = payment.subscription_plan
+                if subscription_plan:
+                    member_subscription, created = MemberSubscription.objects.get_or_create(
+                        member=member,
+                        subscription_plan=subscription_plan,
+                        defaults={
+                            'gym_owner': self.request.user.gymowner,
+                            'start_date': member.membership_expiry - timedelta(days=payment.membership_months * 30),
+                            'end_date': member.membership_expiry,
+                            'status': 'active',
+                            'amount_paid': payment.amount,
+                            'payment_method': payment.payment_method
+                        }
+                    )
+                    if not created:
+                        # Update existing subscription
+                        member_subscription.end_date = member.membership_expiry
+                        member_subscription.status = 'active'
+                        member_subscription.save()
+                
+                print(f'✅ PAYMENT: Member {member.user.get_full_name()} membership extended to {new_expiry}')
         else:
             raise serializers.ValidationError("User must be a gym owner to create payments")
     
@@ -590,15 +641,31 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             
             # Check for date parameter in query string
             date_param = self.request.query_params.get('date')
+            print(f'🔍 ATTENDANCE: Received query params: {dict(self.request.query_params)}')
+            print(f'🔍 ATTENDANCE: Date parameter: {date_param}')
+            
             if date_param:
                 try:
                     # Parse date from YYYY-MM-DD format
                     from datetime import datetime
                     filter_date = datetime.strptime(date_param, '%Y-%m-%d').date()
+                    
+                    # Debug: Show what we're filtering for vs what exists
+                    total_count = queryset.count()
                     queryset = queryset.filter(date=filter_date)
+                    filtered_count = queryset.count()
+                    
                     print(f'📅 ATTENDANCE: Filtering by date {filter_date}')
+                    print(f'📊 ATTENDANCE: Total records: {total_count}, After date filter: {filtered_count}')
+                    
+                    # Debug: Show actual dates in database
+                    all_dates = Attendance.objects.filter(gym_owner=self.request.user.gymowner).values_list('date', flat=True).distinct()
+                    print(f'📅 ATTENDANCE: Available dates in DB: {list(all_dates)}')
+                    
                 except ValueError:
                     print(f'❌ ATTENDANCE: Invalid date format {date_param}, returning all records')
+            else:
+                print(f'📋 ATTENDANCE: No date filter applied, returning all records')
             
             return queryset.order_by('-date', '-check_in_time')
         return Attendance.objects.none()
@@ -980,3 +1047,79 @@ class TrainerMemberAssociationViewSet(viewsets.ModelViewSet):
         )
         serializer = self.get_serializer(associations, many=True)
         return Response(serializer.data)
+
+
+class NotificationViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing gym owner notifications"""
+    serializer_class = NotificationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        """Filter notifications by gym owner"""
+        if hasattr(self.request.user, 'gymowner'):
+            return Notification.objects.filter(
+                gym_owner=self.request.user.gymowner
+            ).select_related('related_member__user', 'related_payment')
+        return Notification.objects.none()
+    
+    @action(detail=False, methods=['get'])
+    def unread_count(self, request):
+        """Get count of unread notifications"""
+        if hasattr(request.user, 'gymowner'):
+            count = self.get_queryset().filter(is_read=False).count()
+            return Response({'unread_count': count})
+        return Response({'error': 'User must be a gym owner'}, status=status.HTTP_403_FORBIDDEN)
+    
+    @action(detail=True, methods=['post'])
+    def mark_as_read(self, request, pk=None):
+        """Mark a specific notification as read"""
+        notification = self.get_object()
+        notification.mark_as_read()
+        return Response({'status': 'marked as read'})
+    
+    @action(detail=False, methods=['post'])
+    def mark_all_as_read(self, request):
+        """Mark all notifications as read for the gym owner"""
+        if hasattr(request.user, 'gymowner'):
+            updated = self.get_queryset().filter(is_read=False).update(
+                is_read=True,
+                read_at=timezone.now()
+            )
+            return Response({'status': f'marked {updated} notifications as read'})
+        return Response({'error': 'User must be a gym owner'}, status=status.HTTP_403_FORBIDDEN)
+    
+    @action(detail=False, methods=['get'])
+    def check_expiring_members(self, request):
+        """Check for expiring members and create notifications"""
+        if hasattr(request.user, 'gymowner'):
+            gym_owner = request.user.gymowner
+            today = get_ist_date()
+            next_week = today + timedelta(days=7)
+            
+            # Find members expiring within 7 days
+            expiring_members = Member.objects.filter(
+                gym_owner=gym_owner,
+                is_active=True,
+                membership_expiry__gte=today,
+                membership_expiry__lte=next_week
+            )
+            
+            if expiring_members.exists():
+                # Check if we already have a recent notification for expiring members
+                recent_notification = Notification.objects.filter(
+                    gym_owner=gym_owner,
+                    type='member_expiring_soon',
+                    created_at__gte=today
+                ).exists()
+                
+                if not recent_notification:
+                    # Create notification for expiring members
+                    Notification.create_expiring_soon_notification(
+                        gym_owner, list(expiring_members)
+                    )
+                    
+            return Response({
+                'expiring_count': expiring_members.count(),
+                'notification_created': expiring_members.exists() and not recent_notification
+            })
+        return Response({'error': 'User must be a gym owner'}, status=status.HTTP_403_FORBIDDEN)

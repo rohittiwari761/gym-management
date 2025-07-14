@@ -162,6 +162,7 @@ class SecureHttpClient {
         secureHeaders,
         jsonBody,
         timeout,
+        queryParams,
       );
 
       // Validate response
@@ -228,10 +229,11 @@ class SecureHttpClient {
     Map<String, String> headers,
     String? body,
     Duration timeout,
+    Map<String, dynamic>? queryParams,
   ) async {
     // First try the primary URL
     try {
-      final uri = _buildSecureUri(endpoint, null);
+      final uri = _buildSecureUri(endpoint, queryParams);
       print('🌐 SECURE_HTTP: Attempting primary URL: $uri');
       final response = await _executeRequest(method, uri, headers, body, timeout);
       print('✅ SECURE_HTTP: Primary URL successful: ${response.statusCode}');
@@ -252,9 +254,15 @@ class SecureHttpClient {
           final fullUrl = endpoint.startsWith('/') 
               ? '$fallbackUrl$endpoint' 
               : '$fallbackUrl/$endpoint';
-          final uri = Uri.parse(fullUrl);
+          var uri = Uri.parse(fullUrl);
           
-          print('🔍 SECURE_HTTP: Trying fallback: $fallbackUrl');
+          // Add query parameters to fallback URL if provided
+          if (queryParams != null && queryParams.isNotEmpty) {
+            final sanitizedParams = _sanitizeQueryParams(queryParams);
+            uri = uri.replace(queryParameters: sanitizedParams);
+          }
+          
+          print('🔍 SECURE_HTTP: Trying fallback: $uri');
           final response = await _executeRequest(method, uri, headers, body, timeout);
           print('✅ SECURE_HTTP: Fallback URL successful: $fallbackUrl');
           return response;
