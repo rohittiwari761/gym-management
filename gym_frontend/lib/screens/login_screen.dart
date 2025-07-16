@@ -251,7 +251,7 @@ class _LoginScreenState extends State<LoginScreen> with TextFieldOptimizationMix
                               if (kIsWeb) const Text('• Web version now supports Google Sign-In'),
                               const SizedBox(height: 8),
                               Text(
-                                'Backend: gym-management-production-4343.up.railway.app',
+                                'Backend: gym-management-production-2168.up.railway.app',
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.grey[600],

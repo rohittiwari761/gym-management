@@ -7,7 +7,7 @@ class SecurityConfig {
   static const bool _isProduction = bool.fromEnvironment('dart.vm.product');
   
   // Production URL
-  static const String _prodApiUrl = 'https://gym-management-production-4343.up.railway.app/api';
+  static const String _prodApiUrl = 'https://gym-management-production-2168.up.railway.app/api';
   
   // Local development URLs (fallback only)
   static const String _localhostApiUrl = 'http://localhost:8000/api';
