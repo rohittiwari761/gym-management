@@ -459,3 +459,21 @@ SPECTACULAR_SETTINGS = {
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
 }
+
+# Google OAuth 2.0 settings for production
+try:
+    print("🔧 PRODUCTION_SETTINGS: Loading Google OAuth environment variables...")
+    GOOGLE_OAUTH2_CLIENT_ID = os.getenv('GOOGLE_OAUTH2_CLIENT_ID')
+    GOOGLE_OAUTH2_CLIENT_SECRET = os.getenv('GOOGLE_OAUTH2_CLIENT_SECRET')
+    print(f"🔑 PRODUCTION_SETTINGS: GOOGLE_OAUTH2_CLIENT_ID = {GOOGLE_OAUTH2_CLIENT_ID}")
+    print(f"🔑 PRODUCTION_SETTINGS: Environment variables loaded = {bool(GOOGLE_OAUTH2_CLIENT_ID)}")
+    print(f"🚀 PRODUCTION_SETTINGS: Production deployment timestamp: July 16, 2025 - 17:30 IST")
+    
+    # Ensure they exist as module attributes
+    globals()['GOOGLE_OAUTH2_CLIENT_ID'] = GOOGLE_OAUTH2_CLIENT_ID
+    globals()['GOOGLE_OAUTH2_CLIENT_SECRET'] = GOOGLE_OAUTH2_CLIENT_SECRET
+    print("✅ PRODUCTION_SETTINGS: Google OAuth settings configured successfully")
+except Exception as e:
+    print(f"❌ PRODUCTION_SETTINGS: Error configuring Google OAuth: {e}")
+    GOOGLE_OAUTH2_CLIENT_ID = None
+    GOOGLE_OAUTH2_CLIENT_SECRET = None
