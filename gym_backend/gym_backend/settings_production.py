@@ -391,6 +391,13 @@ CORS_ALLOW_HEADERS = [
     'access-control-allow-origin',
     'access-control-allow-methods',
     'access-control-allow-headers',
+    'strict-transport-security',  # Fix for Netlify CORS error
+    'sec-fetch-site',
+    'sec-fetch-mode',
+    'sec-fetch-dest',
+    'referer',
+    'cache-control',
+    'pragma',
 ]
 
 CORS_ALLOW_METHODS = [
