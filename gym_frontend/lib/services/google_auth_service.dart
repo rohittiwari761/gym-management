@@ -15,13 +15,13 @@ class GoogleAuthService {
   GoogleAuthService._internal() {
     // Configure GoogleSignIn based on platform
     if (kIsWeb) {
+      // Web client ID - configured for Web Application type
       _googleSignIn = GoogleSignIn(
         scopes: ['email', 'profile'],
-        // For web, use the web client ID (you'll need to get this from Google Console)
-        clientId: '818835282138-8h3qf505eco222l28feg0o1t3tvu0v8g.apps.googleusercontent.com',
-        serverClientId: '818835282138-8h3qf505eco222l28feg0o1t3tvu0v8g.apps.googleusercontent.com',
+        clientId: '818835282138-qjqc6v2bf8n89ghrphh9l388erj5vt5g.apps.googleusercontent.com',
       );
     } else {
+      // Mobile apps use the iOS client ID
       _googleSignIn = GoogleSignIn(
         scopes: ['email', 'profile'],
         serverClientId: '818835282138-8h3qf505eco222l28feg0o1t3tvu0v8g.apps.googleusercontent.com',

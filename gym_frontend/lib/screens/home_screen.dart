@@ -312,35 +312,45 @@ class _HomeScreenState extends State<HomeScreen> {
                 colors: [Colors.blue.shade600, Colors.blue.shade800],
               ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const CircleAvatar(
-                  radius: 35,
-                  backgroundColor: Colors.white,
-                  child: Icon(
-                    Icons.fitness_center,
-                    size: 35,
-                    color: Colors.blue,
-                  ),
-                ),
-                const SizedBox(height: 15),
-                const Text(
-                  'Gym Management',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  'Enterprise Edition',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.8),
-                    fontSize: 14,
-                  ),
-                ),
-              ],
+            child: Consumer<AuthProvider>(
+              builder: (context, authProvider, child) {
+                final user = authProvider.currentUser;
+                final userName = user != null 
+                    ? '${user.firstName} ${user.lastName}'
+                    : 'Loading...';
+                final gymName = user?.gymName ?? 'Gym Management';
+                
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const CircleAvatar(
+                      radius: 35,
+                      backgroundColor: Colors.white,
+                      child: Icon(
+                        Icons.fitness_center,
+                        size: 35,
+                        color: Colors.blue,
+                      ),
+                    ),
+                    const SizedBox(height: 15),
+                    Text(
+                      userName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      gymName,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.8),
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
           

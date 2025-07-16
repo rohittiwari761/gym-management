@@ -170,56 +170,54 @@ class _LoginScreenState extends State<LoginScreen> with TextFieldOptimizationMix
                         ),
                         const SizedBox(height: 16),
                         
-                        // Google Sign-In Button (only show on mobile platforms)
-                        if (!kIsWeb)
-                          SizedBox(
-                            width: double.infinity,
-                            height: 56,
-                            child: OutlinedButton.icon(
-                              onPressed: () => _signInWithGoogle(),
-                              style: OutlinedButton.styleFrom(
-                                side: const BorderSide(color: Colors.red, width: 2),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                backgroundColor: Colors.red[50],
-                                textStyle: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                        // Google Sign-In Button (available on all platforms)
+                        SizedBox(
+                          width: double.infinity,
+                          height: 56,
+                          child: OutlinedButton.icon(
+                            onPressed: () => _signInWithGoogle(),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Colors.red, width: 2),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                              icon: const Icon(
-                                Icons.account_circle,
-                                color: Colors.red,
-                                size: 24,
-                              ),
-                              label: const Text(
-                                'Continue with Google',
-                                style: TextStyle(color: Colors.red),
+                              backgroundColor: Colors.red[50],
+                              textStyle: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
+                            icon: const Icon(
+                              Icons.account_circle,
+                              color: Colors.red,
+                              size: 24,
+                            ),
+                            label: const Text(
+                              'Continue with Google',
+                              style: TextStyle(color: Colors.red),
+                            ),
                           ),
+                        ),
                         
-                        if (!kIsWeb) const SizedBox(height: 20),
+                        const SizedBox(height: 20),
                         
-                        // Divider (only show on mobile when Google Sign-In is available)
-                        if (!kIsWeb)
-                          Row(
-                            children: [
-                              Expanded(child: Divider(color: Colors.grey[400])),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 16),
-                                child: Text(
-                                  'OR',
-                                  style: TextStyle(
-                                    color: Colors.grey[600],
-                                    fontWeight: FontWeight.w500,
-                                  ),
+                        // Divider (available on all platforms)
+                        Row(
+                          children: [
+                            Expanded(child: Divider(color: Colors.grey[400])),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              child: Text(
+                                'OR',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
-                              Expanded(child: Divider(color: Colors.grey[400])),
-                            ],
-                          ),
+                            ),
+                            Expanded(child: Divider(color: Colors.grey[400])),
+                          ],
+                        ),
                         
                         const SizedBox(height: 16),
                         
@@ -249,17 +247,26 @@ class _LoginScreenState extends State<LoginScreen> with TextFieldOptimizationMix
                               ),
                               const SizedBox(height: 8),
                               const Text('• Create a new account using the register button below'),
-                              if (!kIsWeb) const Text('• Or use Google Sign-In for quick access'),
-                              if (kIsWeb) const Text('• Web version supports email authentication only'),
+                              const Text('• Or use Google Sign-In for quick access'),
+                              if (kIsWeb) const Text('• Web version now supports Google Sign-In'),
                               const SizedBox(height: 8),
                               Text(
-                                'Connected to: gym-management-production-4343.up.railway.app',
+                                'Backend: gym-management-production-4343.up.railway.app',
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.grey[600],
                                   fontStyle: FontStyle.italic,
                                 ),
                               ),
+                              if (kIsWeb) 
+                                Text(
+                                  '⚠️ If login fails, Railway backend may need redeployment',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.orange[600],
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
                             ],
                           ),
                         ),
