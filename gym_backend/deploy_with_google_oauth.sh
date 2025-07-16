@@ -13,11 +13,11 @@ cd "$(dirname "$0")"
 echo "🔧 Setting Railway environment variables..."
 
 # Set Google OAuth credentials
-railway variables set GOOGLE_OAUTH2_CLIENT_ID="818835282138-8h3qf505eco222l28feg0o1t3tvu0v8g.apps.googleusercontent.com"
-railway variables set GOOGLE_OAUTH2_CLIENT_SECRET="GOCSPX-YOUR-CLIENT-SECRET-HERE"
+railway variables --set "GOOGLE_OAUTH2_CLIENT_ID=YOUR_GOOGLE_CLIENT_ID"
+railway variables --set "GOOGLE_OAUTH2_CLIENT_SECRET=YOUR_GOOGLE_CLIENT_SECRET"
 
 # Set Django settings
-railway variables set DJANGO_SETTINGS_MODULE="gym_backend.settings_production"
+railway variables --set "DJANGO_SETTINGS_MODULE=gym_backend.settings_production"
 
 # Deploy to Railway
 echo "🚀 Deploying to Railway..."
@@ -27,7 +27,7 @@ echo ""
 echo "✅ Deployment completed!"
 echo ""
 echo "📋 Environment variables set:"
-echo "   - GOOGLE_OAUTH2_CLIENT_ID: 818835282138-8h3qf505eco222l28feg0o1t3tvu0v8g.apps.googleusercontent.com"
+echo "   - GOOGLE_OAUTH2_CLIENT_ID: [SET]"
 echo "   - GOOGLE_OAUTH2_CLIENT_SECRET: [HIDDEN]"
 echo "   - DJANGO_SETTINGS_MODULE: gym_backend.settings_production"
 echo ""
