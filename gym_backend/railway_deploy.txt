@@ -1,0 +1,14 @@
+Railway Deployment Trigger
+========================
+
+This file is updated to trigger Railway auto-deployment.
+
+Last Update: 2025-07-16 19:05 IST
+Fix Applied: content-security-policy CORS header
+
+Changes in this deployment:
+- Added content-security-policy to CORS_ALLOW_HEADERS
+- Added comprehensive security headers
+- Enhanced CORS configuration for all browser headers
+
+Expected result: All CORS header errors should be resolved.
