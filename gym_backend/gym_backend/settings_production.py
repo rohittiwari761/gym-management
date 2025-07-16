@@ -377,10 +377,14 @@ CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 CORS_PREFLIGHT_MAX_AGE = 86400  # 24 hours
 
-# Additional CORS settings for web compatibility
+# Temporary: Allow all headers to prevent CORS issues during development
+CORS_ALLOW_ALL_HEADERS = True
+
+# Additional CORS settings for web compatibility - comprehensive header list
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
+    'accept-language',
     'authorization',
     'content-type',
     'dnt',
@@ -388,6 +392,7 @@ CORS_ALLOW_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
+    'x-request-id',  # Fix for x-request-id CORS error
     'access-control-allow-origin',
     'access-control-allow-methods',
     'access-control-allow-headers',
@@ -395,9 +400,19 @@ CORS_ALLOW_HEADERS = [
     'sec-fetch-site',
     'sec-fetch-mode',
     'sec-fetch-dest',
+    'sec-ch-ua',
+    'sec-ch-ua-mobile',
+    'sec-ch-ua-platform',
     'referer',
     'cache-control',
     'pragma',
+    'expires',
+    'if-modified-since',
+    'if-none-match',
+    'range',
+    'x-forwarded-for',
+    'x-forwarded-proto',
+    'x-real-ip',
 ]
 
 CORS_ALLOW_METHODS = [
