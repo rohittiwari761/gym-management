@@ -380,8 +380,8 @@ CORS_PREFLIGHT_MAX_AGE = 86400  # 24 hours
 # Temporary: Allow all headers to prevent CORS issues during development
 CORS_ALLOW_ALL_HEADERS = True
 
-# Alternative approach: Use wildcard for headers
-CORS_REPLACE_HTTPS_REFERER = True
+# Alternative approach: Additional CORS settings
+# CORS_REPLACE_HTTPS_REFERER = True  # Disabled - might cause issues
 
 # Additional CORS settings for web compatibility - comprehensive header list
 CORS_ALLOW_HEADERS = [
