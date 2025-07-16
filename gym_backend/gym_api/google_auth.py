@@ -171,7 +171,41 @@ def handle_google_auth(request):
     Handle Google authentication request
     """
     print("🚀 GOOGLE_AUTH: Received Google authentication request")
-    print("🕒 GOOGLE_AUTH: July 10, 2025 - 10:27 IST - Direct env variable fix active")
+    print("🕒 GOOGLE_AUTH: July 16, 2025 - 18:45 IST - Environment variable diagnostic active")
+    
+    # Enhanced diagnostic logging
+    client_id_env = os.getenv('GOOGLE_OAUTH2_CLIENT_ID')
+    client_secret_env = os.getenv('GOOGLE_OAUTH2_CLIENT_SECRET')
+    
+    print(f"🔧 GOOGLE_AUTH: Environment diagnostic:")
+    print(f"   - GOOGLE_OAUTH2_CLIENT_ID env: {'✅ SET' if client_id_env else '❌ NOT SET'}")
+    print(f"   - GOOGLE_OAUTH2_CLIENT_SECRET env: {'✅ SET' if client_secret_env else '❌ NOT SET'}")
+    
+    if client_id_env:
+        print(f"   - Client ID (first 20 chars): {client_id_env[:20]}...")
+    if client_secret_env:
+        print(f"   - Client Secret (first 10 chars): {client_secret_env[:10]}...")
+    
+    # Check Django settings as fallback
+    try:
+        settings_client_id = getattr(settings, 'GOOGLE_OAUTH2_CLIENT_ID', None)
+        settings_client_secret = getattr(settings, 'GOOGLE_OAUTH2_CLIENT_SECRET', None)
+        print(f"   - Django settings client ID: {'✅ SET' if settings_client_id else '❌ NOT SET'}")
+        print(f"   - Django settings client secret: {'✅ SET' if settings_client_secret else '❌ NOT SET'}")
+    except Exception as e:
+        print(f"   - Django settings error: {e}")
+    
+    # Check if all Google Auth dependencies are available
+    try:
+        from google.auth.transport import requests as google_requests
+        from google.oauth2 import id_token
+        print(f"   - Google auth library: ✅ AVAILABLE")
+    except ImportError as e:
+        print(f"   - Google auth library: ❌ NOT AVAILABLE - {e}")
+        return Response(
+            {'error': 'Google authentication library not available'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
     
     google_token = request.data.get('google_token')
     if not google_token:

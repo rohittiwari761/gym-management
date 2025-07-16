@@ -30,6 +30,7 @@ urlpatterns = [
     path('auth/register/', auth_views.gym_owner_register, name='gym-owner-register'),
     path('auth/login/', auth_views.gym_owner_login, name='gym-owner-login'),
     path('auth/google/', auth_views.google_auth, name='google-auth'),
+    path('auth/google/config/', auth_views.google_config_check, name='google-config-check'),
     path('auth/logout/', auth_views.gym_owner_logout, name='gym-owner-logout'),
     path('auth/profile/', auth_views.gym_owner_profile, name='gym-owner-profile'),
     path('auth/profile/update/', auth_views.gym_owner_update_profile, name='gym-owner-update-profile'),

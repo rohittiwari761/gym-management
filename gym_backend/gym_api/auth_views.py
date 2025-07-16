@@ -601,3 +601,54 @@ def google_auth(request):
     Authenticates users with Google ID tokens and creates or logs in gym owners
     """
     return handle_google_auth(request)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def google_config_check(request):
+    """
+    Check Google OAuth configuration status
+    """
+    import os
+    from django.conf import settings
+    
+    # Check environment variables
+    client_id_env = os.getenv('GOOGLE_OAUTH2_CLIENT_ID')
+    client_secret_env = os.getenv('GOOGLE_OAUTH2_CLIENT_SECRET')
+    
+    # Check Django settings
+    try:
+        settings_client_id = getattr(settings, 'GOOGLE_OAUTH2_CLIENT_ID', None)
+        settings_client_secret = getattr(settings, 'GOOGLE_OAUTH2_CLIENT_SECRET', None)
+    except Exception as e:
+        settings_client_id = None
+        settings_client_secret = None
+    
+    # Check Google library availability
+    try:
+        from google.auth.transport import requests as google_requests
+        from google.oauth2 import id_token
+        library_available = True
+    except ImportError:
+        library_available = False
+    
+    # Determine configuration status
+    config_ready = bool(client_id_env and client_secret_env and library_available)
+    
+    return Response({
+        'success': True,
+        'config_ready': config_ready,
+        'environment': {
+            'client_id_set': bool(client_id_env),
+            'client_secret_set': bool(client_secret_env),
+            'client_id_preview': client_id_env[:20] + '...' if client_id_env else None,
+            'client_secret_preview': client_secret_env[:10] + '...' if client_secret_env else None,
+        },
+        'django_settings': {
+            'client_id_set': bool(settings_client_id),
+            'client_secret_set': bool(settings_client_secret),
+        },
+        'library_available': library_available,
+        'timestamp': '2025-07-16 18:50 IST',
+        'deployment_status': 'active'
+    }, status=status.HTTP_200_OK)
