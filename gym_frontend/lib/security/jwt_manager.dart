@@ -39,14 +39,21 @@ class JWTManager {
     bool persistent = false,
   }) async {
     try {
+      print('🔐 JWT_MANAGER: Storing tokens...');
+      print('🔐 JWT_MANAGER: Access token length: ${accessToken.length}');
+      print('🔐 JWT_MANAGER: User ID: $userId');
+      print('🔐 JWT_MANAGER: Persistent session: $persistent');
+      
       // Set expiry time only for JWT tokens, not Django tokens
       DateTime? expiryTime;
       if (_isJWTToken(accessToken)) {
         expiryTime = DateTime.now().add(
           Duration(seconds: SecurityConfig.tokenExpiryDuration),
         );
+        print('🔐 JWT_MANAGER: JWT token detected, setting expiry: $expiryTime');
+      } else {
+        print('🔐 JWT_MANAGER: Django token detected, no expiry');
       }
-      // Django tokens don't expire
 
       final futures = [
         _storage.write(key: _accessTokenKey, value: accessToken),
@@ -63,6 +70,8 @@ class JWTManager {
       }
 
       await Future.wait(futures);
+      
+      print('✅ JWT_MANAGER: Tokens stored successfully');
 
       SecurityConfig.logSecurityEvent('TOKEN_STORED', {
         'userId': userId,
@@ -71,6 +80,7 @@ class JWTManager {
         'persistent': persistent,
       });
     } catch (e) {
+      print('❌ JWT_MANAGER: Token storage error: $e');
       SecurityConfig.logSecurityEvent('TOKEN_STORE_ERROR', {
         'error': e.toString(),
       });
@@ -81,22 +91,33 @@ class JWTManager {
   /// Retrieve access token
   static Future<String?> getAccessToken() async {
     try {
+      print('🔍 JWT_MANAGER: Attempting to retrieve access token...');
       final token = await _storage.read(key: _accessTokenKey);
       
-      if (token == null) return null;
+      if (token == null) {
+        print('❌ JWT_MANAGER: No access token found in storage');
+        return null;
+      }
+
+      print('✅ JWT_MANAGER: Token found, length: ${token.length}');
+      print('🔍 JWT_MANAGER: Token type: ${_isJWTToken(token) ? "JWT" : "Django"}');
 
       // Only check expiry for JWT tokens, not Django tokens
       if (_isJWTToken(token)) {
         // Check if token is expired
         if (await isTokenExpired()) {
+          print('❌ JWT_MANAGER: JWT token is expired, clearing tokens');
           await clearTokens();
           return null;
         }
+        print('✅ JWT_MANAGER: JWT token is valid (not expired)');
+      } else {
+        print('✅ JWT_MANAGER: Django token - no expiry check needed');
       }
-      // Django tokens don't expire, so return them directly
 
       return token;
     } catch (e) {
+      print('❌ JWT_MANAGER: Token retrieval error: $e');
       SecurityConfig.logSecurityEvent('TOKEN_RETRIEVAL_ERROR', {
         'error': e.toString(),
       });
