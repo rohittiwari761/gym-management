@@ -47,10 +47,11 @@ class JWTManager {
       print('⚠️ JWT_MANAGER: Secure storage failed, using fallback: $e');
       if (kIsWeb) {
         _webFallbackStorage[key] = value;
-        // Also try localStorage as backup
+        // Also try localStorage as backup (with prefix for consistency)
         try {
-          html.window.localStorage[key] = value;
-          print('✅ JWT_MANAGER: Fallback localStorage write successful');
+          final prefixedKey = 'gym_management_public_key.$key';
+          html.window.localStorage[prefixedKey] = value;
+          print('✅ JWT_MANAGER: Fallback localStorage write successful with prefix');
         } catch (storageError) {
           print('❌ JWT_MANAGER: localStorage also failed: $storageError');
         }
@@ -78,12 +79,20 @@ class JWTManager {
         return _webFallbackStorage[key];
       }
       
-      // Try localStorage as backup
+      // Try localStorage as backup (with prefix)
       try {
-        final value = html.window.localStorage[key];
+        final prefixedKey = 'gym_management_public_key.$key';
+        final value = html.window.localStorage[prefixedKey];
         if (value != null) {
-          print('✅ JWT_MANAGER: Retrieved from localStorage fallback');
+          print('✅ JWT_MANAGER: Retrieved from localStorage fallback with prefix');
           return value;
+        }
+        
+        // Also try without prefix for compatibility
+        final directValue = html.window.localStorage[key];
+        if (directValue != null) {
+          print('✅ JWT_MANAGER: Retrieved from localStorage fallback direct');
+          return directValue;
         }
       } catch (e) {
         print('❌ JWT_MANAGER: localStorage read failed: $e');

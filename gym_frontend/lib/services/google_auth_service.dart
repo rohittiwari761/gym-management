@@ -133,8 +133,14 @@ class GoogleAuthService {
           print('📱 GOOGLE_AUTH: Server client ID: 818835282138-8h3qf505eco222l28feg0o1t3tvu0v8g.apps.googleusercontent.com');
         }
         
+        print('🔄 GOOGLE_AUTH: Calling _googleSignIn.signIn()...');
         googleUser = await _googleSignIn.signIn();
         print('✅ GOOGLE_AUTH: Sign-in process completed successfully');
+        if (googleUser != null) {
+          print('👤 GOOGLE_AUTH: User signed in: ${googleUser.email}');
+        } else {
+          print('❌ GOOGLE_AUTH: Sign-in returned null - user cancelled or failed');
+        }
       } catch (error) {
         print('❌ GOOGLE_AUTH: Sign-in error: $error');
         
@@ -212,15 +218,23 @@ class GoogleAuthService {
       });
 
       // Get authentication details
+      print('🔑 GOOGLE_AUTH: Getting authentication details from googleUser...');
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      
+      print('🔍 GOOGLE_AUTH: Authentication object received');
+      print('🔍 GOOGLE_AUTH: idToken: ${googleAuth.idToken != null ? "PRESENT (${googleAuth.idToken!.length} chars)" : "NULL"}');
+      print('🔍 GOOGLE_AUTH: accessToken: ${googleAuth.accessToken != null ? "PRESENT (${googleAuth.accessToken!.length} chars)" : "NULL"}');
 
       if (googleAuth.idToken == null) {
+        print('❌ GOOGLE_AUTH: ID token is null - this is the problem!');
         SecurityConfig.logSecurityEvent('GOOGLE_SIGNIN_NO_ID_TOKEN', {});
         return {
           'success': false,
           'error': 'Failed to get Google ID token',
         };
       }
+      
+      print('✅ GOOGLE_AUTH: ID token successfully obtained');
 
 
       // Send ID token to Django backend for verification

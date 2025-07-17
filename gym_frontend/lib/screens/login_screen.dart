@@ -351,13 +351,18 @@ class _LoginScreenState extends State<LoginScreen> with TextFieldOptimizationMix
       // Show loading indicator
       authProvider.setLoading(true);
       
+      print('🚀 BUTTON_CLICKED: Google Sign-In button was clicked!');
       print('🔐 GOOGLE_SIGNIN: Starting Google Sign-In process...');
       
       // Initialize Google Auth Service if not already done
+      print('🔧 GOOGLE_SIGNIN: Initializing Google Auth Service...');
       final googleAuthService = GoogleAuthService();
       googleAuthService.initialize();
+      print('✅ GOOGLE_SIGNIN: Google Auth Service initialized');
       
+      print('🚀 GOOGLE_SIGNIN: Calling signInWithGoogle()...');
       final result = await googleAuthService.signInWithGoogle();
+      print('🏁 GOOGLE_SIGNIN: signInWithGoogle() returned: $result');
       
       print('🔐 GOOGLE_SIGNIN: Google Sign-In result: $result');
       

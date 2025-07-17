@@ -42,12 +42,21 @@ class PaymentProvider with ChangeNotifier {
 
     try {
       print('💰 PAYMENTS: Fetching payments...');
+      print('🔍 PAYMENTS: Calling PaymentService.getPayments()...');
       _payments = await _paymentService.getPayments();
       print('✅ PAYMENTS: Loaded ${_payments.length} payments from Django backend');
       
       // Don't create mock data - use real backend data only
     } catch (e) {
       print('💥 PAYMENTS ERROR: $e');
+      print('🔍 PAYMENTS: Full error details: ${e.runtimeType}');
+      print('🔍 PAYMENTS: Error string contains:');
+      print('  - SocketException: ${e.toString().contains('SocketException')}');
+      print('  - Connection refused: ${e.toString().contains('Connection refused')}');
+      print('  - Connection failed: ${e.toString().contains('Connection failed')}');
+      print('  - Authentication: ${e.toString().contains('Authentication')}');
+      print('  - SecurityException: ${e.toString().contains('SecurityException')}');
+      
       _errorMessage = e.toString();
       
       // Only use mock data if backend is completely unreachable (network error)

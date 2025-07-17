@@ -316,17 +316,21 @@ class SecureHttpClient {
 
     // Add authentication header if required
     if (requireAuth) {
+      print('🔐 SECURE_HTTP: Authentication required - retrieving token...');
       final token = await JWTManager.getAccessToken();
       print('🔐 SECURE_HTTP: Token retrieved: ${token != null ? "Found (${token.length} chars)" : "NOT FOUND"}');
       if (token != null) {
         print('🔐 SECURE_HTTP: Token starts with: ${token.substring(0, 20)}...');
+        print('🔐 SECURE_HTTP: Token type: ${token.split('.').length == 3 ? "JWT" : "Django"}');
       }
       if (token == null) {
         print('❌ SECURE_HTTP: No authentication token available');
+        print('❌ SECURE_HTTP: This will cause 401 Unauthorized error');
         throw SecurityException('Authentication required');
       }
       headers['Authorization'] = 'Token $token';
-      print('🔐 SECURE_HTTP: Authorization header set');
+      print('🔐 SECURE_HTTP: Authorization header set with "Token $token"');
+      print('🔐 SECURE_HTTP: Final headers: ${headers.keys.toList()}');
     }
 
     // Add custom headers (with validation)

@@ -5,6 +5,7 @@ import '../providers/payment_provider.dart';
 import '../providers/member_provider.dart';
 import '../models/payment.dart';
 import '../widgets/network_error_widget.dart';
+import '../services/debug_api_service.dart';
 import 'create_payment_screen.dart';
 
 class PaymentsScreen extends StatefulWidget {
@@ -21,7 +22,20 @@ class _PaymentsScreenState extends State<PaymentsScreen> with SingleTickerProvid
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      print('🔍 PAYMENTS_SCREEN: Starting debug tests...');
+      
+      // Run debug tests first
+      final authTest = await DebugApiService.testAuthentication();
+      print('🔍 PAYMENTS_SCREEN: Auth test result: $authTest');
+      
+      final paymentsTest = await DebugApiService.testPaymentsEndpoint();
+      print('🔍 PAYMENTS_SCREEN: Payments test result: $paymentsTest');
+      
+      final revenueTest = await DebugApiService.testRevenueEndpoint();
+      print('🔍 PAYMENTS_SCREEN: Revenue test result: $revenueTest');
+      
+      // Now run the normal provider calls
       final provider = Provider.of<PaymentProvider>(context, listen: false);
       provider.fetchPayments();
       provider.fetchRevenueAnalytics();

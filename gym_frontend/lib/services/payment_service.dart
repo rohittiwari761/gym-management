@@ -15,7 +15,14 @@ class PaymentService {
 
   Future<List<Payment>> getPayments() async {
     try {
+      print('🌐 PAYMENT_SERVICE: Making GET request to payments/ endpoint...');
       final response = await _httpClient.get('payments/');
+      
+      print('🌐 PAYMENT_SERVICE: Response received');
+      print('  - Status Code: ${response.statusCode}');
+      print('  - Is Success: ${response.isSuccess}');
+      print('  - Data Type: ${response.data?.runtimeType}');
+      print('  - Error Message: ${response.errorMessage}');
 
       if (response.isSuccess && response.data != null) {
         // Handle Django pagination format: {"count": X, "results": [...]}
@@ -29,19 +36,27 @@ class PaymentService {
         } else if (responseData is List<dynamic>) {
           // Direct list response (fallback)
           jsonList = responseData;
+          print('📊 API: Received direct list response with ${jsonList.length} payments');
         } else {
+          print('❌ API: Unexpected response format: ${responseData?.runtimeType}');
           throw Exception('Unexpected response format');
         }
         
+        print('✅ PAYMENT_SERVICE: Converting ${jsonList.length} JSON objects to Payment objects');
         return jsonList.map((json) => Payment.fromJson(json)).toList();
       } else {
+        print('❌ PAYMENT_SERVICE: Request failed');
         throw Exception(response.errorMessage ?? 'Failed to load payments');
       }
     } catch (e) {
+      print('💥 PAYMENT_SERVICE: Exception caught: ${e.runtimeType}');
+      print('💥 PAYMENT_SERVICE: Exception message: $e');
+      
       SecurityConfig.logSecurityEvent('PAYMENTS_LOAD_ERROR', {
         'error': e.toString(),
       });
       final errorResult = OfflineHandler.handleNetworkError(e);
+      print('💥 PAYMENT_SERVICE: Throwing processed error: ${errorResult['message']}');
       throw Exception(errorResult['message']);
     }
   }
