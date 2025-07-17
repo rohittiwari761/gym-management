@@ -483,23 +483,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
 
     try {
-      // First test connectivity
-      final connectivityResult = await DebugApiService.testConnectivity();
-      
-      if (!connectivityResult['success']) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Connectivity test failed: ${connectivityResult['message']}'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
-      }
-
-      // Then test registration
-      final result = await DebugApiService.testRegistration(
+      // Register user
+      final result = await Provider.of<AuthProvider>(context, listen: false).register(
         firstName: _firstNameController.text.trim(),
         lastName: _lastNameController.text.trim(),
         email: _emailController.text.trim(),
@@ -513,26 +498,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              result['success'] 
-                  ? 'Debug Success: ${result['message']}' 
-                  : 'Debug Failed: ${result['message']}',
+              result ? 'Registration successful!' : 'Registration failed',
             ),
-            backgroundColor: result['success'] ? Colors.green : Colors.red,
+            backgroundColor: result ? Colors.green : Colors.red,
             duration: const Duration(seconds: 5),
           ),
         );
       }
 
       // Print detailed debug info to console
-      print('🚀 DEBUG REGISTRATION RESULT:');
-      print('Success: ${result['success']}');
-      print('Message: ${result['message']}');
-      if (result.containsKey('error')) {
-        print('Error: ${result['error']}');
-      }
-      if (result.containsKey('statusCode')) {
-        print('Status Code: ${result['statusCode']}');
-      }
+      print('🚀 DEBUG REGISTRATION RESULT: $result');
       
     } catch (e) {
       print('❌ DEBUG TEST ERROR: $e');
