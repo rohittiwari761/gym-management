@@ -10,7 +10,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Import specific settings without database config
-SECRET_KEY = 'django-insecure-(pqu1w!c*a$iydc)_le64^ncq(i=zbe)b=br5^zs#dcrjsjrvb'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-(pqu1w!c*a$iydc)_le64^ncq(i=zbe)b=br5^zs#dcrjsjrvb')
 
 # Application definition
 INSTALLED_APPS = [
@@ -109,7 +109,8 @@ ALLOWED_HOSTS = [
     '.gymmanagement.com',  # Production domain
     '.herokuapp.com',  # If using Heroku
     '.railway.app',  # Railway deployment
-    '*',  # Allow all for now (restrict later)
+    'gym-management-production-2168.up.railway.app',  # Specific Railway URL
+    os.environ.get('RAILWAY_PUBLIC_DOMAIN', ''),  # Dynamic Railway domain
 ]
 
 # Database Configuration - Railway PostgreSQL
@@ -227,13 +228,23 @@ SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 
 SESSION_COOKIE_AGE = 86400  # 24 hours
 
-# Security Settings
+# Enhanced Security Settings
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = 'DENY'
 SECURE_HSTS_SECONDS = 31536000
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
+
+# Additional security headers
+SECURE_SSL_REDIRECT = True
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+SECURE_REFERRER_POLICY = 'same-origin'
+
+# Security middleware
+SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
 
 # API Rate Limiting
 RATELIMIT_ENABLE = True
@@ -366,13 +377,13 @@ CORS_ALLOWED_ORIGINS = [
     "http://192.168.1.7:3000",
     "https://yourdomain.com",  # Production domain
     # Add Netlify domains for web deployment
-    "https://*.netlify.app",  # All Netlify apps
-    "https://shiny-chebakia-43b733.netlify.app",  # Specific Netlify domain
+    "https://benevolent-gingersnap-155623.netlify.app",  # Current Netlify domain
+    "https://shiny-chebakia-43b733.netlify.app",  # Previous Netlify domain
+    # Add environment variable for dynamic Netlify URL
+    os.environ.get('NETLIFY_URL', ''),
 ]
 
-# Temporarily allow all origins for Netlify deployment
-# You can restrict this later by adding your specific Netlify URL
-CORS_ALLOW_ALL_ORIGINS = True
+# CORS security configuration completed above
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_PREFLIGHT_MAX_AGE = 86400  # 24 hours
