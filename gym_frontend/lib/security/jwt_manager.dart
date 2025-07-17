@@ -50,6 +50,14 @@ class JWTManager {
         WebStorage.setItem(prefixedKey, value);
         print('✅ JWT_MANAGER: localStorage write successful with prefix');
         print('🔍 JWT_MANAGER: Stored value: ${value.substring(0, 20)}... (${value.length} chars)');
+        
+        // Immediately verify the write worked
+        final verification = WebStorage.getItem(prefixedKey);
+        if (verification != value) {
+          print('⚠️ JWT_MANAGER: localStorage write verification failed');
+        } else {
+          print('✅ JWT_MANAGER: localStorage write verified');
+        }
       } catch (storageError) {
         print('❌ JWT_MANAGER: localStorage failed: $storageError');
       }
@@ -61,7 +69,11 @@ class JWTManager {
       print('✅ JWT_MANAGER: Secure storage write successful for key: $key');
     } catch (e) {
       print('⚠️ JWT_MANAGER: Secure storage failed: $e');
-      // Already handled localStorage above for web
+      // For web, we rely on localStorage above
+      if (!kIsWeb) {
+        // For mobile, this is a real problem
+        throw SecurityException('Failed to store authentication data securely');
+      }
     }
   }
   
@@ -186,30 +198,35 @@ class JWTManager {
     }
   }
 
-  /// Retrieve access token
+  /// Retrieve access token with retry logic
   static Future<String?> getAccessToken() async {
     try {
       print('🔍 JWT_MANAGER: Attempting to retrieve access token...');
       print('🔍 JWT_MANAGER: Platform: ${kIsWeb ? "WEB" : "MOBILE"}');
       
-      // Additional web debugging
+      // Try multiple retrieval attempts for web platform
+      String? token;
       if (kIsWeb) {
-        print('🌐 JWT_MANAGER: Web platform - checking IndexedDB storage...');
+        print('🌐 JWT_MANAGER: Web platform - trying multiple storage methods...');
+        for (int attempt = 0; attempt < 3; attempt++) {
+          token = await _safeRead(_accessTokenKey);
+          if (token != null) break;
+          print('🔄 JWT_MANAGER: Attempt ${attempt + 1}/3 - token not found, retrying...');
+          await Future.delayed(Duration(milliseconds: 100));
+        }
+      } else {
+        token = await _safeRead(_accessTokenKey);
       }
       
-      final token = await _safeRead(_accessTokenKey);
-      
       if (token == null) {
-        print('❌ JWT_MANAGER: No access token found in storage');
-        if (kIsWeb) {
-          print('🌐 JWT_MANAGER: Web storage may not be persisting - checking fallback storages...');
-          print('🔍 JWT_MANAGER: Memory storage keys: ${_webFallbackStorage.keys.toList()}');
-          try {
-            print('🔍 JWT_MANAGER: localStorage available: ${kIsWeb}');
-          } catch (e) {
-            print('❌ JWT_MANAGER: Error checking localStorage: $e');
-          }
-        }
+        print('❌ JWT_MANAGER: No access token found after all attempts');
+        return null;
+      }
+
+      // Validate token format before returning
+      if (token.isEmpty || token.length < 10) {
+        print('❌ JWT_MANAGER: Token invalid format, clearing and returning null');
+        await clearTokens();
         return null;
       }
 

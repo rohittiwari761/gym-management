@@ -153,10 +153,10 @@ class SecureHttpClient {
         print('✅ SECURE_HTTP: Request body processed successfully');
       }
 
-      // Make request with timeout and fallback URLs
-      const timeout = Duration(seconds: 8); // Reduced timeout for faster fallback
+      // Make request with shorter timeout and retry logic
+      const timeout = Duration(seconds: 5); // Faster timeout for mobile
       
-      final response = await _makeRequestWithFallback(
+      final response = await _makeRequestWithRetry(
         method,
         endpoint,
         secureHeaders,
@@ -164,6 +164,31 @@ class SecureHttpClient {
         timeout,
         queryParams,
       );
+
+      // Check for 401 error and retry with fresh token
+      if (response.statusCode == 401 && requireAuth) {
+        print('🔄 SECURE_HTTP: Got 401 error, clearing tokens and retrying...');
+        await JWTManager.clearTokens();
+        
+        // Retry once with fresh authentication
+        try {
+          final freshHeaders = await _buildSecureHeaders(headers, requireAuth);
+          final retryResponse = await _executeRequest(method, _buildSecureUri(endpoint, queryParams), freshHeaders, jsonBody, timeout);
+          
+          if (retryResponse.statusCode != 401) {
+            print('✅ SECURE_HTTP: Retry after 401 successful');
+            final secureResponse = await _validateResponse(retryResponse);
+            SecurityConfig.logSecurityEvent('HTTP_REQUEST_RETRY_SUCCESS', {
+              'method': method,
+              'endpoint': endpoint,
+              'statusCode': retryResponse.statusCode,
+            });
+            return secureResponse;
+          }
+        } catch (retryError) {
+          print('❌ SECURE_HTTP: Retry after 401 failed: $retryError');
+        }
+      }
 
       // Validate response
       final secureResponse = await _validateResponse(response);
@@ -222,8 +247,8 @@ class SecureHttpClient {
     return uri;
   }
 
-  /// Try multiple URLs for local development
-  Future<http.Response> _makeRequestWithFallback(
+  /// Try request with retry logic for better reliability
+  Future<http.Response> _makeRequestWithRetry(
     String method,
     String endpoint,
     Map<String, String> headers,
@@ -231,51 +256,41 @@ class SecureHttpClient {
     Duration timeout,
     Map<String, dynamic>? queryParams,
   ) async {
-    // First try the primary URL
-    try {
-      final uri = _buildSecureUri(endpoint, queryParams);
-      print('🌐 SECURE_HTTP: Attempting primary URL: $uri');
-      final response = await _executeRequest(method, uri, headers, body, timeout);
-      print('✅ SECURE_HTTP: Primary URL successful: ${response.statusCode}');
-      return response;
-    } catch (e) {
-      print('❌ SECURE_HTTP: Primary URL failed: $e');
-      
-      // For production Railway URL, don't try fallback URLs
-      if (SecurityConfig.apiUrl.contains('railway.app')) {
-        print('🚫 SECURE_HTTP: Production Railway URL - not trying fallbacks');
-        throw e;
-      }
-      
-      // Try fallback URLs for local development only
-      print('🔄 SECURE_HTTP: Trying fallback URLs...');
-      for (final fallbackUrl in SecurityConfig.localFallbackUrls) {
-        try {
-          final fullUrl = endpoint.startsWith('/') 
-              ? '$fallbackUrl$endpoint' 
-              : '$fallbackUrl/$endpoint';
-          var uri = Uri.parse(fullUrl);
-          
-          // Add query parameters to fallback URL if provided
-          if (queryParams != null && queryParams.isNotEmpty) {
-            final sanitizedParams = _sanitizeQueryParams(queryParams);
-            uri = uri.replace(queryParameters: sanitizedParams);
-          }
-          
-          print('🔍 SECURE_HTTP: Trying fallback: $uri');
-          final response = await _executeRequest(method, uri, headers, body, timeout);
-          print('✅ SECURE_HTTP: Fallback URL successful: $fallbackUrl');
-          return response;
-        } catch (fallbackError) {
-          print('❌ SECURE_HTTP: Fallback failed: $fallbackUrl - $fallbackError');
-          continue;
+    const maxRetries = 3;
+    const baseDelay = Duration(milliseconds: 500);
+    
+    for (int attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        final uri = _buildSecureUri(endpoint, queryParams);
+        print('🌐 SECURE_HTTP: Attempt ${attempt + 1}/$maxRetries - URL: $uri');
+        
+        final response = await _executeRequest(method, uri, headers, body, timeout);
+        print('✅ SECURE_HTTP: Request successful on attempt ${attempt + 1}: ${response.statusCode}');
+        return response;
+      } catch (e) {
+        print('❌ SECURE_HTTP: Attempt ${attempt + 1}/$maxRetries failed: $e');
+        
+        // Check if it's a network/connection error that we should retry
+        final isRetryableError = e.toString().contains('SocketException') ||
+                                e.toString().contains('Connection refused') ||
+                                e.toString().contains('Connection timeout') ||
+                                e.toString().contains('TimeoutException') ||
+                                e.toString().contains('Network is unreachable');
+        
+        // If it's the last attempt or not a retryable error, throw immediately
+        if (attempt == maxRetries - 1 || !isRetryableError) {
+          print('💥 SECURE_HTTP: Final attempt failed or non-retryable error, throwing: $e');
+          throw e;
         }
+        
+        // Wait before retrying with exponential backoff
+        final delay = baseDelay * (attempt + 1);
+        print('⏳ SECURE_HTTP: Waiting ${delay.inMilliseconds}ms before retry...');
+        await Future.delayed(delay);
       }
-      
-      // If all URLs fail, throw the original error
-      print('💥 SECURE_HTTP: All URLs failed, throwing original error');
-      rethrow;
     }
+    
+    throw Exception('All retry attempts failed');
   }
 
   /// Execute HTTP request for a specific URI
@@ -314,31 +329,55 @@ class SecureHttpClient {
       ...SecurityConfig.securityHeaders,
     };
 
-    // Add authentication header if required
+    // Add authentication header if required with retry logic
     if (requireAuth) {
       print('🔐 SECURE_HTTP: Authentication required - retrieving token...');
-      final token = await JWTManager.getAccessToken();
+      
+      // Try to get token with retry logic
+      String? token;
+      for (int attempt = 0; attempt < 3; attempt++) {
+        token = await JWTManager.getAccessToken();
+        if (token != null) break;
+        
+        print('🔄 SECURE_HTTP: Token retrieval attempt ${attempt + 1}/3 failed, retrying...');
+        await Future.delayed(Duration(milliseconds: 200));
+      }
+      
       print('🔐 SECURE_HTTP: Token retrieved: ${token != null ? "Found (${token.length} chars)" : "NOT FOUND"}');
+      
       if (token != null) {
         print('🔐 SECURE_HTTP: Token starts with: ${token.substring(0, 20)}...');
         print('🔐 SECURE_HTTP: Token type: ${token.split('.').length == 3 ? "JWT" : "Django"}');
         print('🔐 SECURE_HTTP: Token ends with: ...${token.substring(token.length - 10)}');
         
-        // Check if token looks valid
+        // Validate token format
         if (token.length < 20) {
           print('⚠️ SECURE_HTTP: Token seems too short - may be corrupted');
         }
         if (token.contains(' ') || token.contains('\n')) {
           print('⚠️ SECURE_HTTP: Token contains whitespace - may be corrupted');
         }
+        
+        // Additional validation for Django tokens
+        if (token.split('.').length != 3) {
+          // Django token should be 40 characters of hex
+          final isDjangoToken = token.length >= 20 && token.length <= 128;
+          if (!isDjangoToken) {
+            print('⚠️ SECURE_HTTP: Token format invalid - clearing and retrying');
+            await JWTManager.clearTokens();
+            throw SecurityException('Invalid token format - please login again');
+          }
+        }
       }
+      
       if (token == null) {
-        print('❌ SECURE_HTTP: No authentication token available');
+        print('❌ SECURE_HTTP: No authentication token available after retries');
         print('❌ SECURE_HTTP: This will cause 401 Unauthorized error');
-        throw SecurityException('Authentication required');
+        throw SecurityException('Authentication required - please login again');
       }
+      
       headers['Authorization'] = 'Token $token';
-      print('🔐 SECURE_HTTP: Authorization header set with "Token $token"');
+      print('🔐 SECURE_HTTP: Authorization header set');
       print('🔐 SECURE_HTTP: Final headers: ${headers.keys.toList()}');
     }
 

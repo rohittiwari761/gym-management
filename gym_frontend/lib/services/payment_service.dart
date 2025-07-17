@@ -16,7 +16,15 @@ class PaymentService {
   Future<List<Payment>> getPayments() async {
     try {
       print('🌐 PAYMENT_SERVICE: Making GET request to payments/ endpoint...');
-      final response = await _httpClient.get('payments/');
+      
+      // Add connection timeout handling
+      final response = await _httpClient.get('payments/').timeout(
+        Duration(seconds: 10),
+        onTimeout: () {
+          print('⏰ PAYMENT_SERVICE: Request timed out after 10 seconds');
+          throw Exception('Request timed out. Please check your internet connection.');
+        },
+      );
       
       print('🌐 PAYMENT_SERVICE: Response received');
       print('  - Status Code: ${response.statusCode}');
@@ -46,6 +54,18 @@ class PaymentService {
         return jsonList.map((json) => Payment.fromJson(json)).toList();
       } else {
         print('❌ PAYMENT_SERVICE: Request failed');
+        
+        // Handle specific error cases
+        if (response.statusCode == 401) {
+          throw Exception('Authentication expired. Please login again.');
+        } else if (response.statusCode == 403) {
+          throw Exception('Access denied. Please check your permissions.');
+        } else if (response.statusCode == 404) {
+          throw Exception('Payments service not found. Please try again later.');
+        } else if (response.statusCode >= 500) {
+          throw Exception('Server error. Please try again later.');
+        }
+        
         throw Exception(response.errorMessage ?? 'Failed to load payments');
       }
     } catch (e) {
@@ -55,6 +75,13 @@ class PaymentService {
       SecurityConfig.logSecurityEvent('PAYMENTS_LOAD_ERROR', {
         'error': e.toString(),
       });
+      
+      // Handle different types of errors
+      if (e.toString().contains('TimeoutException') || 
+          e.toString().contains('timed out')) {
+        throw Exception('Connection timeout. Please check your internet connection and try again.');
+      }
+      
       final errorResult = OfflineHandler.handleNetworkError(e);
       print('💥 PAYMENT_SERVICE: Throwing processed error: ${errorResult['message']}');
       throw Exception(errorResult['message']);

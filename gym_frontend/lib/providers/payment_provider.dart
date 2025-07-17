@@ -46,7 +46,9 @@ class PaymentProvider with ChangeNotifier {
       _payments = await _paymentService.getPayments();
       print('✅ PAYMENTS: Loaded ${_payments.length} payments from Django backend');
       
-      // Don't create mock data - use real backend data only
+      // Clear any previous errors on successful load
+      _errorMessage = null;
+      
     } catch (e) {
       print('💥 PAYMENTS ERROR: $e');
       print('🔍 PAYMENTS: Full error details: ${e.runtimeType}');
@@ -56,17 +58,31 @@ class PaymentProvider with ChangeNotifier {
       print('  - Connection failed: ${e.toString().contains('Connection failed')}');
       print('  - Authentication: ${e.toString().contains('Authentication')}');
       print('  - SecurityException: ${e.toString().contains('SecurityException')}');
+      print('  - TimeoutException: ${e.toString().contains('TimeoutException')}');
+      print('  - timed out: ${e.toString().contains('timed out')}');
       
       _errorMessage = e.toString();
       
+      // Check if it's an authentication error - clear payments in this case
+      if (e.toString().contains('Authentication') || 
+          e.toString().contains('expired') ||
+          e.toString().contains('401') ||
+          e.toString().contains('403')) {
+        print('🔐 PAYMENTS: Authentication error - clearing payments');
+        _payments.clear();
+      }
       // Only use mock data if backend is completely unreachable (network error)
-      if (e.toString().contains('SocketException') || 
-          e.toString().contains('Connection refused') ||
-          e.toString().contains('Connection failed')) {
+      else if (e.toString().contains('SocketException') || 
+               e.toString().contains('Connection refused') ||
+               e.toString().contains('Connection failed') ||
+               e.toString().contains('Network is unreachable') ||
+               e.toString().contains('TimeoutException') ||
+               e.toString().contains('timed out')) {
         print('🔌 PAYMENTS: Backend unreachable, using mock data');
         _createMockPayments();
       } else {
         print('🔌 PAYMENTS: Backend reachable but returned error - no mock data');
+        _payments.clear();
       }
     }
 
