@@ -10,6 +10,7 @@ from .models import GymOwner
 from .serializers import GymOwnerSerializer
 from .google_auth import handle_google_auth
 import uuid
+import os
 
 # Try to import JWT components (available in production)
 try:
@@ -685,3 +686,145 @@ def google_config_check(request):
         'timestamp': '2025-07-16 18:50 IST',
         'deployment_status': 'active'
     }, status=status.HTTP_200_OK)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def google_oauth_exchange(request):
+    """
+    Exchange Google OAuth authorization code for tokens.
+    This endpoint is specifically designed for privacy-focused browsers like Brave
+    that block Google's tracking endpoints but can handle OAuth redirects.
+    """
+    try:
+        code = request.data.get('code')
+        redirect_uri = request.data.get('redirect_uri')
+        
+        if not code:
+            return Response({
+                'success': False,
+                'error': 'Authorization code is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not redirect_uri:
+            return Response({
+                'success': False,
+                'error': 'Redirect URI is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        print(f"🔄 OAUTH_EXCHANGE: Processing code exchange for redirect_uri: {redirect_uri}")
+        print(f"🔄 OAUTH_EXCHANGE: Code length: {len(code)}")
+        
+        # Import Google OAuth libraries
+        try:
+            import requests
+            from django.conf import settings
+            
+            # Get client credentials - use consistent env var names
+            client_id = getattr(settings, 'GOOGLE_OAUTH2_CLIENT_ID', None) or os.environ.get('GOOGLE_OAUTH2_CLIENT_ID')
+            client_secret = getattr(settings, 'GOOGLE_OAUTH2_CLIENT_SECRET', None) or os.environ.get('GOOGLE_OAUTH2_CLIENT_SECRET')
+            
+            if not client_id or not client_secret:
+                return Response({
+                    'success': False,
+                    'error': 'Google OAuth configuration missing on server'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+            # Exchange authorization code for tokens
+            token_url = 'https://oauth2.googleapis.com/token'
+            token_data = {
+                'client_id': client_id,
+                'client_secret': client_secret,
+                'code': code,
+                'grant_type': 'authorization_code',
+                'redirect_uri': redirect_uri,
+            }
+            
+            print(f"🌐 OAUTH_EXCHANGE: Requesting tokens from Google...")
+            token_response = requests.post(token_url, data=token_data, timeout=10)
+            
+            if token_response.status_code != 200:
+                print(f"❌ OAUTH_EXCHANGE: Token exchange failed: {token_response.text}")
+                return Response({
+                    'success': False,
+                    'error': f'Google token exchange failed: {token_response.text}'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            tokens = token_response.json()
+            access_token = tokens.get('access_token')
+            id_token = tokens.get('id_token')
+            
+            if not access_token:
+                return Response({
+                    'success': False,
+                    'error': 'No access token received from Google'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            print(f"✅ OAUTH_EXCHANGE: Received tokens from Google")
+            
+            # Get user info from Google
+            userinfo_url = 'https://www.googleapis.com/oauth2/v2/userinfo'
+            userinfo_response = requests.get(
+                userinfo_url,
+                headers={'Authorization': f'Bearer {access_token}'},
+                timeout=10
+            )
+            
+            if userinfo_response.status_code != 200:
+                return Response({
+                    'success': False,
+                    'error': 'Failed to get user info from Google'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            user_info = userinfo_response.json()
+            print(f"✅ OAUTH_EXCHANGE: Received user info: {user_info.get('email')}")
+            
+            # Use existing Google auth logic to create/login user
+            if id_token:
+                # If we have an ID token, use the existing handler
+                auth_result = handle_google_auth(id_token)
+            else:
+                # Fallback: create a mock ID token payload for the handler
+                mock_payload = {
+                    'email': user_info['email'],
+                    'name': user_info.get('name', ''),
+                    'given_name': user_info.get('given_name', ''),
+                    'family_name': user_info.get('family_name', ''),
+                    'sub': user_info['id'],
+                    'email_verified': user_info.get('verified_email', True),
+                }
+                auth_result = handle_google_auth(None, user_data=mock_payload)
+            
+            if auth_result['success']:
+                return Response({
+                    'success': True,
+                    'token': auth_result['token'],
+                    'user': auth_result['user'],
+                    'gym_owner': auth_result['gym_owner'],
+                    'is_new_user': auth_result.get('is_new_user', False),
+                    'needs_profile_completion': auth_result.get('needs_profile_completion', False),
+                    'message': 'Google OAuth authentication successful'
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    'success': False,
+                    'error': auth_result.get('error', 'Authentication failed')
+                }, status=status.HTTP_400_BAD_REQUEST)
+                
+        except ImportError as e:
+            return Response({
+                'success': False,
+                'error': f'Required OAuth libraries not available: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception as e:
+            print(f"❌ OAUTH_EXCHANGE: Exception: {str(e)}")
+            return Response({
+                'success': False,
+                'error': f'OAuth exchange error: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+    except Exception as e:
+        print(f"❌ OAUTH_EXCHANGE: Outer exception: {str(e)}")
+        return Response({
+            'success': False,
+            'error': f'Server error: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

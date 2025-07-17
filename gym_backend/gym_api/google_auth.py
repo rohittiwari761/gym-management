@@ -203,19 +203,32 @@ class GoogleAuthService:
                 return None, f"Failed to create user: {str(e)}"
 
 
-def handle_google_auth(request):
+def handle_google_auth(token_or_request, user_data=None):
     """
-    Handle Google authentication request
+    Handle Google authentication request or direct token
+    Supports both request objects and direct token/user_data for OAuth flow
     Cross-platform support for web and mobile Google OAuth
     """
     print("🚀 GOOGLE_AUTH: Received Google authentication request")
     print("🕒 GOOGLE_AUTH: July 17, 2025 - Cross-platform authentication active")
     
-    # Log platform-specific information
-    platform = request.data.get('platform', 'unknown')
-    client_id_from_frontend = request.data.get('client_id', 'not provided')
-    print(f"📱 GOOGLE_AUTH: Platform: {platform}")
-    print(f"🔑 GOOGLE_AUTH: Frontend client ID: {client_id_from_frontend[:20]}..." if client_id_from_frontend != 'not provided' else "🔑 GOOGLE_AUTH: No client ID provided by frontend")
+    # Handle different input types
+    if user_data is not None:
+        # Direct user data provided (from OAuth exchange)
+        print("🔄 GOOGLE_AUTH: Processing direct user data from OAuth exchange")
+        platform = 'web-oauth'
+        client_id_from_frontend = 'oauth-exchange'
+        google_token = token_or_request  # May be None for OAuth flow
+        print(f"📱 GOOGLE_AUTH: Platform: {platform}")
+        print(f"👤 GOOGLE_AUTH: User email: {user_data.get('email')}")
+    else:
+        # Traditional request object
+        request = token_or_request
+        google_token = request.data.get('google_token')
+        platform = request.data.get('platform', 'unknown')
+        client_id_from_frontend = request.data.get('client_id', 'not provided')
+        print(f"📱 GOOGLE_AUTH: Platform: {platform}")
+        print(f"🔑 GOOGLE_AUTH: Frontend client ID: {client_id_from_frontend[:20]}..." if client_id_from_frontend != 'not provided' else "🔑 GOOGLE_AUTH: No client ID provided by frontend")
     
     # Enhanced diagnostic logging
     client_id_env = os.getenv('GOOGLE_OAUTH2_CLIENT_ID')
@@ -251,40 +264,44 @@ def handle_google_auth(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
     
-    google_token = request.data.get('google_token')
-    if not google_token:
-        print("❌ GOOGLE_AUTH: No Google token provided in request")
-        return Response(
-            {'error': 'Google token is required'}, 
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
-    print(f"📥 GOOGLE_AUTH: Received token, attempting cross-platform verification...")
-    print(f"📋 GOOGLE_AUTH: Request data keys: {list(request.data.keys())}")
-    
-    # Verify Google token
-    google_user_info = GoogleAuthService.verify_google_token(google_token)
-    if not google_user_info:
-        print("❌ GOOGLE_AUTH: Google token verification failed")
-        return Response(
-            {'error': 'Invalid Google token'}, 
-            status=status.HTTP_401_UNAUTHORIZED
-        )
+    # Handle user info verification
+    if user_data is not None:
+        # Direct user data provided (from OAuth exchange)
+        print("🔄 GOOGLE_AUTH: Using provided user data from OAuth exchange")
+        google_user_info = user_data
+        print(f"✅ GOOGLE_AUTH: Using OAuth user data for: {google_user_info.get('email')}")
+    else:
+        # Traditional token verification
+        if not google_token:
+            print("❌ GOOGLE_AUTH: No Google token provided in request")
+            return {'success': False, 'error': 'Google token is required'}
         
-    print(f"✅ GOOGLE_AUTH: Token verified for user: {google_user_info.get('email')}")
+        print(f"📥 GOOGLE_AUTH: Received token, attempting cross-platform verification...")
+        print(f"📋 GOOGLE_AUTH: Request data keys: {list(request.data.keys())}")
+        
+        # Verify Google token
+        google_user_info = GoogleAuthService.verify_google_token(google_token)
+        if not google_user_info:
+            print("❌ GOOGLE_AUTH: Google token verification failed")
+            return {'success': False, 'error': 'Invalid Google token'}
+            
+        print(f"✅ GOOGLE_AUTH: Token verified for user: {google_user_info.get('email')}")
     
     # Authenticate or create user
     auth_result, error = GoogleAuthService.authenticate_or_create_user(google_user_info)
     if error:
+        if user_data is not None:
+            return {'success': False, 'error': error}
         return Response(
             {'error': error}, 
             status=status.HTTP_400_BAD_REQUEST
         )
     
-    # Serialize gym owner data
+    # Serialize gym owner data - handle context for OAuth vs request
+    context = {'request': token_or_request if user_data is None else None}
     gym_owner_serializer = GymOwnerSerializer(
         auth_result['gym_owner'], 
-        context={'request': request}
+        context=context
     )
     
     # Generate appropriate message based on user status
@@ -306,4 +323,7 @@ def handle_google_auth(request):
         'message': message
     }
     
+    # Return dict for OAuth exchange, Response for traditional request
+    if user_data is not None:
+        return response_data
     return Response(response_data, status=status.HTTP_200_OK)
