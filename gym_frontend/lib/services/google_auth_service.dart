@@ -11,6 +11,7 @@ class GoogleAuthService {
   factory GoogleAuthService() => _instance;
   
   late final GoogleSignIn _googleSignIn;
+  bool _isSigningIn = false;  // Guard against duplicate requests
 
   GoogleAuthService._internal() {
     // Configure GoogleSignIn based on platform

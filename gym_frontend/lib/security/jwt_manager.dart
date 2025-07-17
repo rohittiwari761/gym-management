@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'dart:html' as html;
 import 'security_config.dart';
 
 class JWTManager {
@@ -20,6 +21,9 @@ class JWTManager {
       publicKey: 'gym_management_public_key',
     ),
   );
+  
+  // Fallback storage for web when IndexedDB fails
+  static final Map<String, String> _webFallbackStorage = {};
 
   static const String _accessTokenKey = 'secure_access_token';
   static const String _refreshTokenKey = 'secure_refresh_token';
@@ -32,6 +36,61 @@ class JWTManager {
   /// Check if a token is a JWT token (has 3 parts separated by dots)
   static bool _isJWTToken(String token) {
     return token.split('.').length == 3;
+  }
+  
+  /// Safe storage write with fallback for web platform
+  static Future<void> _safeWrite(String key, String value) async {
+    try {
+      await _storage.write(key: key, value: value);
+      print('✅ JWT_MANAGER: Secure storage write successful for key: $key');
+    } catch (e) {
+      print('⚠️ JWT_MANAGER: Secure storage failed, using fallback: $e');
+      if (kIsWeb) {
+        _webFallbackStorage[key] = value;
+        // Also try localStorage as backup
+        try {
+          html.window.localStorage[key] = value;
+          print('✅ JWT_MANAGER: Fallback localStorage write successful');
+        } catch (storageError) {
+          print('❌ JWT_MANAGER: localStorage also failed: $storageError');
+        }
+      }
+    }
+  }
+  
+  /// Safe storage read with fallback for web platform
+  static Future<String?> _safeRead(String key) async {
+    try {
+      final value = await _storage.read(key: key);
+      if (value != null) {
+        print('✅ JWT_MANAGER: Secure storage read successful for key: $key');
+        return value;
+      }
+    } catch (e) {
+      print('⚠️ JWT_MANAGER: Secure storage read failed, trying fallback: $e');
+    }
+    
+    // Try fallback storage on web
+    if (kIsWeb) {
+      // Try in-memory fallback first
+      if (_webFallbackStorage.containsKey(key)) {
+        print('✅ JWT_MANAGER: Retrieved from fallback memory storage');
+        return _webFallbackStorage[key];
+      }
+      
+      // Try localStorage as backup
+      try {
+        final value = html.window.localStorage[key];
+        if (value != null) {
+          print('✅ JWT_MANAGER: Retrieved from localStorage fallback');
+          return value;
+        }
+      } catch (e) {
+        print('❌ JWT_MANAGER: localStorage read failed: $e');
+      }
+    }
+    
+    return null;
   }
 
   /// Store JWT tokens securely
@@ -62,17 +121,17 @@ class JWTManager {
       }
 
       final futures = [
-        _storage.write(key: _accessTokenKey, value: accessToken),
-        _storage.write(key: _refreshTokenKey, value: refreshToken),
-        _storage.write(key: _userIdKey, value: userId),
-        _storage.write(key: _userRoleKey, value: userRole),
-        _storage.write(key: _sessionIdKey, value: sessionId),
-        _storage.write(key: _sessionPersistentKey, value: persistent.toString()),
+        _safeWrite(_accessTokenKey, accessToken),
+        _safeWrite(_refreshTokenKey, refreshToken),
+        _safeWrite(_userIdKey, userId),
+        _safeWrite(_userRoleKey, userRole),
+        _safeWrite(_sessionIdKey, sessionId),
+        _safeWrite(_sessionPersistentKey, persistent.toString()),
       ];
       
       // Only store expiry for JWT tokens
       if (expiryTime != null) {
-        futures.add(_storage.write(key: _tokenExpiryKey, value: expiryTime.toIso8601String()));
+        futures.add(_safeWrite(_tokenExpiryKey, expiryTime.toIso8601String()));
       }
 
       await Future.wait(futures);
@@ -83,7 +142,7 @@ class JWTManager {
       if (kIsWeb) {
         print('🧪 JWT_MANAGER: Web platform - testing immediate retrieval...');
         try {
-          final testToken = await _storage.read(key: _accessTokenKey);
+          final testToken = await _safeRead(_accessTokenKey);
           if (testToken != null) {
             print('✅ JWT_MANAGER: Immediate verification PASSED - token retrievable');
           } else {
@@ -120,17 +179,18 @@ class JWTManager {
         print('🌐 JWT_MANAGER: Web platform - checking IndexedDB storage...');
       }
       
-      final token = await _storage.read(key: _accessTokenKey);
+      final token = await _safeRead(_accessTokenKey);
       
       if (token == null) {
         print('❌ JWT_MANAGER: No access token found in storage');
         if (kIsWeb) {
-          print('🌐 JWT_MANAGER: Web storage may not be persisting - checking all keys...');
+          print('🌐 JWT_MANAGER: Web storage may not be persisting - checking fallback storages...');
+          print('🔍 JWT_MANAGER: Memory storage keys: ${_webFallbackStorage.keys.toList()}');
           try {
-            final allKeys = await _storage.readAll();
-            print('🔍 JWT_MANAGER: All stored keys: ${allKeys.keys.toList()}');
+            final localStorageKeys = html.window.localStorage.keys.toList();
+            print('🔍 JWT_MANAGER: localStorage keys: $localStorageKeys');
           } catch (e) {
-            print('❌ JWT_MANAGER: Error reading all keys: $e');
+            print('❌ JWT_MANAGER: Error reading localStorage keys: $e');
           }
         }
         return null;

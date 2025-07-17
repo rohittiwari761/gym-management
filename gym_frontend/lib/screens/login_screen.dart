@@ -369,10 +369,15 @@ class _LoginScreenState extends State<LoginScreen> with TextFieldOptimizationMix
         
         // Since Google auth stores data in AuthService, we need to refresh the AuthProvider
         // Wait a bit for the data to be properly stored
-        await Future.delayed(const Duration(milliseconds: 500));
+        await Future.delayed(const Duration(milliseconds: 1000));
         
-        // Refresh the auth provider to pick up the new login state
-        await authProvider.refreshAuthStatus();
+        // Refresh the auth provider to pick up the new login state (with timeout protection)
+        try {
+          await authProvider.refreshAuthStatus();
+        } catch (e) {
+          print('⚠️ GOOGLE_SIGNIN: AuthProvider refresh failed, but Google auth succeeded: $e');
+          // Continue anyway since Google auth was successful
+        }
         
         print('🔐 GOOGLE_SIGNIN: AuthProvider refreshed. isLoggedIn: ${authProvider.isLoggedIn}');
         
