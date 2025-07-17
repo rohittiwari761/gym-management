@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'security_config.dart';
 
@@ -13,6 +14,10 @@ class JWTManager {
     ),
     iOptions: IOSOptions(
       accessibility: KeychainAccessibility.first_unlock_this_device,
+    ),
+    webOptions: WebOptions(
+      dbName: 'gym_management_secure_storage',
+      publicKey: 'gym_management_public_key',
     ),
   );
 
@@ -40,6 +45,7 @@ class JWTManager {
   }) async {
     try {
       print('🔐 JWT_MANAGER: Storing tokens...');
+      print('🔐 JWT_MANAGER: Platform: ${kIsWeb ? "WEB" : "MOBILE"}');
       print('🔐 JWT_MANAGER: Access token length: ${accessToken.length}');
       print('🔐 JWT_MANAGER: User ID: $userId');
       print('🔐 JWT_MANAGER: Persistent session: $persistent');
@@ -72,6 +78,21 @@ class JWTManager {
       await Future.wait(futures);
       
       print('✅ JWT_MANAGER: Tokens stored successfully');
+      
+      // Immediate verification for web platform
+      if (kIsWeb) {
+        print('🧪 JWT_MANAGER: Web platform - testing immediate retrieval...');
+        try {
+          final testToken = await _storage.read(key: _accessTokenKey);
+          if (testToken != null) {
+            print('✅ JWT_MANAGER: Immediate verification PASSED - token retrievable');
+          } else {
+            print('❌ JWT_MANAGER: Immediate verification FAILED - token not retrievable');
+          }
+        } catch (e) {
+          print('❌ JWT_MANAGER: Immediate verification ERROR: $e');
+        }
+      }
 
       SecurityConfig.logSecurityEvent('TOKEN_STORED', {
         'userId': userId,
@@ -92,15 +113,32 @@ class JWTManager {
   static Future<String?> getAccessToken() async {
     try {
       print('🔍 JWT_MANAGER: Attempting to retrieve access token...');
+      print('🔍 JWT_MANAGER: Platform: ${kIsWeb ? "WEB" : "MOBILE"}');
+      
+      // Additional web debugging
+      if (kIsWeb) {
+        print('🌐 JWT_MANAGER: Web platform - checking IndexedDB storage...');
+      }
+      
       final token = await _storage.read(key: _accessTokenKey);
       
       if (token == null) {
         print('❌ JWT_MANAGER: No access token found in storage');
+        if (kIsWeb) {
+          print('🌐 JWT_MANAGER: Web storage may not be persisting - checking all keys...');
+          try {
+            final allKeys = await _storage.readAll();
+            print('🔍 JWT_MANAGER: All stored keys: ${allKeys.keys.toList()}');
+          } catch (e) {
+            print('❌ JWT_MANAGER: Error reading all keys: $e');
+          }
+        }
         return null;
       }
 
       print('✅ JWT_MANAGER: Token found, length: ${token.length}');
       print('🔍 JWT_MANAGER: Token type: ${_isJWTToken(token) ? "JWT" : "Django"}');
+      print('🔍 JWT_MANAGER: Token starts with: ${token.substring(0, 20)}...');
 
       // Only check expiry for JWT tokens, not Django tokens
       if (_isJWTToken(token)) {
