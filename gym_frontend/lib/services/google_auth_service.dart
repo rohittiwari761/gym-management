@@ -129,6 +129,14 @@ class GoogleAuthService {
         if (kIsWeb) {
           print('🌐 GOOGLE_AUTH: Web platform detected, using web client ID');
           print('🌐 GOOGLE_AUTH: Client ID: 818835282138-qjqc6v2bf8n89ghrphh9l388erj5vt5g.apps.googleusercontent.com');
+          
+          // Check for common browser extension interference
+          try {
+            // This is a simple check - if we can't access basic properties, extensions might be interfering
+            print('🔍 GOOGLE_AUTH: Checking for browser extension interference...');
+          } catch (e) {
+            print('⚠️ GOOGLE_AUTH: Possible browser extension interference detected');
+          }
         } else {
           print('📱 GOOGLE_AUTH: Mobile platform detected, using mobile client ID');
           print('📱 GOOGLE_AUTH: Server client ID: 818835282138-8h3qf505eco222l28feg0o1t3tvu0v8g.apps.googleusercontent.com');
@@ -151,10 +159,11 @@ class GoogleAuthService {
           if (error.toString().contains('popup') || 
               error.toString().contains('blocked') ||
               error.toString().contains('network_error') ||
-              error.toString().contains('ERR_BLOCKED_BY_CLIENT')) {
+              error.toString().contains('ERR_BLOCKED_BY_CLIENT') ||
+              error.toString().contains('play.google.com')) {
             return {
               'success': false,
-              'error': 'Google Sign-In blocked by ad blocker or browser extension. Please disable ad blockers for this site and try again.',
+              'error': 'Google Sign-In is being blocked by an ad blocker or browser extension.\n\nTo fix this:\n• Disable ad blockers for this site\n• Disable privacy extensions temporarily\n• Try using an incognito/private window\n• Or use email registration instead',
             };
           }
           

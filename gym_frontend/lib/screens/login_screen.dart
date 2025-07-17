@@ -7,6 +7,7 @@ import '../services/google_auth_service.dart';
 import '../utils/network_test.dart';
 import '../widgets/optimized_text_field.dart';
 import '../widgets/input_field_warmer.dart';
+import '../widgets/google_signin_error_dialog.dart';
 import 'register_screen.dart';
 import 'home_screen.dart';
 
@@ -436,11 +437,24 @@ class _LoginScreenState extends State<LoginScreen> with TextFieldOptimizationMix
         print('❌ GOOGLE_SIGNIN: Google authentication failed');
         authProvider.setLoading(false);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result['error'] ?? 'Google sign-in failed'),
-              backgroundColor: Colors.red,
-            ),
+          final errorMessage = result['error'] ?? 'Google sign-in failed';
+          
+          // Use the enhanced error dialog for better user experience
+          GoogleSignInErrorDialog.show(
+            context,
+            error: errorMessage,
+            onRetry: () {
+              Navigator.of(context).pop();
+              _signInWithGoogle();
+            },
+            onUseEmail: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const RegisterScreen(),
+                ),
+              );
+            },
           );
         }
       }
@@ -452,11 +466,22 @@ class _LoginScreenState extends State<LoginScreen> with TextFieldOptimizationMix
       authProvider.setLoading(false);
       
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Google sign-in error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
+        // Use the enhanced error dialog for exceptions too
+        GoogleSignInErrorDialog.show(
+          context,
+          error: 'Google sign-in error: ${e.toString()}',
+          onRetry: () {
+            Navigator.of(context).pop();
+            _signInWithGoogle();
+          },
+          onUseEmail: () {
+            Navigator.of(context).pop();
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => const RegisterScreen(),
+              ),
+            );
+          },
         );
       }
     }
