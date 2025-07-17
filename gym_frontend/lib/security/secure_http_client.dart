@@ -317,10 +317,16 @@ class SecureHttpClient {
     // Add authentication header if required
     if (requireAuth) {
       final token = await JWTManager.getAccessToken();
+      print('🔐 SECURE_HTTP: Token retrieved: ${token != null ? "Found (${token.length} chars)" : "NOT FOUND"}');
+      if (token != null) {
+        print('🔐 SECURE_HTTP: Token starts with: ${token.substring(0, 20)}...');
+      }
       if (token == null) {
+        print('❌ SECURE_HTTP: No authentication token available');
         throw SecurityException('Authentication required');
       }
       headers['Authorization'] = 'Token $token';
+      print('🔐 SECURE_HTTP: Authorization header set');
     }
 
     // Add custom headers (with validation)

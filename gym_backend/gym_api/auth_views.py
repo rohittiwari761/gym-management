@@ -199,18 +199,45 @@ def gym_owner_logout(request):
 def gym_owner_profile(request):
     """
     Get current gym owner's profile information
+    Enhanced with debugging for web authentication issues
     """
     try:
+        print("🔍 PROFILE: Profile endpoint called")
+        print(f"🔍 PROFILE: Request method: {request.method}")
+        print(f"🔍 PROFILE: Request user: {request.user}")
+        print(f"🔍 PROFILE: User is authenticated: {request.user.is_authenticated}")
+        print(f"🔍 PROFILE: User is anonymous: {request.user.is_anonymous}")
+        
+        # Check authentication first
+        if not request.user.is_authenticated:
+            print("❌ PROFILE: User is not authenticated")
+            return Response({
+                'error': 'Authentication required'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+            
+        if request.user.is_anonymous:
+            print("❌ PROFILE: User is anonymous")
+            return Response({
+                'error': 'Anonymous user cannot access profile'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+            
+        print(f"🔍 PROFILE: User ID: {request.user.id}")
+        print(f"🔍 PROFILE: User email: {request.user.email}")
+        print(f"🔍 PROFILE: User has gymowner attribute: {hasattr(request.user, 'gymowner')}")
+        
         # Check if user is a gym owner
         if not hasattr(request.user, 'gymowner'):
+            print("❌ PROFILE: User exists but is not a gym owner")
             return Response({
                 'error': 'User is not a gym owner'
             }, status=status.HTTP_403_FORBIDDEN)
         
         gym_owner = request.user.gymowner
+        print(f"🔍 PROFILE: Gym owner found: {gym_owner.gym_name}")
+        
         serializer = GymOwnerSerializer(gym_owner, context={'request': request})
         
-        return Response({
+        response_data = {
             'success': True,
             'gym_owner': serializer.data,
             'user': {
@@ -219,9 +246,15 @@ def gym_owner_profile(request):
                 'first_name': request.user.first_name,
                 'last_name': request.user.last_name
             }
-        }, status=status.HTTP_200_OK)
+        }
+        
+        print("✅ PROFILE: Profile fetched successfully")
+        return Response(response_data, status=status.HTTP_200_OK)
         
     except Exception as e:
+        print(f"❌ PROFILE: Exception occurred: {str(e)}")
+        import traceback
+        print(f"❌ PROFILE: Traceback: {traceback.format_exc()}")
         return Response({
             'error': f'Failed to get profile: {str(e)}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
