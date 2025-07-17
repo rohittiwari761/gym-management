@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:io' show Platform;
+import 'package:http/http.dart' as http;
 import '../security/security_config.dart';
 import '../security/secure_http_client.dart';
 import 'auth_service.dart';
@@ -234,17 +235,17 @@ class GoogleAuthService {
         if (googleAuth.accessToken != null) {
           print('🔄 GOOGLE_AUTH: Using access token fallback method');
           try {
-            // Use access token to get user info from Google API
-            final userInfoResponse = await _httpClient.get(
-              'https://www.googleapis.com/oauth2/v2/userinfo',
+            // Use access token to get user info from Google API directly
+            final userInfoResponse = await http.get(
+              Uri.parse('https://www.googleapis.com/oauth2/v2/userinfo'),
               headers: {
                 'Authorization': 'Bearer ${googleAuth.accessToken}',
+                'Accept': 'application/json',
               },
-              requireAuth: false,
             );
             
-            if (userInfoResponse.isSuccess) {
-              final userInfo = userInfoResponse.data;
+            if (userInfoResponse.statusCode == 200) {
+              final userInfo = jsonDecode(userInfoResponse.body);
               print('✅ GOOGLE_AUTH: Got user info from access token');
               
               // Create a simple auth token for the backend
