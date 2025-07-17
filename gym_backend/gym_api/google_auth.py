@@ -46,6 +46,7 @@ class GoogleAuthService:
                 print(f"🔧 GOOGLE_AUTH: Django settings error: {e}")
             
             # Add known platform-specific client IDs for cross-platform support
+            # Web client ID first since most requests are from web platform
             known_client_ids = [
                 '818835282138-qjqc6v2bf8n89ghrphh9l388erj5vt5g.apps.googleusercontent.com',  # Web
                 '818835282138-8h3qf505eco222l28feg0o1t3tvu0v8g.apps.googleusercontent.com',  # Mobile

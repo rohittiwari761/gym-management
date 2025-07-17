@@ -351,53 +351,79 @@ class _LoginScreenState extends State<LoginScreen> with TextFieldOptimizationMix
       // Show loading indicator
       authProvider.setLoading(true);
       
+      print('🔐 GOOGLE_SIGNIN: Starting Google Sign-In process...');
+      
       // Initialize Google Auth Service if not already done
       final googleAuthService = GoogleAuthService();
       googleAuthService.initialize();
       
       final result = await googleAuthService.signInWithGoogle();
       
+      print('🔐 GOOGLE_SIGNIN: Google Sign-In result: $result');
+      
       // Handle both boolean true and string 'true'
       bool isSuccess = result['success'] == true || result['success'] == 'true';
       
       if (isSuccess) {
-        // Google sign-in successful - force immediate navigation
-        // Wait for the auth service to store the data
-        await Future.delayed(const Duration(milliseconds: 1000));
+        print('✅ GOOGLE_SIGNIN: Google authentication successful');
         
-        // Force AuthProvider to check login status multiple times with longer delays
-        await authProvider.checkLoginStatus();
+        // Since Google auth stores data in AuthService, we need to refresh the AuthProvider
+        // Wait a bit for the data to be properly stored
+        await Future.delayed(const Duration(milliseconds: 500));
         
-        // Check if we're now logged in
+        // Refresh the auth provider to pick up the new login state
+        await authProvider.refreshAuthStatus();
+        
+        print('🔐 GOOGLE_SIGNIN: AuthProvider refreshed. isLoggedIn: ${authProvider.isLoggedIn}');
+        
         if (authProvider.isLoggedIn) {
-          // Navigation should happen automatically via AuthWrapper
+          print('✅ GOOGLE_SIGNIN: User is logged in, navigating to home...');
           authProvider.setLoading(false);
+          
+          // Navigate to home screen
+          if (mounted) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (context) => const HomeScreen(),
+              ),
+            );
+          }
           return;
-        }
-        
-        // Additional retry attempts with longer delays
-        for (int i = 0; i < 3; i++) {
-          await Future.delayed(const Duration(milliseconds: 500));
-          await authProvider.checkLoginStatus();
+        } else {
+          print('⚠️ GOOGLE_SIGNIN: User not logged in after refresh, trying again...');
+          
+          // One more try with longer delay
+          await Future.delayed(const Duration(milliseconds: 1000));
+          await authProvider.refreshAuthStatus();
           
           if (authProvider.isLoggedIn) {
+            print('✅ GOOGLE_SIGNIN: User logged in on second try, navigating...');
             authProvider.setLoading(false);
+            
+            if (mounted) {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(
+                  builder: (context) => const HomeScreen(),
+                ),
+              );
+            }
+            return;
+          } else {
+            print('❌ GOOGLE_SIGNIN: User still not logged in after retries');
+            // Force navigation anyway since Google auth was successful
+            authProvider.setLoading(false);
+            if (mounted) {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(
+                  builder: (context) => const HomeScreen(),
+                ),
+              );
+            }
             return;
           }
         }
-        
-        // If still not logged in, force manual navigation
-        if (mounted) {
-          authProvider.setLoading(false);
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (context) => const HomeScreen(),
-            ),
-          );
-        }
-        
-        return;
       } else {
+        print('❌ GOOGLE_SIGNIN: Google authentication failed');
         authProvider.setLoading(false);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -409,6 +435,9 @@ class _LoginScreenState extends State<LoginScreen> with TextFieldOptimizationMix
         }
       }
     } catch (e, stackTrace) {
+      print('💥 GOOGLE_SIGNIN: Exception occurred: $e');
+      print('💥 GOOGLE_SIGNIN: Stack trace: $stackTrace');
+      
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       authProvider.setLoading(false);
       
