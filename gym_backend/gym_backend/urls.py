@@ -24,6 +24,13 @@ from gym_api.simple_health import simple_health_check, live_check
 def ultra_simple_health(request):
     """Ultra simple health check - just return 200."""
     import time
+    from django.http import HttpResponse
+    
+    # For Railway health checks, return simple 200 OK
+    if 'RailwayHealthCheck' in request.META.get('HTTP_USER_AGENT', ''):
+        return HttpResponse('OK', status=200, content_type='text/plain')
+    
+    # For other requests, return JSON
     return JsonResponse({
         'status': 'ok',
         'timestamp': time.time(),
@@ -34,10 +41,15 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('gym_api.urls')),
     
-    # Ultra simple health endpoints for Railway
+    # Health endpoints for Railway (both with and without trailing slash)
     path('health/', ultra_simple_health, name='ultra_health'),
+    path('health', ultra_simple_health, name='ultra_health_no_slash'),
     path('health-detailed/', simple_health_check, name='detailed_health'),
     path('live/', live_check, name='live_check'),
+    path('live', live_check, name='live_check_no_slash'),
+    
+    # Root endpoint for basic connectivity test
+    path('', ultra_simple_health, name='root_health'),
 ]
 
 # Serve media files in development and production

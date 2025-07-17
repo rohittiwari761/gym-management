@@ -240,11 +240,11 @@ SECURE_HSTS_SECONDS = 31536000
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
 
-# Additional security headers
-SECURE_SSL_REDIRECT = True
+# Additional security headers (adjusted for Railway)
+SECURE_SSL_REDIRECT = False  # Railway handles SSL termination
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_SECURE = False  # Allow HTTP for Railway health checks
+CSRF_COOKIE_SECURE = False  # Allow HTTP for Railway health checks
 SECURE_REFERRER_POLICY = 'same-origin'
 
 # Security middleware
@@ -253,6 +253,9 @@ SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
 # API Rate Limiting
 RATELIMIT_ENABLE = True
 RATELIMIT_USE_CACHE = 'default'
+
+# Disable trailing slash redirects for Railway health checks
+APPEND_SLASH = False
 
 # JWT Configuration for Scalable Authentication
 from datetime import timedelta
