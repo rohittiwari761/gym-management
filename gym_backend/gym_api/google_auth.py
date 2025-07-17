@@ -227,6 +227,15 @@ def handle_google_auth(token_or_request, user_data=None):
         google_token = request.data.get('google_token')
         platform = request.data.get('platform', 'unknown')
         client_id_from_frontend = request.data.get('client_id', 'not provided')
+        
+        # Check for direct user_data (privacy browser fallback)
+        user_data_from_request = request.data.get('user_data')
+        if user_data_from_request:
+            print("🔄 GOOGLE_AUTH: Processing direct user data from privacy browser fallback")
+            user_data = user_data_from_request
+            platform = 'web-privacy-fallback'
+            google_token = None  # No token available in this mode
+        
         print(f"📱 GOOGLE_AUTH: Platform: {platform}")
         print(f"🔑 GOOGLE_AUTH: Frontend client ID: {client_id_from_frontend[:20]}..." if client_id_from_frontend != 'not provided' else "🔑 GOOGLE_AUTH: No client ID provided by frontend")
     
