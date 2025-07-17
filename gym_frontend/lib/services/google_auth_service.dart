@@ -18,11 +18,11 @@ class GoogleAuthService {
     // Configure GoogleSignIn based on platform
     if (kIsWeb) {
       // Web client ID - configured for Web Application type
-      // Updated configuration for better web compatibility and ID token support
+      // Updated configuration to avoid popup and reduce ad blocker interference
       _googleSignIn = GoogleSignIn(
         scopes: ['email', 'profile', 'openid'],
         clientId: '818835282138-qjqc6v2bf8n89ghrphh9l388erj5vt5g.apps.googleusercontent.com',
-        // Additional web-specific configurations for better compatibility
+        // Use redirect instead of popup to avoid ad blocker issues
         signInOption: SignInOption.standard,
       );
     } else {

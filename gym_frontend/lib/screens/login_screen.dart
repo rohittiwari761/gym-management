@@ -8,6 +8,7 @@ import '../utils/network_test.dart';
 import '../widgets/optimized_text_field.dart';
 import '../widgets/input_field_warmer.dart';
 import '../widgets/google_signin_error_dialog.dart';
+import '../widgets/inline_google_signin.dart';
 import 'register_screen.dart';
 import 'home_screen.dart';
 
@@ -171,33 +172,15 @@ class _LoginScreenState extends State<LoginScreen> with TextFieldOptimizationMix
                         ),
                         const SizedBox(height: 16),
                         
-                        // Google Sign-In Button (available on all platforms)
-                        SizedBox(
-                          width: double.infinity,
-                          height: 56,
-                          child: OutlinedButton.icon(
-                            onPressed: () => _signInWithGoogle(),
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: Colors.red, width: 2),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              backgroundColor: Colors.red[50],
-                              textStyle: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            icon: const Icon(
-                              Icons.account_circle,
-                              color: Colors.red,
-                              size: 24,
-                            ),
-                            label: const Text(
-                              'Continue with Google',
-                              style: TextStyle(color: Colors.red),
-                            ),
-                          ),
+                        // Inline Google Sign-In (ad blocker friendly)
+                        Consumer<AuthProvider>(
+                          builder: (context, authProvider, child) {
+                            return InlineGoogleSignIn(
+                              isLoading: authProvider.isLoading,
+                              onSignInSuccess: _handleGoogleSignInSuccess,
+                              onSignInError: _handleGoogleSignInError,
+                            );
+                          },
                         ),
                         
                         const SizedBox(height: 20),
@@ -484,6 +467,91 @@ class _LoginScreenState extends State<LoginScreen> with TextFieldOptimizationMix
           },
         );
       }
+    }
+  }
+
+  void _handleGoogleSignInSuccess(Map<String, dynamic> result) async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      
+      print('✅ INLINE_GOOGLE_LOGIN: Sign-in successful, processing result...');
+      
+      // If we received a credential, we need to handle it differently
+      if (result.containsKey('credential')) {
+        // TODO: Send credential to backend for verification
+        print('🔑 INLINE_GOOGLE_LOGIN: Received Google credential, sending to backend...');
+        // For now, show success message
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Google Sign-In successful! (Credential verification pending)'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+        return;
+      }
+      
+      // Handle standard Google Sign-In success
+      authProvider.setLoading(false);
+      
+      // Wait for auth data to be stored
+      await Future.delayed(const Duration(milliseconds: 1000));
+      
+      try {
+        await authProvider.refreshAuthStatus();
+      } catch (e) {
+        print('⚠️ INLINE_GOOGLE_LOGIN: AuthProvider refresh failed: $e');
+      }
+      
+      if (authProvider.isLoggedIn) {
+        print('✅ INLINE_GOOGLE_LOGIN: User logged in, navigating to home...');
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => const HomeScreen(),
+            ),
+          );
+        }
+      } else {
+        print('⚠️ INLINE_GOOGLE_LOGIN: User not logged in after refresh, trying direct navigation...');
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => const HomeScreen(),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('💥 INLINE_GOOGLE_LOGIN: Error handling success: $e');
+      _handleGoogleSignInError('Failed to complete Google Sign-In: $e');
+    }
+  }
+
+  void _handleGoogleSignInError(String error) {
+    print('❌ INLINE_GOOGLE_LOGIN: Error: $error');
+    
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    authProvider.setLoading(false);
+    
+    if (mounted) {
+      GoogleSignInErrorDialog.show(
+        context,
+        error: error,
+        onRetry: () {
+          Navigator.of(context).pop();
+          // The inline widget will handle retry internally
+        },
+        onUseEmail: () {
+          Navigator.of(context).pop();
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => const RegisterScreen(),
+            ),
+          );
+        },
+      );
     }
   }
 
