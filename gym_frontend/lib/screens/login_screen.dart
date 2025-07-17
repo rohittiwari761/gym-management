@@ -9,6 +9,8 @@ import '../widgets/optimized_text_field.dart';
 import '../widgets/input_field_warmer.dart';
 import '../widgets/google_signin_error_dialog.dart';
 import '../widgets/inline_google_signin.dart';
+import '../widgets/brave_google_signin.dart';
+import '../services/brave_auth_service.dart';
 import 'register_screen.dart';
 import 'home_screen.dart';
 
@@ -172,9 +174,19 @@ class _LoginScreenState extends State<LoginScreen> with TextFieldOptimizationMix
                         ),
                         const SizedBox(height: 16),
                         
-                        // Inline Google Sign-In (ad blocker friendly)
+                        // Smart Google Sign-In (adapts to browser)
                         Consumer<AuthProvider>(
                           builder: (context, authProvider, child) {
+                            // Use Brave-friendly sign-in for privacy browsers
+                            if (kIsWeb && (BraveAuthService.isBraveBrowser())) {
+                              return BraveGoogleSignIn(
+                                isLoading: authProvider.isLoading,
+                                onSignInSuccess: _handleGoogleSignInSuccess,
+                                onSignInError: _handleGoogleSignInError,
+                              );
+                            }
+                            
+                            // Use inline sign-in for other browsers
                             return InlineGoogleSignIn(
                               isLoading: authProvider.isLoading,
                               onSignInSuccess: _handleGoogleSignInSuccess,
