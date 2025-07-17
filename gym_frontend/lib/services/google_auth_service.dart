@@ -529,14 +529,23 @@ class GoogleAuthService {
   }) async {
     try {
       print('🔄 GOOGLE_AUTH: Attempting email fallback authentication');
+      print('🔄 GOOGLE_AUTH: Using direct user data approach for privacy browsers');
       
-      // Try to register/login with email-based authentication
+      // For privacy browsers that block ID tokens, use direct user data
+      // This simulates the OAuth flow by sending user data directly
       final response = await _httpClient.post(
-        'auth/google-fallback/',
+        'auth/google/',
         body: {
-          'email': email,
-          'name': name,
-          'google_id': googleId,
+          'user_data': {
+            'email': email,
+            'name': name,
+            'given_name': name.split(' ').first,
+            'family_name': name.split(' ').length > 1 ? name.split(' ').last : '',
+            'sub': googleId,
+            'email_verified': true,
+          },
+          'platform': 'web-fallback',
+          'privacy_mode': true,
         },
         requireAuth: false,
       );
