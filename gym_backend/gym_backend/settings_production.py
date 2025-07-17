@@ -110,8 +110,12 @@ ALLOWED_HOSTS = [
     '.herokuapp.com',  # If using Heroku
     '.railway.app',  # Railway deployment
     'gym-management-production-2168.up.railway.app',  # Specific Railway URL
-    os.environ.get('RAILWAY_PUBLIC_DOMAIN', ''),  # Dynamic Railway domain
 ]
+
+# Add dynamic Railway domain if available
+RAILWAY_PUBLIC_DOMAIN = os.environ.get('RAILWAY_PUBLIC_DOMAIN', '').strip()
+if RAILWAY_PUBLIC_DOMAIN:
+    ALLOWED_HOSTS.append(RAILWAY_PUBLIC_DOMAIN)
 
 # Database Configuration - Railway PostgreSQL
 import dj_database_url
@@ -379,9 +383,12 @@ CORS_ALLOWED_ORIGINS = [
     # Add Netlify domains for web deployment
     "https://benevolent-gingersnap-155623.netlify.app",  # Current Netlify domain
     "https://shiny-chebakia-43b733.netlify.app",  # Previous Netlify domain
-    # Add environment variable for dynamic Netlify URL
-    os.environ.get('NETLIFY_URL', ''),
 ]
+
+# Add environment variable for dynamic Netlify URL (only if not empty)
+NETLIFY_URL = os.environ.get('NETLIFY_URL', '').strip()
+if NETLIFY_URL and NETLIFY_URL.startswith(('http://', 'https://')):
+    CORS_ALLOWED_ORIGINS.append(NETLIFY_URL)
 
 # CORS security configuration completed above
 

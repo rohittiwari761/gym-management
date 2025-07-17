@@ -22,14 +22,17 @@ if DEBUG:
 
 # SECURITY - Restrict allowed hosts to specific domains
 ALLOWED_HOSTS = [
-    os.environ.get('RAILWAY_PUBLIC_DOMAIN', ''),
     'gym-management-production-2168.up.railway.app',
     '.railway.app',
     '.gymmanagement.com',
+    'localhost',
+    '127.0.0.1',
 ]
 
-# Remove empty strings and add localhost for development
-ALLOWED_HOSTS = [host for host in ALLOWED_HOSTS if host] + ['localhost', '127.0.0.1']
+# Add dynamic Railway domain if available
+RAILWAY_PUBLIC_DOMAIN = os.environ.get('RAILWAY_PUBLIC_DOMAIN', '').strip()
+if RAILWAY_PUBLIC_DOMAIN:
+    ALLOWED_HOSTS.append(RAILWAY_PUBLIC_DOMAIN)
 
 # Application definition
 INSTALLED_APPS = [
@@ -175,9 +178,9 @@ CORS_ALLOWED_ORIGINS = [
     'http://127.0.0.1:3000',
 ]
 
-# Add environment variable for dynamic origins
-NETLIFY_URL = os.environ.get('NETLIFY_URL')
-if NETLIFY_URL:
+# Add environment variable for dynamic origins (only if valid)
+NETLIFY_URL = os.environ.get('NETLIFY_URL', '').strip()
+if NETLIFY_URL and NETLIFY_URL.startswith(('http://', 'https://')):
     CORS_ALLOWED_ORIGINS.append(NETLIFY_URL)
 
 CORS_ALLOW_CREDENTIALS = True
