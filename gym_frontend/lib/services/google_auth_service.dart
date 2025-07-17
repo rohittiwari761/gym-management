@@ -16,9 +16,12 @@ class GoogleAuthService {
     // Configure GoogleSignIn based on platform
     if (kIsWeb) {
       // Web client ID - configured for Web Application type
+      // Updated configuration for better web compatibility
       _googleSignIn = GoogleSignIn(
         scopes: ['email', 'profile'],
         clientId: '818835282138-qjqc6v2bf8n89ghrphh9l388erj5vt5g.apps.googleusercontent.com',
+        // Additional web-specific configurations for better compatibility
+        signInOption: SignInOption.standard,
       );
     } else {
       // Mobile apps use the iOS client ID
@@ -120,11 +123,23 @@ class GoogleAuthService {
       GoogleSignInAccount? googleUser;
       
       try {
+        print('🔐 GOOGLE_AUTH: Starting sign-in process...');
+        if (kIsWeb) {
+          print('🌐 GOOGLE_AUTH: Web platform detected, using web client ID');
+          print('🌐 GOOGLE_AUTH: Client ID: 818835282138-qjqc6v2bf8n89ghrphh9l388erj5vt5g.apps.googleusercontent.com');
+        } else {
+          print('📱 GOOGLE_AUTH: Mobile platform detected, using mobile client ID');
+          print('📱 GOOGLE_AUTH: Server client ID: 818835282138-8h3qf505eco222l28feg0o1t3tvu0v8g.apps.googleusercontent.com');
+        }
+        
         googleUser = await _googleSignIn.signIn();
+        print('✅ GOOGLE_AUTH: Sign-in process completed successfully');
       } catch (error) {
+        print('❌ GOOGLE_AUTH: Sign-in error: $error');
         
         // Handle web-specific errors
         if (kIsWeb) {
+          print('🌐 GOOGLE_AUTH: Handling web-specific error');
           if (error.toString().contains('popup') || 
               error.toString().contains('blocked') ||
               error.toString().contains('network_error')) {
@@ -142,9 +157,17 @@ class GoogleAuthService {
             };
           }
           
+          if (error.toString().contains('access_denied') || 
+              error.toString().contains('unauthorized_client')) {
+            return {
+              'success': false,
+              'error': 'Google Sign-In access denied. Please check that this domain is authorized in Google Console.',
+            };
+          }
+          
           return {
             'success': false,
-            'error': 'Google Sign-In failed on web. Please try refreshing the page or use email login instead.',
+            'error': 'Google Sign-In failed on web. Error: ${error.toString()}. Please try refreshing the page.',
           };
         }
         
@@ -235,12 +258,18 @@ class GoogleAuthService {
       print('🔐 GOOGLE_AUTH: Sending token to backend...');
       print('🔑 GOOGLE_AUTH: Token length: ${googleIdToken.length}');
       print('🔑 GOOGLE_AUTH: Token starts with: ${googleIdToken.substring(0, 50)}...');
+      print('🌐 GOOGLE_AUTH: Platform: ${kIsWeb ? "Web" : "Mobile"}');
+      print('🌐 GOOGLE_AUTH: Expected backend support: Both web and mobile client IDs');
       
       // Try connecting to Django server
       final response = await _httpClient.post(
         'auth/google/',
         body: {
           'google_token': googleIdToken,
+          'platform': kIsWeb ? 'web' : 'mobile', // Add platform info for backend debugging
+          'client_id': kIsWeb 
+              ? '818835282138-qjqc6v2bf8n89ghrphh9l388erj5vt5g.apps.googleusercontent.com'
+              : '818835282138-8h3qf505eco222l28feg0o1t3tvu0v8g.apps.googleusercontent.com',
         },
         requireAuth: false,
       ).timeout(

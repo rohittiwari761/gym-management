@@ -22,56 +22,92 @@ class GoogleAuthService:
     def verify_google_token(google_token):
         """
         Verify Google ID token and return user info
+        Supports both web and mobile client IDs for cross-platform compatibility
         """
         try:
             print(f"🔐 GOOGLE_AUTH: Verifying token with length: {len(google_token)}")
             
-            # Get Google OAuth Client ID directly from environment
-            google_client_id = os.getenv('GOOGLE_OAUTH2_CLIENT_ID')
-            print(f"🔧 GOOGLE_AUTH: Direct env lookup - GOOGLE_OAUTH2_CLIENT_ID: {google_client_id}")
+            # Define all supported client IDs for cross-platform authentication
+            supported_client_ids = []
             
-            # Also try to get from Django settings as fallback
+            # Get primary client ID from environment
+            primary_client_id = os.getenv('GOOGLE_OAUTH2_CLIENT_ID')
+            if primary_client_id:
+                supported_client_ids.append(primary_client_id)
+                print(f"🔧 GOOGLE_AUTH: Added primary client ID from env: {primary_client_id[:20]}...")
+            
+            # Get from Django settings as fallback
             try:
                 settings_client_id = getattr(settings, 'GOOGLE_OAUTH2_CLIENT_ID', None)
-                print(f"🔧 GOOGLE_AUTH: Django settings lookup - GOOGLE_OAUTH2_CLIENT_ID: {settings_client_id}")
+                if settings_client_id and settings_client_id not in supported_client_ids:
+                    supported_client_ids.append(settings_client_id)
+                    print(f"🔧 GOOGLE_AUTH: Added settings client ID: {settings_client_id[:20]}...")
             except Exception as e:
                 print(f"🔧 GOOGLE_AUTH: Django settings error: {e}")
-                settings_client_id = None
             
-            # Use direct environment variable if available, otherwise try settings
-            client_id = google_client_id or settings_client_id
+            # Add known platform-specific client IDs for cross-platform support
+            known_client_ids = [
+                '818835282138-qjqc6v2bf8n89ghrphh9l388erj5vt5g.apps.googleusercontent.com',  # Web
+                '818835282138-8h3qf505eco222l28feg0o1t3tvu0v8g.apps.googleusercontent.com',  # Mobile
+            ]
             
-            if not client_id:
-                print("❌ GOOGLE_AUTH: GOOGLE_OAUTH2_CLIENT_ID not found in environment or settings")
+            for client_id in known_client_ids:
+                if client_id not in supported_client_ids:
+                    supported_client_ids.append(client_id)
+                    print(f"🔧 GOOGLE_AUTH: Added known client ID: {client_id[:20]}...")
+            
+            if not supported_client_ids:
+                print("❌ GOOGLE_AUTH: No valid client IDs found")
                 return None
             
-            print(f"🔑 GOOGLE_AUTH: Using Client ID: {client_id}")
+            print(f"🔑 GOOGLE_AUTH: Attempting verification with {len(supported_client_ids)} client IDs")
             print(f"🔑 GOOGLE_AUTH: Token starts with: {google_token[:50]}...")
             
-            # Verify the token with Google
-            idinfo = id_token.verify_oauth2_token(
-                google_token, 
-                google_requests.Request(), 
-                client_id
-            )
+            # Try verification with each supported client ID
+            verification_errors = []
+            for i, client_id in enumerate(supported_client_ids):
+                try:
+                    print(f"🔍 GOOGLE_AUTH: Attempt {i+1}/{len(supported_client_ids)} with client ID: {client_id[:20]}...")
+                    
+                    # Verify the token with Google
+                    idinfo = id_token.verify_oauth2_token(
+                        google_token, 
+                        google_requests.Request(), 
+                        client_id
+                    )
+                    
+                    print(f"✅ GOOGLE_AUTH: Token verification successful with client ID: {client_id[:20]}...")
+                    print(f"✅ GOOGLE_AUTH: Verified user: {idinfo.get('email')}")
+                    
+                    # Token is valid, return user info
+                    return {
+                        'email': idinfo.get('email'),
+                        'first_name': idinfo.get('given_name', ''),
+                        'last_name': idinfo.get('family_name', ''),
+                        'picture': idinfo.get('picture', ''),
+                        'email_verified': idinfo.get('email_verified', False),
+                        'google_id': idinfo.get('sub'),
+                        'verified_with_client_id': client_id,
+                    }
+                except ValueError as e:
+                    error_msg = str(e)
+                    verification_errors.append(f"Client {client_id[:20]}...: {error_msg}")
+                    print(f"❌ GOOGLE_AUTH: Client ID {client_id[:20]}... failed: {error_msg}")
+                    continue
+                except Exception as e:
+                    error_msg = str(e)
+                    verification_errors.append(f"Client {client_id[:20]}...: {error_msg}")
+                    print(f"❌ GOOGLE_AUTH: Client ID {client_id[:20]}... error: {error_msg}")
+                    continue
             
-            print(f"✅ GOOGLE_AUTH: Token verification successful for user: {idinfo.get('email')}")
-            
-            # Token is valid, return user info
-            return {
-                'email': idinfo.get('email'),
-                'first_name': idinfo.get('given_name', ''),
-                'last_name': idinfo.get('family_name', ''),
-                'picture': idinfo.get('picture', ''),
-                'email_verified': idinfo.get('email_verified', False),
-                'google_id': idinfo.get('sub'),
-            }
-        except ValueError as e:
-            # Invalid token
-            print(f"❌ GOOGLE_AUTH: Token verification failed (ValueError): {e}")
+            # All client IDs failed
+            print(f"❌ GOOGLE_AUTH: All {len(supported_client_ids)} client IDs failed verification")
+            for error in verification_errors:
+                print(f"   - {error}")
             return None
+            
         except Exception as e:
-            print(f"❌ GOOGLE_AUTH: Token verification failed (Exception): {e}")
+            print(f"❌ GOOGLE_AUTH: Unexpected error during token verification: {e}")
             return None
     
     @staticmethod
@@ -169,9 +205,16 @@ class GoogleAuthService:
 def handle_google_auth(request):
     """
     Handle Google authentication request
+    Cross-platform support for web and mobile Google OAuth
     """
     print("🚀 GOOGLE_AUTH: Received Google authentication request")
-    print("🕒 GOOGLE_AUTH: July 16, 2025 - 18:45 IST - Environment variable diagnostic active")
+    print("🕒 GOOGLE_AUTH: July 17, 2025 - Cross-platform authentication active")
+    
+    # Log platform-specific information
+    platform = request.data.get('platform', 'unknown')
+    client_id_from_frontend = request.data.get('client_id', 'not provided')
+    print(f"📱 GOOGLE_AUTH: Platform: {platform}")
+    print(f"🔑 GOOGLE_AUTH: Frontend client ID: {client_id_from_frontend[:20]}..." if client_id_from_frontend != 'not provided' else "🔑 GOOGLE_AUTH: No client ID provided by frontend")
     
     # Enhanced diagnostic logging
     client_id_env = os.getenv('GOOGLE_OAUTH2_CLIENT_ID')
@@ -215,7 +258,8 @@ def handle_google_auth(request):
             status=status.HTTP_400_BAD_REQUEST
         )
     
-    print(f"📥 GOOGLE_AUTH: Received token, attempting verification...")
+    print(f"📥 GOOGLE_AUTH: Received token, attempting cross-platform verification...")
+    print(f"📋 GOOGLE_AUTH: Request data keys: {list(request.data.keys())}")
     
     # Verify Google token
     google_user_info = GoogleAuthService.verify_google_token(google_token)
