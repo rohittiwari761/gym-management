@@ -3,8 +3,10 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'dart:html' as html;
 import 'security_config.dart';
+
+// Conditional import for web platform
+import 'web_storage.dart' if (dart.library.io) 'mobile_storage.dart';
 
 class JWTManager {
   static const FlutterSecureStorage _storage = FlutterSecureStorage(
@@ -50,7 +52,7 @@ class JWTManager {
         // Also try localStorage as backup (with prefix for consistency)
         try {
           final prefixedKey = 'gym_management_public_key.$key';
-          html.window.localStorage[prefixedKey] = value;
+          WebStorage.setItem(prefixedKey, value);
           print('✅ JWT_MANAGER: Fallback localStorage write successful with prefix');
         } catch (storageError) {
           print('❌ JWT_MANAGER: localStorage also failed: $storageError');
@@ -82,14 +84,14 @@ class JWTManager {
       // Try localStorage as backup (with prefix)
       try {
         final prefixedKey = 'gym_management_public_key.$key';
-        final value = html.window.localStorage[prefixedKey];
+        final value = WebStorage.getItem(prefixedKey);
         if (value != null) {
           print('✅ JWT_MANAGER: Retrieved from localStorage fallback with prefix');
           return value;
         }
         
         // Also try without prefix for compatibility
-        final directValue = html.window.localStorage[key];
+        final directValue = WebStorage.getItem(key);
         if (directValue != null) {
           print('✅ JWT_MANAGER: Retrieved from localStorage fallback direct');
           return directValue;
@@ -196,10 +198,9 @@ class JWTManager {
           print('🌐 JWT_MANAGER: Web storage may not be persisting - checking fallback storages...');
           print('🔍 JWT_MANAGER: Memory storage keys: ${_webFallbackStorage.keys.toList()}');
           try {
-            final localStorageKeys = html.window.localStorage.keys.toList();
-            print('🔍 JWT_MANAGER: localStorage keys: $localStorageKeys');
+            print('🔍 JWT_MANAGER: localStorage available: ${kIsWeb}');
           } catch (e) {
-            print('❌ JWT_MANAGER: Error reading localStorage keys: $e');
+            print('❌ JWT_MANAGER: Error checking localStorage: $e');
           }
         }
         return null;
