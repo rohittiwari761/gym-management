@@ -322,6 +322,15 @@ class SecureHttpClient {
       if (token != null) {
         print('🔐 SECURE_HTTP: Token starts with: ${token.substring(0, 20)}...');
         print('🔐 SECURE_HTTP: Token type: ${token.split('.').length == 3 ? "JWT" : "Django"}');
+        print('🔐 SECURE_HTTP: Token ends with: ...${token.substring(token.length - 10)}');
+        
+        // Check if token looks valid
+        if (token.length < 20) {
+          print('⚠️ SECURE_HTTP: Token seems too short - may be corrupted');
+        }
+        if (token.contains(' ') || token.contains('\n')) {
+          print('⚠️ SECURE_HTTP: Token contains whitespace - may be corrupted');
+        }
       }
       if (token == null) {
         print('❌ SECURE_HTTP: No authentication token available');

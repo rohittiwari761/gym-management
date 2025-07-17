@@ -42,38 +42,32 @@ class JWTManager {
   
   /// Safe storage write with fallback for web platform
   static Future<void> _safeWrite(String key, String value) async {
+    // Always store in localStorage for web (primary storage)
+    if (kIsWeb) {
+      _webFallbackStorage[key] = value;
+      try {
+        final prefixedKey = 'gym_management_public_key.$key';
+        WebStorage.setItem(prefixedKey, value);
+        print('✅ JWT_MANAGER: localStorage write successful with prefix');
+        print('🔍 JWT_MANAGER: Stored value: ${value.substring(0, 20)}... (${value.length} chars)');
+      } catch (storageError) {
+        print('❌ JWT_MANAGER: localStorage failed: $storageError');
+      }
+    }
+    
+    // Try FlutterSecureStorage as secondary (may fail on web)
     try {
       await _storage.write(key: key, value: value);
       print('✅ JWT_MANAGER: Secure storage write successful for key: $key');
     } catch (e) {
-      print('⚠️ JWT_MANAGER: Secure storage failed, using fallback: $e');
-      if (kIsWeb) {
-        _webFallbackStorage[key] = value;
-        // Also try localStorage as backup (with prefix for consistency)
-        try {
-          final prefixedKey = 'gym_management_public_key.$key';
-          WebStorage.setItem(prefixedKey, value);
-          print('✅ JWT_MANAGER: Fallback localStorage write successful with prefix');
-        } catch (storageError) {
-          print('❌ JWT_MANAGER: localStorage also failed: $storageError');
-        }
-      }
+      print('⚠️ JWT_MANAGER: Secure storage failed: $e');
+      // Already handled localStorage above for web
     }
   }
   
   /// Safe storage read with fallback for web platform
   static Future<String?> _safeRead(String key) async {
-    try {
-      final value = await _storage.read(key: key);
-      if (value != null) {
-        print('✅ JWT_MANAGER: Secure storage read successful for key: $key');
-        return value;
-      }
-    } catch (e) {
-      print('⚠️ JWT_MANAGER: Secure storage read failed, trying fallback: $e');
-    }
-    
-    // Try fallback storage on web
+    // For web, try localStorage first (primary storage)
     if (kIsWeb) {
       // Try in-memory fallback first
       if (_webFallbackStorage.containsKey(key)) {
@@ -81,24 +75,37 @@ class JWTManager {
         return _webFallbackStorage[key];
       }
       
-      // Try localStorage as backup (with prefix)
+      // Try localStorage as primary storage (with prefix)
       try {
         final prefixedKey = 'gym_management_public_key.$key';
         final value = WebStorage.getItem(prefixedKey);
         if (value != null) {
-          print('✅ JWT_MANAGER: Retrieved from localStorage fallback with prefix');
+          print('✅ JWT_MANAGER: Retrieved from localStorage with prefix');
+          print('🔍 JWT_MANAGER: Retrieved value: ${value.substring(0, 20)}... (${value.length} chars)');
           return value;
         }
         
         // Also try without prefix for compatibility
         final directValue = WebStorage.getItem(key);
         if (directValue != null) {
-          print('✅ JWT_MANAGER: Retrieved from localStorage fallback direct');
+          print('✅ JWT_MANAGER: Retrieved from localStorage direct');
+          print('🔍 JWT_MANAGER: Retrieved value: ${directValue.substring(0, 20)}... (${directValue.length} chars)');
           return directValue;
         }
       } catch (e) {
         print('❌ JWT_MANAGER: localStorage read failed: $e');
       }
+    }
+    
+    // Try FlutterSecureStorage as fallback
+    try {
+      final value = await _storage.read(key: key);
+      if (value != null) {
+        print('✅ JWT_MANAGER: Secure storage read successful for key: $key');
+        return value;
+      }
+    } catch (e) {
+      print('⚠️ JWT_MANAGER: Secure storage read failed: $e');
     }
     
     return null;

@@ -17,9 +17,9 @@ class GoogleAuthService {
     // Configure GoogleSignIn based on platform
     if (kIsWeb) {
       // Web client ID - configured for Web Application type
-      // Updated configuration for better web compatibility
+      // Updated configuration for better web compatibility and ID token support
       _googleSignIn = GoogleSignIn(
-        scopes: ['email', 'profile'],
+        scopes: ['email', 'profile', 'openid'],
         clientId: '818835282138-qjqc6v2bf8n89ghrphh9l388erj5vt5g.apps.googleusercontent.com',
         // Additional web-specific configurations for better compatibility
         signInOption: SignInOption.standard,
@@ -149,10 +149,11 @@ class GoogleAuthService {
           print('🌐 GOOGLE_AUTH: Handling web-specific error');
           if (error.toString().contains('popup') || 
               error.toString().contains('blocked') ||
-              error.toString().contains('network_error')) {
+              error.toString().contains('network_error') ||
+              error.toString().contains('ERR_BLOCKED_BY_CLIENT')) {
             return {
               'success': false,
-              'error': 'Google Sign-In popup was blocked or failed. Please enable popups for this site and try again.',
+              'error': 'Google Sign-In blocked by ad blocker or browser extension. Please disable ad blockers for this site and try again.',
             };
           }
           
@@ -226,11 +227,43 @@ class GoogleAuthService {
       print('🔍 GOOGLE_AUTH: accessToken: ${googleAuth.accessToken != null ? "PRESENT (${googleAuth.accessToken!.length} chars)" : "NULL"}');
 
       if (googleAuth.idToken == null) {
-        print('❌ GOOGLE_AUTH: ID token is null - this is the problem!');
+        print('❌ GOOGLE_AUTH: ID token is null - trying fallback with access token');
         SecurityConfig.logSecurityEvent('GOOGLE_SIGNIN_NO_ID_TOKEN', {});
+        
+        // Fallback: try to get user info from access token
+        if (googleAuth.accessToken != null) {
+          print('🔄 GOOGLE_AUTH: Using access token fallback method');
+          try {
+            // Use access token to get user info from Google API
+            final userInfoResponse = await _httpClient.get(
+              'https://www.googleapis.com/oauth2/v2/userinfo',
+              headers: {
+                'Authorization': 'Bearer ${googleAuth.accessToken}',
+              },
+              requireAuth: false,
+            );
+            
+            if (userInfoResponse.isSuccess) {
+              final userInfo = userInfoResponse.data;
+              print('✅ GOOGLE_AUTH: Got user info from access token');
+              
+              // Create a simple auth token for the backend
+              final fallbackResult = await _authenticateWithEmailFallback(
+                email: userInfo['email'],
+                name: userInfo['name'],
+                googleId: userInfo['id'],
+              );
+              
+              return fallbackResult;
+            }
+          } catch (e) {
+            print('❌ GOOGLE_AUTH: Access token fallback failed: $e');
+          }
+        }
+        
         return {
           'success': false,
-          'error': 'Failed to get Google ID token',
+          'error': 'Failed to get Google ID token and access token fallback failed',
         };
       }
       
@@ -475,6 +508,72 @@ class GoogleAuthService {
       }
       // Other errors might be acceptable (like no previous sign-in)
       return true;
+    }
+  }
+
+  /// Authenticate with backend using email fallback (when ID token is not available)
+  Future<Map<String, dynamic>> _authenticateWithEmailFallback({
+    required String email,
+    required String name,
+    required String googleId,
+  }) async {
+    try {
+      print('🔄 GOOGLE_AUTH: Attempting email fallback authentication');
+      
+      // Try to register/login with email-based authentication
+      final response = await _httpClient.post(
+        'auth/google-fallback/',
+        body: {
+          'email': email,
+          'name': name,
+          'google_id': googleId,
+        },
+        requireAuth: false,
+      );
+
+      if (response.isSuccess && response.data != null) {
+        final data = response.data as Map<String, dynamic>;
+        print('✅ GOOGLE_AUTH: Fallback authentication successful');
+        
+        // Store the authentication data
+        final authService = AuthService();
+        await authService.loginWithGoogleData(
+          userData: {
+            'id': data['gym_owner']['id'],
+            'firstName': data['user']['first_name'],
+            'lastName': data['user']['last_name'],
+            'email': data['user']['email'],
+            'phoneNumber': data['gym_owner']['phone_number'] ?? '',
+            'gymName': data['gym_owner']['gym_name'],
+            'gymAddress': data['gym_owner']['gym_address'],
+            'gymDescription': data['gym_owner']['gym_description'],
+            'createdAt': data['gym_owner']['created_at'],
+            'gymEstablishedDate': data['gym_owner']['gym_established_date'],
+          },
+          token: data['token'],
+          isPersistentSession: true,
+        );
+        
+        return {
+          'success': true,
+          'user': data['user'],
+          'gym_owner': data['gym_owner'],
+          'token': data['token'],
+          'message': 'Google authentication successful (fallback method)',
+        };
+      } else {
+        print('❌ GOOGLE_AUTH: Fallback authentication failed');
+        return {
+          'success': false,
+          'error': 'Fallback authentication failed: ${response.errorMessage}',
+        };
+      }
+    } catch (e) {
+      print('❌ GOOGLE_AUTH: Fallback authentication exception: $e');
+      return {
+        'success': false,
+        'error': 'Fallback authentication failed: ${e.toString()}',
+      };
     }
   }
 
