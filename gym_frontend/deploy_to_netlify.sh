@@ -29,7 +29,7 @@ fi
 
 # Step 4: Build for web
 echo "🏗️  Step 4: Building for web (this may take a few minutes)..."
-flutter build web --release --web-renderer html
+flutter build web --release
 
 if [ $? -eq 0 ]; then
     echo "✅ Build successful!"
