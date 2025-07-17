@@ -418,6 +418,7 @@ CORS_ALLOW_HEADERS = [
     'x-csrftoken',
     'x-requested-with',
     'x-request-id',  # Fix for x-request-id CORS error
+    'x-timestamp',   # Fix for x-timestamp CORS error
     'access-control-allow-origin',
     'access-control-allow-methods',
     'access-control-allow-headers',
