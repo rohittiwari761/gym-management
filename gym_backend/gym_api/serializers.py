@@ -218,8 +218,15 @@ class TrainerSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(f"Error creating trainer: {str(e)}")
 
 
+# Optimized GymOwner serializer for Equipment responses (excludes heavy data)
+class GymOwnerMinimalSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GymOwner
+        fields = ['id', 'gym_name']  # Only essential fields
+
+
 class EquipmentSerializer(serializers.ModelSerializer):
-    gym_owner = GymOwnerSerializer(read_only=True)
+    gym_owner = GymOwnerMinimalSerializer(read_only=True)
     condition_display = serializers.CharField(source='get_condition_display', read_only=True)
     warranty_status = serializers.SerializerMethodField()
     
@@ -230,6 +237,32 @@ class EquipmentSerializer(serializers.ModelSerializer):
             'equipment_id': {'required': False, 'read_only': True},
             'gym_owner': {'read_only': True},
         }
+    
+    def get_warranty_status(self, obj):
+        from datetime import date
+        if obj.warranty_expiry:
+            days_left = (obj.warranty_expiry - date.today()).days
+            if days_left < 0:
+                return 'Expired'
+            elif days_left < 30:
+                return 'Expiring Soon'
+            else:
+                return 'Active'
+        return 'Unknown'
+
+
+# Super minimal Equipment serializer for list views (excludes heavy fields)
+class EquipmentListSerializer(serializers.ModelSerializer):
+    warranty_status = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Equipment
+        fields = [
+            'id', 'equipment_id', 'name', 'equipment_type', 'brand', 'model',
+            'is_working', 'condition', 'warranty_status', 'purchase_date',
+            'warranty_expiry', 'location_in_gym', 'quantity'
+        ]
+        # Exclude heavy fields: maintenance_notes, description, images, etc.
     
     def get_warranty_status(self, obj):
         from datetime import date

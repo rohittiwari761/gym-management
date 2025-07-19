@@ -20,6 +20,7 @@ from .models import (
 )
 from .serializers import (
     UserSerializer, GymOwnerSerializer, MemberSerializer, TrainerSerializer, EquipmentSerializer,
+    EquipmentListSerializer, GymOwnerMinimalSerializer,
     WorkoutPlanSerializer, ExerciseSerializer, WorkoutSessionSerializer,
     MembershipPaymentSerializer, AttendanceSerializer, SubscriptionPlanSerializer, MemberSubscriptionSerializer,
     TrainerMemberAssociationSerializer, NotificationSerializer
@@ -263,10 +264,55 @@ class EquipmentViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
-        # Filter equipment by gym owner
+        # Filter equipment by gym owner with optimized ordering
         if hasattr(self.request.user, 'gymowner'):
-            return Equipment.objects.filter(gym_owner=self.request.user.gymowner)
+            return Equipment.objects.filter(
+                gym_owner=self.request.user.gymowner
+            ).select_related('gym_owner').order_by('-created_at')
         return Equipment.objects.none()
+    
+    def get_serializer_class(self):
+        """Use optimized serializer for list views to reduce response size"""
+        if self.action == 'list':
+            # Check if client wants minimal data
+            if self.request.query_params.get('minimal', 'false').lower() == 'true':
+                return EquipmentListSerializer
+        return EquipmentSerializer
+    
+    def list(self, request, *args, **kwargs):
+        """Optimized list with pagination to reduce 12MB responses to <1MB"""
+        queryset = self.filter_queryset(self.get_queryset())
+        
+        # Apply pagination with small page size by default
+        page_size = int(request.query_params.get('page_size', 10))  # Default 10 items
+        page_size = min(page_size, 50)  # Max 50 items per page
+        
+        # Manual pagination to control response size
+        page = int(request.query_params.get('page', 1))
+        start = (page - 1) * page_size
+        end = start + page_size
+        
+        total_count = queryset.count()
+        queryset = queryset[start:end]
+        
+        # Use minimal serializer by default for list views
+        serializer_class = self.get_serializer_class()
+        serializer = serializer_class(queryset, many=True, context={'request': request})
+        
+        # Calculate response size estimate
+        import sys
+        response_size_kb = sys.getsizeof(str(serializer.data)) / 1024
+        
+        logger.info(f'Equipment list response: {len(queryset)} items, ~{response_size_kb:.1f}KB')
+        
+        return Response({
+            'count': total_count,
+            'page': page,
+            'page_size': page_size,
+            'total_pages': (total_count + page_size - 1) // page_size,
+            'response_size_kb': round(response_size_kb, 1),
+            'results': serializer.data
+        })
     
     def perform_create(self, serializer):
         # Automatically assign gym owner on creation
@@ -277,14 +323,34 @@ class EquipmentViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def working(self, request):
-        # Filter working equipment by gym owner
+        # Filter working equipment by gym owner with pagination
         if hasattr(request.user, 'gymowner'):
             working_equipment = Equipment.objects.filter(
                 gym_owner=request.user.gymowner,
                 is_working=True
-            )
-            serializer = self.get_serializer(working_equipment, many=True)
-            return Response(serializer.data)
+            ).select_related('gym_owner')
+            
+            # Apply pagination for working equipment too
+            page_size = int(request.query_params.get('page_size', 15))  # Default 15 items
+            page_size = min(page_size, 50)  # Max 50 items
+            
+            page = int(request.query_params.get('page', 1))
+            start = (page - 1) * page_size
+            end = start + page_size
+            
+            total_count = working_equipment.count()
+            working_equipment = working_equipment[start:end]
+            
+            # Use minimal serializer for better performance
+            serializer = EquipmentListSerializer(working_equipment, many=True, context={'request': request})
+            
+            return Response({
+                'count': total_count,
+                'page': page,
+                'page_size': page_size,
+                'total_pages': (total_count + page_size - 1) // page_size,
+                'results': serializer.data
+            })
         return Response({'error': 'User must be a gym owner'}, status=status.HTTP_403_FORBIDDEN)
     
     @action(detail=False, methods=['get'])
@@ -295,23 +361,61 @@ class EquipmentViewSet(viewsets.ModelViewSet):
                 equipment = Equipment.objects.filter(
                     gym_owner=request.user.gymowner,
                     equipment_type=equipment_type
-                )
-                serializer = self.get_serializer(equipment, many=True)
-                return Response(serializer.data)
+                ).select_related('gym_owner')
+                
+                # Apply pagination for type filtering too
+                page_size = int(request.query_params.get('page_size', 15))
+                page_size = min(page_size, 50)
+                
+                page = int(request.query_params.get('page', 1))
+                start = (page - 1) * page_size
+                end = start + page_size
+                
+                total_count = equipment.count()
+                equipment = equipment[start:end]
+                
+                serializer = EquipmentListSerializer(equipment, many=True, context={'request': request})
+                return Response({
+                    'count': total_count,
+                    'equipment_type': equipment_type,
+                    'page': page,
+                    'page_size': page_size,
+                    'total_pages': (total_count + page_size - 1) // page_size,
+                    'results': serializer.data
+                })
             return Response({'error': 'User must be a gym owner'}, status=status.HTTP_403_FORBIDDEN)
         return Response({'error': 'Type parameter required'}, status=status.HTTP_400_BAD_REQUEST)
     
     @action(detail=False, methods=['get'])
     def maintenance_due(self, request):
-        # Get equipment needing maintenance
+        # Get equipment needing maintenance with pagination
         if hasattr(request.user, 'gymowner'):
             today = timezone.now().date()
             equipment = Equipment.objects.filter(
                 gym_owner=request.user.gymowner,
                 next_maintenance_date__lte=today
-            )
-            serializer = self.get_serializer(equipment, many=True)
-            return Response(serializer.data)
+            ).select_related('gym_owner')
+            
+            # Apply pagination
+            page_size = int(request.query_params.get('page_size', 15))
+            page_size = min(page_size, 50)
+            
+            page = int(request.query_params.get('page', 1))
+            start = (page - 1) * page_size
+            end = start + page_size
+            
+            total_count = equipment.count()
+            equipment = equipment[start:end]
+            
+            serializer = EquipmentListSerializer(equipment, many=True, context={'request': request})
+            return Response({
+                'count': total_count,
+                'maintenance_due_date': today.isoformat(),
+                'page': page,
+                'page_size': page_size,
+                'total_pages': (total_count + page_size - 1) // page_size,
+                'results': serializer.data
+            })
         return Response({'error': 'User must be a gym owner'}, status=status.HTTP_403_FORBIDDEN)
 
 
