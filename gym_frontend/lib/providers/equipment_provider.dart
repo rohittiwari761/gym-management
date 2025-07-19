@@ -81,6 +81,7 @@ class EquipmentProvider with ChangeNotifier {
   Future<void> fetchEquipment({
     int page = 1,
     bool loadMore = false,
+    bool loadAll = false,  // Whether to load all equipment or just summary
   }) async {
     if (!loadMore) {
       _isLoading = true;
@@ -89,13 +90,28 @@ class EquipmentProvider with ChangeNotifier {
     }
 
     try {
-      // Use optimized API call with pagination and image exclusion
-      final newEquipment = await _apiService.getEquipment(
-        page: page,
-        limit: 50, // Load 50 items at a time instead of all at once
-        excludeImages: true, // Exclude images to reduce from 25MB to ~500KB
-        status: _selectedStatus,
-      );
+      List<Equipment> newEquipment;
+      
+      if (loadAll) {
+        // Load all pages with optimized pagination (for full equipment list)
+        newEquipment = await _apiService.getAllPaginatedData<Equipment>(
+          apiCall: (page, limit) => _apiService.getEquipment(
+            page: page, 
+            limit: limit,
+            excludeImages: true,  // Always exclude images for list view
+          ),
+          maxPages: 3,  // Limit to 3 pages (45 equipment items max)
+          pageSize: 15,  // Reduced from 50 to 15 per page
+        );
+      } else {
+        // Load single page for faster response (for dashboard/summary)
+        newEquipment = await _apiService.getEquipment(
+          page: page,
+          limit: 15, // Reduced from 50 to 15 items per page
+          excludeImages: true, // Exclude images to reduce from 25MB to ~500KB
+          status: _selectedStatus,
+        );
+      }
       
       if (loadMore && page > 1) {
         // Append new items for pagination
@@ -107,6 +123,8 @@ class EquipmentProvider with ChangeNotifier {
       
       // Update working equipment list
       _workingEquipment = _equipment.where((eq) => eq.isWorking).toList();
+      
+      print('🔧 EQUIPMENT: Loaded ${_equipment.length} equipment items (${_workingEquipment.length} working)');
       
     } catch (e) {
       // Handle network errors with user-friendly messages

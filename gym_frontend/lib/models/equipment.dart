@@ -16,6 +16,7 @@ class Equipment {
   final int quantity;
   final String? serialNumber;
   final String? locationInGym;
+  final String? imageUrl;
 
   Equipment({
     this.id,
@@ -35,6 +36,7 @@ class Equipment {
     this.quantity = 1,
     this.serialNumber,
     this.locationInGym,
+    this.imageUrl,
   });
 
   factory Equipment.fromJson(Map<String, dynamic> json) {
@@ -56,6 +58,7 @@ class Equipment {
       quantity: json['quantity'] ?? 1,
       serialNumber: json['serial_number'],
       locationInGym: json['location_in_gym'],
+      imageUrl: json['image_url'],
     );
   }
 
@@ -81,6 +84,7 @@ class Equipment {
     if (equipmentId != null && equipmentId!.isNotEmpty) json['equipment_id'] = equipmentId;
     if (serialNumber != null && serialNumber!.isNotEmpty) json['serial_number'] = serialNumber;
     if (locationInGym != null && locationInGym!.isNotEmpty) json['location_in_gym'] = locationInGym;
+    if (imageUrl != null && imageUrl!.isNotEmpty) json['image_url'] = imageUrl;
     
     return json;
   }

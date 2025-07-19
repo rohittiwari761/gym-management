@@ -92,14 +92,38 @@ class ApiService {
   }
 
   // Members API
-  Future<List<Member>> getMembers() async {
+  Future<List<Member>> getMembers({
+    int page = 1,
+    int limit = 25,  // Reduced from unlimited to 25 per page
+    List<String>? excludeFields,
+  }) async {
     try {
       SecurityConfig.logSecurityEvent('API_REQUEST', {
         'endpoint': 'members',
         'method': 'GET',
       });
 
-      final response = await _httpClient.get('members/', requireAuth: true);
+      // Build query parameters to optimize response size
+      final queryParams = <String, dynamic>{
+        'page': page.toString(),
+        'limit': limit.toString(),
+      };
+      
+      // Exclude heavy fields that aren't needed for list view
+      if (excludeFields != null && excludeFields.isNotEmpty) {
+        queryParams['exclude'] = excludeFields.join(',');
+      } else {
+        // Default exclusions for performance
+        queryParams['exclude'] = 'profile_picture,detailed_notes,medical_history,workout_history';
+      }
+      
+      print('👥 MEMBERS: Requesting page $page with limit $limit (exclude: ${queryParams['exclude']})');
+
+      final response = await _httpClient.get(
+        'members/', 
+        requireAuth: true,
+        queryParams: queryParams,
+      );
 
       if (response.isSuccess && response.data != null) {
         // Handle Django pagination format: {"count": X, "results": [...]}
@@ -109,15 +133,21 @@ class ApiService {
         if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
           // Paginated response from Django REST Framework
           jsonList = responseData['results'] as List<dynamic>;
+          final totalCount = responseData['count'] ?? jsonList.length;
+          final nextPage = responseData['next'];
+          print('✅ MEMBERS: Loaded ${jsonList.length} items (Total: $totalCount, Has Next: ${nextPage != null})');
         } else if (responseData is List<dynamic>) {
           // Direct list response (fallback)
           jsonList = responseData;
+          print('✅ MEMBERS: Loaded ${jsonList.length} items (direct list)');
         } else {
           throw Exception('Unexpected response format');
         }
         
         SecurityConfig.logSecurityEvent('MEMBERS_LOADED', {
           'count': jsonList.length,
+          'page': page,
+          'limit': limit,
         });
         return jsonList.map((json) => Member.fromJson(json)).toList();
       } else {
@@ -190,14 +220,38 @@ class ApiService {
   }
 
   // Trainers API
-  Future<List<Trainer>> getTrainers() async {
+  Future<List<Trainer>> getTrainers({
+    int page = 1,
+    int limit = 20,  // Reduced limit for trainers
+    List<String>? excludeFields,
+  }) async {
     try {
       SecurityConfig.logSecurityEvent('API_REQUEST', {
         'endpoint': 'trainers',
         'method': 'GET',
       });
 
-      final response = await _httpClient.get('trainers/', requireAuth: true);
+      // Build query parameters to optimize response size
+      final queryParams = <String, dynamic>{
+        'page': page.toString(),
+        'limit': limit.toString(),
+      };
+      
+      // Exclude heavy fields that aren't needed for list view
+      if (excludeFields != null && excludeFields.isNotEmpty) {
+        queryParams['exclude'] = excludeFields.join(',');
+      } else {
+        // Default exclusions for performance
+        queryParams['exclude'] = 'profile_picture,detailed_bio,certifications_data,workout_sessions';
+      }
+      
+      print('🏋️ TRAINERS: Requesting page $page with limit $limit (exclude: ${queryParams['exclude']})');
+
+      final response = await _httpClient.get(
+        'trainers/', 
+        requireAuth: true,
+        queryParams: queryParams,
+      );
 
       if (response.isSuccess && response.data != null) {
         // Handle Django pagination format: {"count": X, "results": [...]}
@@ -207,9 +261,13 @@ class ApiService {
         if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
           // Paginated response from Django REST Framework
           jsonList = responseData['results'] as List<dynamic>;
+          final totalCount = responseData['count'] ?? jsonList.length;
+          final nextPage = responseData['next'];
+          print('✅ TRAINERS: Loaded ${jsonList.length} items (Total: $totalCount, Has Next: ${nextPage != null})');
         } else if (responseData is List<dynamic>) {
           // Direct list response (fallback)
           jsonList = responseData;
+          print('✅ TRAINERS: Loaded ${jsonList.length} items (direct list)');
         } else {
           throw Exception('Unexpected response format');
         }
@@ -226,9 +284,33 @@ class ApiService {
     }
   }
 
-  Future<List<Trainer>> getAvailableTrainers() async {
+  Future<List<Trainer>> getAvailableTrainers({
+    int page = 1,
+    int limit = 15,  // Reduced limit for better performance
+    List<String>? excludeFields,
+  }) async {
     try {
-      final response = await _httpClient.get('trainers/available/', requireAuth: true);
+      // Build query parameters to optimize response size
+      final queryParams = <String, dynamic>{
+        'page': page.toString(),
+        'limit': limit.toString(),
+      };
+      
+      // Exclude heavy fields that aren't needed for available trainers list
+      if (excludeFields != null && excludeFields.isNotEmpty) {
+        queryParams['exclude'] = excludeFields.join(',');
+      } else {
+        // Default exclusions for performance
+        queryParams['exclude'] = 'profile_picture,detailed_bio,certifications_data,workout_sessions,training_history';
+      }
+      
+      print('🏋️ AVAILABLE_TRAINERS: Requesting page $page with limit $limit (exclude: ${queryParams['exclude']})');
+
+      final response = await _httpClient.get(
+        'trainers/available/', 
+        requireAuth: true,
+        queryParams: queryParams,
+      );
 
       if (response.isSuccess && response.data != null) {
         // Handle Django pagination format: {"count": X, "results": [...]}
@@ -238,9 +320,13 @@ class ApiService {
         if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
           // Paginated response from Django REST Framework
           jsonList = responseData['results'] as List<dynamic>;
+          final totalCount = responseData['count'] ?? jsonList.length;
+          final nextPage = responseData['next'];
+          print('✅ AVAILABLE_TRAINERS: Loaded ${jsonList.length} items (Total: $totalCount, Has Next: ${nextPage != null})');
         } else if (responseData is List<dynamic>) {
           // Direct list response (fallback)
           jsonList = responseData;
+          print('✅ AVAILABLE_TRAINERS: Loaded ${jsonList.length} items (direct list)');
         } else {
           throw Exception('Unexpected response format');
         }
@@ -397,9 +483,10 @@ class ApiService {
   // Equipment API
   Future<List<Equipment>> getEquipment({
     int page = 1, 
-    int limit = 50,
+    int limit = 15,  // Drastically reduced from 50 to 15
     bool excludeImages = true,
     String? status,
+    List<String>? excludeFields,
   }) async {
     try {
       // Build query parameters to reduce response size
@@ -408,17 +495,34 @@ class ApiService {
         'limit': limit.toString(),
       };
       
-      // Exclude images for list view to reduce response size from 25MB to manageable size
+      // Comprehensive field exclusion to reduce response size from 12MB to <1MB
+      List<String> fieldsToExclude = [];
+      
       if (excludeImages) {
-        queryParams['exclude'] = 'image,image_data,image_url'; // Exclude image fields
+        fieldsToExclude.addAll(['image', 'image_data', 'image_url', 'photos', 'gallery']);
+      }
+      
+      if (excludeFields != null) {
+        fieldsToExclude.addAll(excludeFields);
+      } else {
+        // Default heavy fields to exclude for list view
+        fieldsToExclude.addAll([
+          'detailed_description', 'manual_pdf', 'warranty_documents',
+          'maintenance_history', 'repair_logs', 'user_manuals',
+          'specifications_json', 'technical_specs', 'installation_notes'
+        ]);
+      }
+      
+      if (fieldsToExclude.isNotEmpty) {
+        queryParams['exclude'] = fieldsToExclude.join(',');
       }
       
       // Filter by status if provided
-      if (status != null && status.isNotEmpty() && status != 'All') {
+      if (status != null && status.isNotEmpty && status != 'All') {
         queryParams['status'] = status.toLowerCase();
       }
       
-      print('🔧 EQUIPMENT: Requesting with params: $queryParams');
+      print('🔧 EQUIPMENT: Requesting page $page with limit $limit (exclude: ${fieldsToExclude.length} fields)');
       
       final response = await _httpClient.get(
         'equipment/', 
@@ -454,9 +558,39 @@ class ApiService {
     }
   }
 
-  Future<List<Equipment>> getWorkingEquipment() async {
+  Future<List<Equipment>> getWorkingEquipment({
+    int page = 1,
+    int limit = 12,  // Reduced limit for working equipment
+    List<String>? excludeFields,
+  }) async {
     try {
-      final response = await _httpClient.get('equipment/working/', requireAuth: true);
+      // Build query parameters to optimize response size
+      final queryParams = <String, dynamic>{
+        'page': page.toString(),
+        'limit': limit.toString(),
+      };
+      
+      // Comprehensive field exclusion for working equipment list
+      List<String> fieldsToExclude = [
+        'image', 'image_data', 'image_url', 'photos', 'gallery',
+        'detailed_description', 'manual_pdf', 'warranty_documents',
+        'maintenance_history', 'repair_logs', 'user_manuals',
+        'specifications_json', 'technical_specs', 'installation_notes'
+      ];
+      
+      if (excludeFields != null) {
+        fieldsToExclude.addAll(excludeFields);
+      }
+      
+      queryParams['exclude'] = fieldsToExclude.join(',');
+      
+      print('🔧 WORKING_EQUIPMENT: Requesting page $page with limit $limit (exclude: ${fieldsToExclude.length} fields)');
+
+      final response = await _httpClient.get(
+        'equipment/working/', 
+        requireAuth: true,
+        queryParams: queryParams,
+      );
 
       if (response.isSuccess && response.data != null) {
         // Handle Django pagination format: {"count": X, "results": [...]}
@@ -466,9 +600,13 @@ class ApiService {
         if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
           // Paginated response from Django REST Framework
           jsonList = responseData['results'] as List<dynamic>;
+          final totalCount = responseData['count'] ?? jsonList.length;
+          final nextPage = responseData['next'];
+          print('✅ WORKING_EQUIPMENT: Loaded ${jsonList.length} items (Total: $totalCount, Has Next: ${nextPage != null})');
         } else if (responseData is List<dynamic>) {
           // Direct list response (fallback)
           jsonList = responseData;
+          print('✅ WORKING_EQUIPMENT: Loaded ${jsonList.length} items (direct list)');
         } else {
           throw Exception('Unexpected response format');
         }
@@ -564,9 +702,33 @@ class ApiService {
   }
 
   // Workout Sessions API
-  Future<List<WorkoutSession>> getUpcomingSessions() async {
+  Future<List<WorkoutSession>> getUpcomingSessions({
+    int page = 1,
+    int limit = 20,  // Reasonable limit for upcoming sessions
+    List<String>? excludeFields,
+  }) async {
     try {
-      final response = await _httpClient.get('workout-sessions/upcoming/', requireAuth: true);
+      // Build query parameters to optimize response size
+      final queryParams = <String, dynamic>{
+        'page': page.toString(),
+        'limit': limit.toString(),
+      };
+      
+      // Exclude heavy fields that aren't needed for upcoming sessions list
+      if (excludeFields != null && excludeFields.isNotEmpty) {
+        queryParams['exclude'] = excludeFields.join(',');
+      } else {
+        // Default exclusions for performance
+        queryParams['exclude'] = 'detailed_notes,exercise_logs,performance_metrics,session_recordings,feedback_history';
+      }
+      
+      print('💪 UPCOMING_SESSIONS: Requesting page $page with limit $limit (exclude: ${queryParams['exclude']})');
+
+      final response = await _httpClient.get(
+        'workout-sessions/upcoming/', 
+        requireAuth: true,
+        queryParams: queryParams,
+      );
 
       if (response.isSuccess && response.data != null) {
         // Handle Django pagination format: {"count": X, "results": [...]}
@@ -576,9 +738,13 @@ class ApiService {
         if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
           // Paginated response from Django REST Framework
           jsonList = responseData['results'] as List<dynamic>;
+          final totalCount = responseData['count'] ?? jsonList.length;
+          final nextPage = responseData['next'];
+          print('✅ UPCOMING_SESSIONS: Loaded ${jsonList.length} items (Total: $totalCount, Has Next: ${nextPage != null})');
         } else if (responseData is List<dynamic>) {
           // Direct list response (fallback)
           jsonList = responseData;
+          print('✅ UPCOMING_SESSIONS: Loaded ${jsonList.length} items (direct list)');
         } else {
           throw Exception('Unexpected response format');
         }
@@ -712,20 +878,47 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>> getAttendances({DateTime? date}) async {
+  Future<Map<String, dynamic>> getAttendances({
+    DateTime? date,
+    int page = 1,
+    int limit = 25,  // Limit attendance records for better performance
+    List<String>? excludeFields,
+  }) async {
     try {
       String endpoint = 'attendance/';
-      Map<String, dynamic>? queryParams;
+      Map<String, dynamic> queryParams = {
+        'page': page.toString(),
+        'limit': limit.toString(),
+      };
 
       if (date != null) {
         // Use IST timezone for date formatting
         final dateStr = TimezoneUtils.getAPIDateString(date);
-        queryParams = {'date': dateStr};
+        queryParams['date'] = dateStr;
       }
+
+      // Exclude heavy fields for attendance list
+      if (excludeFields != null && excludeFields.isNotEmpty) {
+        queryParams['exclude'] = excludeFields.join(',');
+      } else {
+        // Default exclusions for performance
+        queryParams['exclude'] = 'detailed_notes,location_data,biometric_data,session_photos';
+      }
+      
+      print('📋 ATTENDANCES: Requesting page $page with limit $limit for ${date != null ? queryParams['date'] : 'all dates'}');
 
       final response = await _httpClient.get(endpoint, queryParams: queryParams);
 
       if (response.isSuccess) {
+        // Log pagination info if available
+        if (response.data is Map<String, dynamic>) {
+          final responseData = response.data as Map<String, dynamic>;
+          if (responseData.containsKey('count')) {
+            final totalCount = responseData['count'];
+            final nextPage = responseData['next'];
+            print('✅ ATTENDANCES: Loaded page $page (Total: $totalCount, Has Next: ${nextPage != null})');
+          }
+        }
         return {'success': true, 'data': response.data};
       } else {
         return {'success': false, 'message': response.errorMessage ?? 'Failed to fetch attendances'};
@@ -735,11 +928,26 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>> getAttendanceStats() async {
+  Future<Map<String, dynamic>> getAttendanceStats({
+    List<String>? excludeFields,
+  }) async {
     try {
-      final response = await _httpClient.get('attendance/stats/');
+      Map<String, dynamic>? queryParams;
+      
+      // Exclude heavy fields for stats
+      if (excludeFields != null && excludeFields.isNotEmpty) {
+        queryParams = {'exclude': excludeFields.join(',')};
+      } else {
+        // Default exclusions for performance - keep only essential stats
+        queryParams = {'exclude': 'detailed_breakdowns,hourly_data,member_details,session_data'};
+      }
+      
+      print('📊 ATTENDANCE_STATS: Requesting with exclusions: ${queryParams!['exclude']}');
+
+      final response = await _httpClient.get('attendance/stats/', queryParams: queryParams);
 
       if (response.isSuccess) {
+        print('✅ ATTENDANCE_STATS: Loaded stats successfully');
         return {'success': true, 'data': response.data};
       } else {
         return {'success': false, 'message': response.errorMessage ?? 'Failed to fetch attendance stats'};
@@ -749,11 +957,28 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>> getTodayAttendances() async {
+  Future<Map<String, dynamic>> getTodayAttendances({
+    int limit = 50,  // Limit today's attendance for better performance
+    List<String>? excludeFields,
+  }) async {
     try {
       SecurityConfig.logSecurityEvent('TODAY_ATTENDANCE_REQUEST', {});
 
-      final response = await _httpClient.get('attendance/today_attendance/');
+      Map<String, dynamic> queryParams = {
+        'limit': limit.toString(),
+      };
+
+      // Exclude heavy fields for today's attendance
+      if (excludeFields != null && excludeFields.isNotEmpty) {
+        queryParams['exclude'] = excludeFields.join(',');
+      } else {
+        // Default exclusions for performance
+        queryParams['exclude'] = 'detailed_notes,location_data,biometric_data,session_photos,member_photos';
+      }
+      
+      print('📅 TODAY_ATTENDANCES: Requesting limit $limit with exclusions: ${queryParams['exclude']}');
+
+      final response = await _httpClient.get('attendance/today_attendance/', queryParams: queryParams);
 
       if (response.isSuccess) {
         SecurityConfig.logSecurityEvent('TODAY_ATTENDANCE_SUCCESS', {});
@@ -761,8 +986,10 @@ class ApiService {
         if (response.data != null && response.data is Map<String, dynamic>) {
           final responseData = response.data as Map<String, dynamic>;
           final attendances = responseData['attendances'] as List<dynamic>? ?? [];
+          print('✅ TODAY_ATTENDANCES: Loaded ${attendances.length} attendance records');
           return {'success': true, 'data': attendances};
         }
+        print('✅ TODAY_ATTENDANCES: No attendance data found');
         return {'success': true, 'data': []};
       } else {
         return {'success': false, 'message': response.errorMessage ?? 'Failed to fetch today\'s attendances'};
@@ -775,14 +1002,53 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>> getAttendanceAnalytics() async {
+  Future<Map<String, dynamic>> getAttendanceAnalytics({
+    List<String>? excludeFields,
+    int limit = 100,  // Limit analytics data points
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
     try {
       SecurityConfig.logSecurityEvent('ATTENDANCE_ANALYTICS_REQUEST', {});
 
-      final response = await _httpClient.get('attendance/attendance_analytics/');
+      Map<String, dynamic> queryParams = {
+        'limit': limit.toString(),
+      };
+      
+      // Date range filtering for performance
+      if (startDate != null) {
+        queryParams['start_date'] = startDate.toIso8601String().split('T')[0];
+      }
+      if (endDate != null) {
+        queryParams['end_date'] = endDate.toIso8601String().split('T')[0];
+      }
+      
+      // Exclude heavy analytics fields for performance
+      if (excludeFields != null && excludeFields.isNotEmpty) {
+        queryParams['exclude'] = excludeFields.join(',');
+      } else {
+        // Default exclusions for performance - exclude detailed breakdowns
+        queryParams['exclude'] = 'detailed_hourly_data,member_breakdowns,trainer_analytics,equipment_usage_details,raw_session_data';
+      }
+      
+      print('📊 ATTENDANCE_ANALYTICS: Requesting with limit $limit, exclusions: ${queryParams['exclude']}');
+
+      final response = await _httpClient.get('attendance/attendance_analytics/', queryParams: queryParams);
 
       if (response.isSuccess) {
         SecurityConfig.logSecurityEvent('ATTENDANCE_ANALYTICS_SUCCESS', {});
+        
+        // Log data size for monitoring
+        if (response.data != null) {
+          final dataSize = response.data.toString().length;
+          print('✅ ATTENDANCE_ANALYTICS: Loaded analytics data (${(dataSize / 1024).round()}KB)');
+          
+          // Warn if data is still large
+          if (dataSize > 500000) { // 500KB
+            print('⚠️ ATTENDANCE_ANALYTICS: Large response detected (${(dataSize / 1024).round()}KB), consider more exclusions');
+          }
+        }
+        
         return {'success': true, 'data': response.data};
       } else {
         return {'success': false, 'message': response.errorMessage ?? 'Failed to fetch attendance analytics'};
@@ -796,14 +1062,35 @@ class ApiService {
   }
 
   /// Get all active trainer-member associations
-  Future<List<Map<String, dynamic>>> getActiveTrainerMemberAssociations() async {
+  Future<List<Map<String, dynamic>>> getActiveTrainerMemberAssociations({
+    int page = 1,
+    int limit = 20,  // Limit associations for better performance
+    List<String>? excludeFields,
+    bool loadAll = false,
+  }) async {
     try {
       SecurityConfig.logSecurityEvent('API_REQUEST', {
         'endpoint': 'trainer-member-associations/active',
         'method': 'GET',
       });
 
-      final response = await _httpClient.get('trainer-member-associations/active/', requireAuth: true);
+      Map<String, dynamic> queryParams = {
+        'page': page.toString(),
+        'limit': limit.toString(),
+      };
+      
+      // Exclude heavy fields for association list
+      if (excludeFields != null && excludeFields.isNotEmpty) {
+        queryParams['exclude'] = excludeFields.join(',');
+      } else {
+        // Default exclusions for performance
+        queryParams['exclude'] = 'trainer_photo,member_photo,detailed_notes,training_history,session_records';
+      }
+      
+      print('🔗 TRAINER_ASSOCIATIONS: Requesting page $page with limit $limit, exclusions: ${queryParams['exclude']}');
+
+      final response = await _httpClient.get('trainer-member-associations/active/', 
+        queryParams: queryParams, requireAuth: true);
 
       if (response.isSuccess && response.data != null) {
         // Handle Django pagination format: {"count": X, "results": [...]}
@@ -813,9 +1100,24 @@ class ApiService {
         if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
           // Paginated response from Django REST Framework
           jsonList = responseData['results'] as List<dynamic>;
+          final totalCount = responseData['count'];
+          final nextPage = responseData['next'];
+          print('✅ TRAINER_ASSOCIATIONS: Loaded page $page (Total: $totalCount, Has Next: ${nextPage != null})');
+          
+          // If loadAll is requested and there are more pages, load them
+          if (loadAll && nextPage != null && page < 10) { // Safety limit: max 10 pages
+            final nextPageData = await getActiveTrainerMemberAssociations(
+              page: page + 1, 
+              limit: limit, 
+              excludeFields: excludeFields,
+              loadAll: true,
+            );
+            jsonList.addAll(nextPageData);
+          }
         } else if (responseData is List<dynamic>) {
           // Direct list response (fallback)
           jsonList = responseData;
+          print('✅ TRAINER_ASSOCIATIONS: Loaded ${jsonList.length} associations (direct list)');
         } else {
           throw Exception('Unexpected response format');
         }
@@ -833,14 +1135,43 @@ class ApiService {
   }
 
   /// Get associations for a specific trainer
-  Future<List<Map<String, dynamic>>> getTrainerMembers(int trainerId) async {
+  Future<List<Map<String, dynamic>>> getTrainerMembers(
+    int trainerId, {
+    int page = 1,
+    int limit = 15,  // Limit trainer members for better performance
+    List<String>? excludeFields,
+    String? status,
+    bool loadAll = false,
+  }) async {
     try {
       SecurityConfig.logSecurityEvent('API_REQUEST', {
         'endpoint': 'trainers/$trainerId/members',
         'method': 'GET',
       });
 
-      final response = await _httpClient.get('trainers/$trainerId/members/', requireAuth: true);
+      Map<String, dynamic> queryParams = {
+        'page': page.toString(),
+        'limit': limit.toString(),
+      };
+      
+      // Filter by status if provided
+      if (status != null && status.isNotEmpty) {
+        queryParams['status'] = status;
+      }
+      
+      // Exclude heavy fields for trainer members list
+      if (excludeFields != null && excludeFields.isNotEmpty) {
+        queryParams['exclude'] = excludeFields.join(',');
+      } else {
+        // Default exclusions for performance
+        queryParams['exclude'] = 'member_photo,medical_history,payment_history,session_notes,detailed_progress';
+      }
+      
+      print('👥 TRAINER_MEMBERS: Requesting trainer $trainerId members, page $page with limit $limit');
+      print('👥 TRAINER_MEMBERS: Exclusions: ${queryParams['exclude']}');
+
+      final response = await _httpClient.get('trainers/$trainerId/members/', 
+        queryParams: queryParams, requireAuth: true);
 
       if (response.isSuccess && response.data != null) {
         // Handle Django pagination format: {"count": X, "results": [...]}
@@ -850,9 +1181,26 @@ class ApiService {
         if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
           // Paginated response from Django REST Framework
           jsonList = responseData['results'] as List<dynamic>;
+          final totalCount = responseData['count'];
+          final nextPage = responseData['next'];
+          print('✅ TRAINER_MEMBERS: Loaded page $page for trainer $trainerId (Total: $totalCount, Has Next: ${nextPage != null})');
+          
+          // If loadAll is requested and there are more pages, load them
+          if (loadAll && nextPage != null && page < 8) { // Safety limit: max 8 pages for trainer members
+            final nextPageData = await getTrainerMembers(
+              trainerId,
+              page: page + 1,
+              limit: limit,
+              excludeFields: excludeFields,
+              status: status,
+              loadAll: true,
+            );
+            jsonList.addAll(nextPageData);
+          }
         } else if (responseData is List<dynamic>) {
           // Direct list response (fallback)
           jsonList = responseData;
+          print('✅ TRAINER_MEMBERS: Loaded ${jsonList.length} members for trainer $trainerId (direct list)');
         } else {
           throw Exception('Unexpected response format');
         }
@@ -864,6 +1212,7 @@ class ApiService {
     } catch (e) {
       SecurityConfig.logSecurityEvent('TRAINER_MEMBERS_LOAD_ERROR', {
         'error': e.toString(),
+        'trainerId': trainerId,
       });
       throw Exception('Failed to load trainer members. Please try again.');
     }
@@ -935,6 +1284,62 @@ class ApiService {
       });
       return false;
     }
+  }
+
+  /// Get all pages of data with size limits (for comprehensive data loading)
+  Future<List<T>> getAllPaginatedData<T>({
+    required Future<List<T>> Function(int page, int limit) apiCall,
+    int maxPages = 10,  // Limit to prevent infinite loading
+    int pageSize = 20,  // Smaller page size for better performance
+  }) async {
+    List<T> allItems = [];
+    int currentPage = 1;
+    
+    try {
+      while (currentPage <= maxPages) {
+        print('📄 PAGINATION: Loading page $currentPage (max: $maxPages)');
+        
+        final pageItems = await apiCall(currentPage, pageSize);
+        
+        if (pageItems.isEmpty) {
+          print('📄 PAGINATION: No more items found, stopping at page $currentPage');
+          break;
+        }
+        
+        allItems.addAll(pageItems);
+        
+        // If we got less than pageSize items, we've reached the end
+        if (pageItems.length < pageSize) {
+          print('📄 PAGINATION: Reached end of data at page $currentPage');
+          break;
+        }
+        
+        currentPage++;
+        
+        // Safety check: if we have too many items, stop loading
+        if (allItems.length > 1000) {
+          print('⚠️ PAGINATION: Safety limit reached (1000 items), stopping');
+          break;
+        }
+      }
+      
+      print('✅ PAGINATION: Loaded ${allItems.length} total items across ${currentPage - 1} pages');
+      return allItems;
+      
+    } catch (e) {
+      print('❌ PAGINATION: Error loading paginated data: $e');
+      // Return what we have so far
+      return allItems;
+    }
+  }
+
+  /// Get lightweight summary data (for dashboard/overview)
+  Future<List<T>> getSummaryData<T>({
+    required Future<List<T>> Function(int page, int limit, List<String> excludeFields) apiCall,
+    List<String> excludeFields = const [],
+  }) async {
+    print('📊 SUMMARY: Loading lightweight summary data');
+    return await apiCall(1, 10, excludeFields);  // Only first 10 items for summary
   }
 
   /// Dispose of resources

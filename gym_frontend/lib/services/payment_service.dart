@@ -13,15 +13,51 @@ import '../security/security_config.dart';
 class PaymentService {
   final SecureHttpClient _httpClient = SecureHttpClient();
 
-  Future<List<Payment>> getPayments() async {
+  Future<List<Payment>> getPayments({
+    int page = 1,
+    int limit = 25,  // Limit payments for better performance
+    List<String>? excludeFields,
+    String? status,
+    DateTime? startDate,
+    DateTime? endDate,
+    bool loadAll = false,
+  }) async {
     try {
       print('🌐 PAYMENT_SERVICE: Making GET request to payments/ endpoint...');
       
+      Map<String, dynamic> queryParams = {
+        'page': page.toString(),
+        'limit': limit.toString(),
+      };
+      
+      // Date range filtering for performance
+      if (startDate != null) {
+        queryParams['start_date'] = startDate.toIso8601String().split('T')[0];
+      }
+      if (endDate != null) {
+        queryParams['end_date'] = endDate.toIso8601String().split('T')[0];
+      }
+      
+      // Status filtering
+      if (status != null && status.isNotEmpty) {
+        queryParams['status'] = status;
+      }
+      
+      // Exclude heavy fields for payment list
+      if (excludeFields != null && excludeFields.isNotEmpty) {
+        queryParams['exclude'] = excludeFields.join(',');
+      } else {
+        // Default exclusions for performance
+        queryParams['exclude'] = 'receipt_data,detailed_transaction_log,member_photo,subscription_details';
+      }
+      
+      print('💳 PAYMENTS: Requesting page $page with limit $limit, exclusions: ${queryParams['exclude']}');
+      
       // Add connection timeout handling
-      final response = await _httpClient.get('payments/').timeout(
-        Duration(seconds: 10),
+      final response = await _httpClient.get('payments/', queryParams: queryParams).timeout(
+        Duration(seconds: 15),  // Increased timeout for payment data
         onTimeout: () {
-          print('⏰ PAYMENT_SERVICE: Request timed out after 10 seconds');
+          print('⏰ PAYMENT_SERVICE: Request timed out after 15 seconds');
           throw Exception('Request timed out. Please check your internet connection.');
         },
       );
@@ -40,13 +76,30 @@ class PaymentService {
         if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
           // Paginated response from Django REST Framework
           jsonList = responseData['results'] as List<dynamic>;
-          print('📊 API: Received paginated response with ${responseData['count']} total payments');
+          final totalCount = responseData['count'];
+          final nextPage = responseData['next'];
+          print('📊 PAYMENTS: Received paginated response with $totalCount total payments');
+          print('✅ PAYMENTS: Loaded page $page (Has Next: ${nextPage != null})');
+          
+          // If loadAll is requested and there are more pages, load them
+          if (loadAll && nextPage != null && page < 12) { // Safety limit: max 12 pages for payments
+            final nextPageData = await getPayments(
+              page: page + 1,
+              limit: limit,
+              excludeFields: excludeFields,
+              status: status,
+              startDate: startDate,
+              endDate: endDate,
+              loadAll: true,
+            );
+            jsonList.addAll(nextPageData.map((payment) => payment.toJson()));
+          }
         } else if (responseData is List<dynamic>) {
           // Direct list response (fallback)
           jsonList = responseData;
-          print('📊 API: Received direct list response with ${jsonList.length} payments');
+          print('📊 PAYMENTS: Received direct list response with ${jsonList.length} payments');
         } else {
-          print('❌ API: Unexpected response format: ${responseData?.runtimeType}');
+          print('❌ PAYMENTS: Unexpected response format: ${responseData?.runtimeType}');
           throw Exception('Unexpected response format');
         }
         
@@ -143,15 +196,49 @@ class PaymentService {
   Future<Map<String, dynamic>> getRevenueAnalytics({
     DateTime? startDate,
     DateTime? endDate,
+    List<String>? excludeFields,
+    int limit = 50,  // Limit revenue data points
   }) async {
     try {
-      final response = await _httpClient.get('payments/revenue_analytics/');
+      Map<String, dynamic> queryParams = {
+        'limit': limit.toString(),
+      };
+      
+      // Date range filtering for performance
+      if (startDate != null) {
+        queryParams['start_date'] = startDate.toIso8601String().split('T')[0];
+      }
+      if (endDate != null) {
+        queryParams['end_date'] = endDate.toIso8601String().split('T')[0];
+      }
+      
+      // Exclude heavy fields for revenue analytics
+      if (excludeFields != null && excludeFields.isNotEmpty) {
+        queryParams['exclude'] = excludeFields.join(',');
+      } else {
+        // Default exclusions for performance
+        queryParams['exclude'] = 'detailed_breakdowns,transaction_details,member_analytics,payment_method_breakdowns';
+      }
+      
+      print('💰 REVENUE_ANALYTICS: Requesting with limit $limit, exclusions: ${queryParams['exclude']}');
+
+      final response = await _httpClient.get('payments/revenue_analytics/', queryParams: queryParams);
 
       print('💰 REVENUE SERVICE - Success: ${response.isSuccess}');
       print('💰 REVENUE SERVICE - Data: ${response.data}');
 
       if (response.isSuccess && response.data != null) {
         final data = response.data as Map<String, dynamic>;
+        
+        // Log data size for monitoring
+        final dataSize = data.toString().length;
+        print('✅ REVENUE_ANALYTICS: Loaded analytics data (${(dataSize / 1024).round()}KB)');
+        
+        // Warn if data is still large
+        if (dataSize > 300000) { // 300KB
+          print('⚠️ REVENUE_ANALYTICS: Large response detected (${(dataSize / 1024).round()}KB), consider more exclusions');
+        }
+        
         return {
           'success': true,
           'data': {
@@ -178,9 +265,29 @@ class PaymentService {
 
   Future<List<Map<String, dynamic>>> getPaymentsByMonth({
     required int year,
+    int page = 1,
+    int limit = 20,  // Limit monthly payment data
+    List<String>? excludeFields,
+    bool loadAll = false,
   }) async {
     try {
-      final response = await _httpClient.get('payments/monthly/$year/');
+      Map<String, dynamic> queryParams = {
+        'page': page.toString(),
+        'limit': limit.toString(),
+      };
+      
+      // Exclude heavy fields for monthly payments
+      if (excludeFields != null && excludeFields.isNotEmpty) {
+        queryParams['exclude'] = excludeFields.join(',');
+      } else {
+        // Default exclusions for performance
+        queryParams['exclude'] = 'receipt_data,transaction_details,member_details,payment_breakdowns';
+      }
+      
+      print('📅 MONTHLY_PAYMENTS: Requesting year $year, page $page with limit $limit');
+      print('📅 MONTHLY_PAYMENTS: Exclusions: ${queryParams['exclude']}');
+
+      final response = await _httpClient.get('payments/monthly/$year/', queryParams: queryParams);
 
       if (response.isSuccess && response.data != null) {
         // Handle Django pagination format: {"count": X, "results": [...]}
@@ -190,10 +297,26 @@ class PaymentService {
         if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
           // Paginated response from Django REST Framework
           jsonList = responseData['results'] as List<dynamic>;
-          print('📊 API: Received paginated response with ${responseData['count']} monthly payments for year $year');
+          final totalCount = responseData['count'];
+          final nextPage = responseData['next'];
+          print('📊 MONTHLY_PAYMENTS: Received paginated response with $totalCount monthly payments for year $year');
+          print('✅ MONTHLY_PAYMENTS: Loaded page $page (Has Next: ${nextPage != null})');
+          
+          // If loadAll is requested and there are more pages, load them
+          if (loadAll && nextPage != null && page < 6) { // Safety limit: max 6 pages for monthly data
+            final nextPageData = await getPaymentsByMonth(
+              year: year,
+              page: page + 1,
+              limit: limit,
+              excludeFields: excludeFields,
+              loadAll: true,
+            );
+            jsonList.addAll(nextPageData);
+          }
         } else if (responseData is List<dynamic>) {
           // Direct list response (fallback)
           jsonList = responseData;
+          print('📊 MONTHLY_PAYMENTS: Received direct list response with ${jsonList.length} monthly payments');
         } else {
           throw Exception('Unexpected response format');
         }

@@ -24,11 +24,17 @@ class MemberProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
-  Future<void> fetchMembers({bool forceRefresh = false}) async {
+  Future<void> fetchMembers({
+    bool forceRefresh = false,
+    bool loadAll = false,  // Whether to load all members or just summary
+    int page = 1,
+    int limit = 25,
+  }) async {
     // Check cache first
     if (!forceRefresh && _lastFetchTime != null && _members.isNotEmpty) {
       final timeSinceLastFetch = DateTime.now().difference(_lastFetchTime!);
       if (timeSinceLastFetch < _cacheDuration) {
+        print('👥 MEMBERS: Using cached data (${_members.length} items)');
         return; // Use cached data
       }
     }
@@ -38,8 +44,20 @@ class MemberProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      _members = await _apiService.getMembers();
+      if (loadAll) {
+        // Load all pages with optimized pagination
+        _members = await _apiService.getAllPaginatedData<Member>(
+          apiCall: (page, limit) => _apiService.getMembers(page: page, limit: limit),
+          maxPages: 5,  // Limit to 5 pages (125 members max)
+          pageSize: 25,
+        );
+      } else {
+        // Load single page for faster response
+        _members = await _apiService.getMembers(page: page, limit: limit);
+      }
+      
       _lastFetchTime = DateTime.now();
+      print('👥 MEMBERS: Loaded ${_members.length} members successfully');
       
       // Don't create mock data - use real backend data only
     } catch (e) {

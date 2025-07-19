@@ -63,22 +63,31 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       
       try {
-        // Load critical data first for faster UI response
+        print('🏠 HOME: Starting optimized data loading for dashboard...');
+        
+        // Load critical summary data first for faster UI response (only first page)
         if (mounted) {
-          await context.read<MemberProvider>().fetchMembers();
+          await context.read<MemberProvider>().fetchMembers(
+            loadAll: false,  // Just summary data for dashboard
+            limit: 10,       // Only 10 members for dashboard stats
+          );
         }
         
-        // Load non-critical data in parallel for better performance
+        // Load non-critical summary data in parallel for better performance
         if (mounted) {
           final futures = [
-            context.read<TrainerProvider>().fetchTrainers(),
-            context.read<EquipmentProvider>().fetchEquipment(),
+            // context.read<TrainerProvider>().fetchTrainers(),  // Update when TrainerProvider is optimized
+            context.read<EquipmentProvider>().fetchEquipment(
+              loadAll: false,  // Just summary data for dashboard
+            ),
             context.read<SubscriptionProvider>().fetchSubscriptionPlans(),
             context.read<PaymentProvider>().fetchRevenueAnalytics(),
           ];
           
           await Future.wait(futures, eagerError: false);
         }
+        
+        print('✅ HOME: Optimized dashboard data loading completed');
       } catch (e) {
         // Silently handle errors in production
         if (kDebugMode) print('HomeScreen data loading error: $e');
@@ -901,21 +910,27 @@ class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
 
   Future<void> _refreshData(BuildContext context) async {
-    print('🔄 DASHBOARD: Starting refresh...');
+    print('🔄 DASHBOARD: Starting optimized refresh...');
     
     // Show loading indicator
     try {
-      // Refresh all providers data
+      // Refresh providers data with optimized loading (summary data only for dashboard)
       await Future.wait([
-        context.read<MemberProvider>().fetchMembers(),
-        context.read<TrainerProvider>().fetchTrainers(),
-        context.read<EquipmentProvider>().fetchEquipment(),
+        context.read<MemberProvider>().fetchMembers(
+          forceRefresh: true,
+          loadAll: false,  // Just summary for dashboard
+          limit: 10,       // Only 10 items for dashboard stats
+        ),
+        // context.read<TrainerProvider>().fetchTrainers(), // Update when optimized
+        context.read<EquipmentProvider>().fetchEquipment(
+          loadAll: false,  // Just summary for dashboard
+        ),
         context.read<SubscriptionProvider>().fetchSubscriptionPlans(),
         context.read<PaymentProvider>().fetchRevenueAnalytics(),
         context.read<AttendanceProvider>().fetchAttendances(),
       ]);
       
-      print('✅ DASHBOARD: Refresh completed successfully');
+      print('✅ DASHBOARD: Optimized refresh completed successfully');
       
       // Show success feedback
       if (context.mounted) {
