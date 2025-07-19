@@ -22,8 +22,7 @@ from .models import (
 from .serializers import (
     UserSerializer, GymOwnerSerializer, MemberSerializer, TrainerSerializer, EquipmentSerializer,
     EquipmentListSerializer, GymOwnerMinimalSerializer, UserMinimalSerializer,
-    MemberListSerializer, TrainerListSerializer, SubscriptionPlanListSerializer,
-    MembershipPaymentListSerializer, AttendanceListSerializer,
+    MemberListSerializer, MembershipPaymentListSerializer,
     WorkoutPlanSerializer, ExerciseSerializer, WorkoutSessionSerializer,
     MembershipPaymentSerializer, AttendanceSerializer, SubscriptionPlanSerializer, MemberSubscriptionSerializer,
     TrainerMemberAssociationSerializer, NotificationSerializer
@@ -231,51 +230,12 @@ class MemberViewSet(viewsets.ModelViewSet):
 class TrainerViewSet(viewsets.ModelViewSet):
     serializer_class = TrainerSerializer
     permission_classes = [permissions.IsAuthenticated]
-    throttle_classes = [UserRateThrottle]
     
     def get_queryset(self):
-        # Filter trainers by gym owner with optimized queries
+        # Filter trainers by gym owner
         if hasattr(self.request.user, 'gymowner'):
-            return Trainer.objects.select_related('user', 'gym_owner').filter(
-                gym_owner=self.request.user.gymowner
-            ).order_by('-created_at')
+            return Trainer.objects.filter(gym_owner=self.request.user.gymowner)
         return Trainer.objects.none()
-    
-    def get_serializer_class(self):
-        """Use optimized serializer for list views to reduce response size"""
-        if self.action == 'list':
-            # Check if client wants minimal data
-            if self.request.query_params.get('minimal', 'false').lower() == 'true':
-                return TrainerListSerializer
-        return TrainerSerializer
-    
-    def list(self, request, *args, **kwargs):
-        """Optimized list with pagination to reduce response sizes"""
-        queryset = self.filter_queryset(self.get_queryset())
-        
-        # Handle pagination
-        page_size = min(int(request.query_params.get('page_size', 20)), 50)  # Max 50 per page
-        paginator = PageNumberPagination()
-        paginator.page_size = page_size
-        
-        page = paginator.paginate_queryset(queryset, request)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            paginated_response = paginator.get_paginated_response(serializer.data)
-            
-            # Log response size for monitoring
-            response_data = paginated_response.data
-            response_size = len(str(response_data).encode('utf-8'))
-            logger.info(f"Trainer API list response size: {response_size:,} bytes for {len(page)} items")
-            
-            return paginated_response
-        
-        serializer = self.get_serializer(queryset, many=True)
-        response_data = serializer.data
-        response_size = len(str(response_data).encode('utf-8'))
-        logger.info(f"Trainer API list response size: {response_size:,} bytes for {len(response_data)} items")
-        
-        return Response(response_data)
     
     def perform_create(self, serializer):
         # Automatically assign gym owner on creation
@@ -859,43 +819,6 @@ class MembershipPaymentViewSet(viewsets.ModelViewSet):
 class AttendanceViewSet(viewsets.ModelViewSet):
     serializer_class = AttendanceSerializer
     permission_classes = [permissions.IsAuthenticated]
-    throttle_classes = [UserRateThrottle]
-    
-    def get_serializer_class(self):
-        """Use optimized serializer for list views to reduce response size"""
-        if self.action == 'list':
-            # Check if client wants minimal data
-            if self.request.query_params.get('minimal', 'false').lower() == 'true':
-                return AttendanceListSerializer
-        return AttendanceSerializer
-    
-    def list(self, request, *args, **kwargs):
-        """Optimized list with pagination to reduce response sizes"""
-        queryset = self.filter_queryset(self.get_queryset())
-        
-        # Handle pagination
-        page_size = min(int(request.query_params.get('page_size', 30)), 100)  # Max 100 per page
-        paginator = PageNumberPagination()
-        paginator.page_size = page_size
-        
-        page = paginator.paginate_queryset(queryset, request)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            paginated_response = paginator.get_paginated_response(serializer.data)
-            
-            # Log response size for monitoring
-            response_data = paginated_response.data
-            response_size = len(str(response_data).encode('utf-8'))
-            logger.info(f"Attendance API list response size: {response_size:,} bytes for {len(page)} items")
-            
-            return paginated_response
-        
-        serializer = self.get_serializer(queryset, many=True)
-        response_data = serializer.data
-        response_size = len(str(response_data).encode('utf-8'))
-        logger.info(f"Attendance API list response size: {response_size:,} bytes for {len(response_data)} items")
-        
-        return Response(response_data)
     
     def get_queryset(self):
         # Filter attendance by gym owner and optionally by date
@@ -1178,51 +1101,12 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 class SubscriptionPlanViewSet(viewsets.ModelViewSet):
     serializer_class = SubscriptionPlanSerializer
     permission_classes = [permissions.IsAuthenticated]
-    throttle_classes = [UserRateThrottle]
     
     def get_queryset(self):
-        # Filter subscription plans by gym owner with optimized queries
+        # Filter subscription plans by gym owner
         if hasattr(self.request.user, 'gymowner'):
-            return SubscriptionPlan.objects.select_related('gym_owner').filter(
-                gym_owner=self.request.user.gymowner
-            ).order_by('-created_at')
+            return SubscriptionPlan.objects.filter(gym_owner=self.request.user.gymowner)
         return SubscriptionPlan.objects.none()
-    
-    def get_serializer_class(self):
-        """Use optimized serializer for list views to reduce response size"""
-        if self.action == 'list':
-            # Check if client wants minimal data
-            if self.request.query_params.get('minimal', 'false').lower() == 'true':
-                return SubscriptionPlanListSerializer
-        return SubscriptionPlanSerializer
-    
-    def list(self, request, *args, **kwargs):
-        """Optimized list with pagination to reduce response sizes"""
-        queryset = self.filter_queryset(self.get_queryset())
-        
-        # Handle pagination
-        page_size = min(int(request.query_params.get('page_size', 25)), 50)  # Max 50 per page
-        paginator = PageNumberPagination()
-        paginator.page_size = page_size
-        
-        page = paginator.paginate_queryset(queryset, request)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            paginated_response = paginator.get_paginated_response(serializer.data)
-            
-            # Log response size for monitoring
-            response_data = paginated_response.data
-            response_size = len(str(response_data).encode('utf-8'))
-            logger.info(f"SubscriptionPlan API list response size: {response_size:,} bytes for {len(page)} items")
-            
-            return paginated_response
-        
-        serializer = self.get_serializer(queryset, many=True)
-        response_data = serializer.data
-        response_size = len(str(response_data).encode('utf-8'))
-        logger.info(f"SubscriptionPlan API list response size: {response_size:,} bytes for {len(response_data)} items")
-        
-        return Response(response_data)
     
     def perform_create(self, serializer):
         # Automatically assign gym owner on creation
