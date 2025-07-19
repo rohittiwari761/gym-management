@@ -88,9 +88,16 @@ class GymOwnerSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(f"Error creating gym owner: {str(e)}")
 
 
+# Optimized User serializer for Member responses (excludes heavy data)
+class UserMinimalSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'first_name', 'last_name', 'email']  # Essential fields only
+
+
 class MemberSerializer(serializers.ModelSerializer):
-    user = UserSerializer(read_only=True)
-    gym_owner = GymOwnerSerializer(read_only=True)
+    user = UserMinimalSerializer(read_only=True)
+    gym_owner = GymOwnerMinimalSerializer(read_only=True)
     days_until_expiry = serializers.SerializerMethodField()
     
     class Meta:
@@ -102,11 +109,32 @@ class MemberSerializer(serializers.ModelSerializer):
         }
     
     def get_days_until_expiry(self, obj):
-        from datetime import date
         if obj.membership_expiry:
-            delta = obj.membership_expiry - date.today()
-            return max(0, delta.days)
-        return 0
+            from datetime import date
+            days_left = (obj.membership_expiry - date.today()).days
+            return days_left
+        return None
+
+
+# Super minimal Member serializer for list views (excludes heavy fields)
+class MemberListSerializer(serializers.ModelSerializer):
+    user = UserMinimalSerializer(read_only=True)
+    days_until_expiry = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Member
+        fields = [
+            'id', 'member_id', 'user', 'phone', 'membership_type',
+            'join_date', 'membership_expiry', 'is_active', 'days_until_expiry'
+        ]
+        # Exclude heavy fields: emergency_contact_*, address, medical_history, etc.
+    
+    def get_days_until_expiry(self, obj):
+        if obj.membership_expiry:
+            from datetime import date
+            days_left = (obj.membership_expiry - date.today()).days
+            return days_left
+        return None
     
     def create(self, validated_data):
         # Extract user data from request
@@ -156,8 +184,8 @@ class MemberSerializer(serializers.ModelSerializer):
 
 
 class TrainerSerializer(serializers.ModelSerializer):
-    user = UserSerializer(read_only=True)
-    gym_owner = GymOwnerSerializer(read_only=True)
+    user = UserMinimalSerializer(read_only=True)
+    gym_owner = GymOwnerMinimalSerializer(read_only=True)
     total_sessions = serializers.SerializerMethodField()
     
     class Meta:
@@ -167,6 +195,23 @@ class TrainerSerializer(serializers.ModelSerializer):
             'trainer_id': {'required': False, 'read_only': True},
             'gym_owner': {'read_only': True},
         }
+    
+    def get_total_sessions(self, obj):
+        return obj.workoutsession_set.filter(completed=True).count()
+
+
+# Super minimal Trainer serializer for list views (excludes heavy fields)
+class TrainerListSerializer(serializers.ModelSerializer):
+    user = UserMinimalSerializer(read_only=True)
+    total_sessions = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Trainer
+        fields = [
+            'id', 'trainer_id', 'user', 'phone', 'specialization',
+            'hourly_rate', 'is_available', 'total_sessions'
+        ]
+        # Exclude heavy fields: bio, certifications, experience_details, etc.
     
     def get_total_sessions(self, obj):
         return obj.workoutsession_set.filter(completed=True).count()
@@ -304,7 +349,7 @@ class WorkoutSessionSerializer(serializers.ModelSerializer):
 
 
 class SubscriptionPlanSerializer(serializers.ModelSerializer):
-    gym_owner = GymOwnerSerializer(read_only=True)
+    gym_owner = GymOwnerMinimalSerializer(read_only=True)
     duration_display = serializers.SerializerMethodField()
     active_subscribers = serializers.SerializerMethodField()
     
@@ -323,10 +368,26 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
         return obj.membersubscription_set.filter(status='active').count()
 
 
+# Super minimal SubscriptionPlan serializer for list views
+class SubscriptionPlanListSerializer(serializers.ModelSerializer):
+    duration_display = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = SubscriptionPlan
+        fields = [
+            'id', 'plan_id', 'name', 'price', 'duration_value', 'duration_type',
+            'duration_display', 'is_active'
+        ]
+        # Exclude heavy fields: description, terms_and_conditions, etc.
+    
+    def get_duration_display(self, obj):
+        return f"{obj.duration_value} {obj.get_duration_type_display()}"
+
+
 class MembershipPaymentSerializer(serializers.ModelSerializer):
-    member = MemberSerializer(read_only=True)
-    subscription_plan = SubscriptionPlanSerializer(read_only=True)
-    gym_owner = GymOwnerSerializer(read_only=True)
+    member = MemberListSerializer(read_only=True)
+    subscription_plan = SubscriptionPlanListSerializer(read_only=True)
+    gym_owner = GymOwnerMinimalSerializer(read_only=True)
     payment_method_display = serializers.CharField(source='get_payment_method_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     
@@ -337,6 +398,30 @@ class MembershipPaymentSerializer(serializers.ModelSerializer):
             'payment_id': {'required': False, 'read_only': True},
             'gym_owner': {'read_only': True},
         }
+
+
+# Super minimal Payment serializer for list views (excludes heavy nested data)
+class MembershipPaymentListSerializer(serializers.ModelSerializer):
+    member_name = serializers.SerializerMethodField()
+    plan_name = serializers.SerializerMethodField()
+    payment_method_display = serializers.CharField(source='get_payment_method_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    
+    class Meta:
+        model = MembershipPayment
+        fields = [
+            'id', 'payment_id', 'amount', 'payment_date', 'payment_method_display',
+            'status_display', 'member_name', 'plan_name', 'membership_months'
+        ]
+        # Exclude heavy fields: member object, subscription_plan object, notes, etc.
+    
+    def get_member_name(self, obj):
+        if obj.member and obj.member.user:
+            return f"{obj.member.user.first_name} {obj.member.user.last_name}"
+        return "Unknown Member"
+    
+    def get_plan_name(self, obj):
+        return obj.subscription_plan.name if obj.subscription_plan else "No Plan"
     
     def create(self, validated_data):
         # Extract member and subscription_plan IDs from request data
@@ -367,8 +452,8 @@ class MembershipPaymentSerializer(serializers.ModelSerializer):
 
 
 class AttendanceSerializer(serializers.ModelSerializer):
-    member = MemberSerializer(read_only=True)
-    gym_owner = GymOwnerSerializer(read_only=True)
+    member = MemberListSerializer(read_only=True)
+    gym_owner = GymOwnerMinimalSerializer(read_only=True)
     duration_display = serializers.SerializerMethodField()
     
     class Meta:
@@ -381,8 +466,36 @@ class AttendanceSerializer(serializers.ModelSerializer):
     
     def get_duration_display(self, obj):
         if obj.duration_hours:
-            return f"{obj.duration_hours} hours"
-        return "Not checked out"
+            hours = int(obj.duration_hours)
+            minutes = int((obj.duration_hours - hours) * 60)
+            return f"{hours}h {minutes}m"
+        return "In progress"
+
+
+# Super minimal Attendance serializer for list views (excludes heavy nested data)
+class AttendanceListSerializer(serializers.ModelSerializer):
+    member_name = serializers.SerializerMethodField()
+    duration_display = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Attendance
+        fields = [
+            'id', 'attendance_id', 'date', 'check_in_time', 'check_out_time',
+            'member_name', 'duration_display', 'qr_code_used'
+        ]
+        # Exclude heavy fields: member object, gym_owner object, notes, etc.
+    
+    def get_member_name(self, obj):
+        if obj.member and obj.member.user:
+            return f"{obj.member.user.first_name} {obj.member.user.last_name}"
+        return "Unknown Member"
+    
+    def get_duration_display(self, obj):
+        if obj.duration_hours:
+            hours = int(obj.duration_hours)
+            minutes = int((obj.duration_hours - hours) * 60)
+            return f"{hours}h {minutes}m"
+        return "In progress"
 
 
 class MemberSubscriptionSerializer(serializers.ModelSerializer):

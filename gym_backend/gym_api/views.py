@@ -20,7 +20,9 @@ from .models import (
 )
 from .serializers import (
     UserSerializer, GymOwnerSerializer, MemberSerializer, TrainerSerializer, EquipmentSerializer,
-    EquipmentListSerializer, GymOwnerMinimalSerializer,
+    EquipmentListSerializer, GymOwnerMinimalSerializer, UserMinimalSerializer,
+    MemberListSerializer, TrainerListSerializer, SubscriptionPlanListSerializer,
+    MembershipPaymentListSerializer, AttendanceListSerializer,
     WorkoutPlanSerializer, ExerciseSerializer, WorkoutSessionSerializer,
     MembershipPaymentSerializer, AttendanceSerializer, SubscriptionPlanSerializer, MemberSubscriptionSerializer,
     TrainerMemberAssociationSerializer, NotificationSerializer
@@ -85,6 +87,49 @@ class MemberViewSet(viewsets.ModelViewSet):
             ).order_by('-created_at')
         return Member.objects.none()
     
+    def get_serializer_class(self):
+        """Use optimized serializer for list views to reduce response size"""
+        if self.action == 'list':
+            # Check if client wants minimal data
+            if self.request.query_params.get('minimal', 'false').lower() == 'true':
+                return MemberListSerializer
+        return MemberSerializer
+    
+    def list(self, request, *args, **kwargs):
+        """Optimized list with pagination to reduce response sizes"""
+        queryset = self.filter_queryset(self.get_queryset())
+        
+        # Apply pagination with small page size by default
+        page_size = int(request.query_params.get('page_size', 25))  # Default 25 items
+        page_size = min(page_size, 100)  # Max 100 items per page
+        
+        # Manual pagination to control response size
+        page = int(request.query_params.get('page', 1))
+        start = (page - 1) * page_size
+        end = start + page_size
+        
+        total_count = queryset.count()
+        queryset = queryset[start:end]
+        
+        # Use minimal serializer by default for list views
+        serializer_class = self.get_serializer_class()
+        serializer = serializer_class(queryset, many=True, context={'request': request})
+        
+        # Calculate response size estimate
+        import sys
+        response_size_kb = sys.getsizeof(str(serializer.data)) / 1024
+        
+        logger.info(f'Member list response: {len(queryset)} items, ~{response_size_kb:.1f}KB')
+        
+        return Response({
+            'count': total_count,
+            'page': page,
+            'page_size': page_size,
+            'total_pages': (total_count + page_size - 1) // page_size,
+            'response_size_kb': round(response_size_kb, 1),
+            'results': serializer.data
+        })
+    
     def perform_create(self, serializer):
         # Automatically assign gym owner on creation
         if hasattr(self.request.user, 'gymowner'):
@@ -120,28 +165,65 @@ class MemberViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def active_members(self, request):
-        # Get active members for current gym
+        # Get active members for current gym with pagination
         if hasattr(request.user, 'gymowner'):
             members = Member.objects.filter(
                 gym_owner=request.user.gymowner,
                 is_active=True
-            )
-            serializer = self.get_serializer(members, many=True)
-            return Response(serializer.data)
+            ).select_related('user')
+            
+            # Apply pagination
+            page_size = int(request.query_params.get('page_size', 25))
+            page_size = min(page_size, 100)
+            
+            page = int(request.query_params.get('page', 1))
+            start = (page - 1) * page_size
+            end = start + page_size
+            
+            total_count = members.count()
+            members = members[start:end]
+            
+            serializer = MemberListSerializer(members, many=True, context={'request': request})
+            return Response({
+                'count': total_count,
+                'page': page,
+                'page_size': page_size,
+                'total_pages': (total_count + page_size - 1) // page_size,
+                'results': serializer.data
+            })
         return Response({'error': 'User must be a gym owner'}, status=status.HTTP_403_FORBIDDEN)
     
     @action(detail=False, methods=['get'])
     def expiring_memberships(self, request):
-        # Get members with expiring memberships
+        # Get members with expiring memberships with pagination
         if hasattr(request.user, 'gymowner'):
             expiry_date = timezone.now().date() + timedelta(days=7)
             members = Member.objects.filter(
                 gym_owner=request.user.gymowner,
                 is_active=True,
                 membership_expiry__lte=expiry_date
-            )
-            serializer = self.get_serializer(members, many=True)
-            return Response(serializer.data)
+            ).select_related('user')
+            
+            # Apply pagination
+            page_size = int(request.query_params.get('page_size', 25))
+            page_size = min(page_size, 100)
+            
+            page = int(request.query_params.get('page', 1))
+            start = (page - 1) * page_size
+            end = start + page_size
+            
+            total_count = members.count()
+            members = members[start:end]
+            
+            serializer = MemberListSerializer(members, many=True, context={'request': request})
+            return Response({
+                'count': total_count,
+                'expiry_date': expiry_date.isoformat(),
+                'page': page,
+                'page_size': page_size,
+                'total_pages': (total_count + page_size - 1) // page_size,
+                'results': serializer.data
+            })
         return Response({'error': 'User must be a gym owner'}, status=status.HTTP_403_FORBIDDEN)
 
 
