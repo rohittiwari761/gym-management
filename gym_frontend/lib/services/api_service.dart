@@ -489,32 +489,15 @@ class ApiService {
     List<String>? excludeFields,
   }) async {
     try {
-      // Build query parameters to reduce response size
+      // Build query parameters for new optimized backend API
       final queryParams = <String, dynamic>{
         'page': page.toString(),
-        'limit': limit.toString(),
+        'page_size': limit.toString(),  // Backend expects 'page_size' not 'limit'
       };
       
-      // Comprehensive field exclusion to reduce response size from 12MB to <1MB
-      List<String> fieldsToExclude = [];
-      
+      // Use minimal serializer for maximum performance (new backend feature)
       if (excludeImages) {
-        fieldsToExclude.addAll(['image', 'image_data', 'image_url', 'photos', 'gallery']);
-      }
-      
-      if (excludeFields != null) {
-        fieldsToExclude.addAll(excludeFields);
-      } else {
-        // Default heavy fields to exclude for list view
-        fieldsToExclude.addAll([
-          'detailed_description', 'manual_pdf', 'warranty_documents',
-          'maintenance_history', 'repair_logs', 'user_manuals',
-          'specifications_json', 'technical_specs', 'installation_notes'
-        ]);
-      }
-      
-      if (fieldsToExclude.isNotEmpty) {
-        queryParams['exclude'] = fieldsToExclude.join(',');
+        queryParams['minimal'] = 'true';
       }
       
       // Filter by status if provided
@@ -522,7 +505,7 @@ class ApiService {
         queryParams['status'] = status.toLowerCase();
       }
       
-      print('🔧 EQUIPMENT: Requesting page $page with limit $limit (exclude: ${fieldsToExclude.length} fields)');
+      print('🔧 EQUIPMENT: Requesting page $page with page_size $limit (minimal: ${excludeImages ? 'true' : 'false'})');
       
       final response = await _httpClient.get(
         'equipment/', 
@@ -536,12 +519,20 @@ class ApiService {
         List<dynamic> jsonList;
         
         if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
-          // Paginated response from Django REST Framework
+          // New optimized paginated response from backend
           jsonList = responseData['results'] as List<dynamic>;
           final totalCount = responseData['count'] ?? jsonList.length;
-          print('✅ EQUIPMENT: Loaded ${jsonList.length} items (Total: $totalCount)');
+          final currentPage = responseData['page'] ?? page;
+          final pageSize = responseData['page_size'] ?? limit;
+          final totalPages = responseData['total_pages'] ?? 1;
+          final responseSizeKb = responseData['response_size_kb'];
+          
+          print('✅ EQUIPMENT: Loaded ${jsonList.length} items (Page: $currentPage/$totalPages, Total: $totalCount)');
+          if (responseSizeKb != null) {
+            print('📊 EQUIPMENT: Response size: ${responseSizeKb}KB (target: <1MB per request)');
+          }
         } else if (responseData is List<dynamic>) {
-          // Direct list response (fallback)
+          // Direct list response (fallback for older API)
           jsonList = responseData;
           print('✅ EQUIPMENT: Loaded ${jsonList.length} items (direct list)');
         } else {
@@ -560,31 +551,17 @@ class ApiService {
 
   Future<List<Equipment>> getWorkingEquipment({
     int page = 1,
-    int limit = 12,  // Reduced limit for working equipment
+    int limit = 15,  // Optimized limit for working equipment
     List<String>? excludeFields,
   }) async {
     try {
-      // Build query parameters to optimize response size
+      // Build query parameters for optimized backend API
       final queryParams = <String, dynamic>{
         'page': page.toString(),
-        'limit': limit.toString(),
+        'page_size': limit.toString(),  // Backend expects 'page_size'
       };
       
-      // Comprehensive field exclusion for working equipment list
-      List<String> fieldsToExclude = [
-        'image', 'image_data', 'image_url', 'photos', 'gallery',
-        'detailed_description', 'manual_pdf', 'warranty_documents',
-        'maintenance_history', 'repair_logs', 'user_manuals',
-        'specifications_json', 'technical_specs', 'installation_notes'
-      ];
-      
-      if (excludeFields != null) {
-        fieldsToExclude.addAll(excludeFields);
-      }
-      
-      queryParams['exclude'] = fieldsToExclude.join(',');
-      
-      print('🔧 WORKING_EQUIPMENT: Requesting page $page with limit $limit (exclude: ${fieldsToExclude.length} fields)');
+      print('🔧 WORKING_EQUIPMENT: Requesting page $page with page_size $limit');
 
       final response = await _httpClient.get(
         'equipment/working/', 
@@ -598,13 +575,16 @@ class ApiService {
         List<dynamic> jsonList;
         
         if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
-          // Paginated response from Django REST Framework
+          // New optimized paginated response from backend
           jsonList = responseData['results'] as List<dynamic>;
           final totalCount = responseData['count'] ?? jsonList.length;
-          final nextPage = responseData['next'];
-          print('✅ WORKING_EQUIPMENT: Loaded ${jsonList.length} items (Total: $totalCount, Has Next: ${nextPage != null})');
+          final currentPage = responseData['page'] ?? page;
+          final pageSize = responseData['page_size'] ?? limit;
+          final totalPages = responseData['total_pages'] ?? 1;
+          
+          print('✅ WORKING_EQUIPMENT: Loaded ${jsonList.length} items (Page: $currentPage/$totalPages, Total: $totalCount)');
         } else if (responseData is List<dynamic>) {
-          // Direct list response (fallback)
+          // Direct list response (fallback for older API)
           jsonList = responseData;
           print('✅ WORKING_EQUIPMENT: Loaded ${jsonList.length} items (direct list)');
         } else {
