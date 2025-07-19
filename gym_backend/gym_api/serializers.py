@@ -541,9 +541,9 @@ class AttendanceListSerializer(serializers.ModelSerializer):
 
 
 class MemberSubscriptionSerializer(serializers.ModelSerializer):
-    member = MemberSerializer(read_only=True)
-    subscription_plan = SubscriptionPlanSerializer(read_only=True)
-    gym_owner = GymOwnerSerializer(read_only=True)
+    member = MemberListSerializer(read_only=True)  # Use minimal member serializer
+    subscription_plan = SubscriptionPlanListSerializer(read_only=True)  # Use minimal plan serializer
+    gym_owner = GymOwnerMinimalSerializer(read_only=True)  # Use minimal gym owner serializer
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     is_active = serializers.BooleanField(read_only=True)
     is_expired = serializers.BooleanField(read_only=True)
@@ -553,6 +553,33 @@ class MemberSubscriptionSerializer(serializers.ModelSerializer):
     class Meta:
         model = MemberSubscription
         fields = '__all__'
+
+
+# Super minimal MemberSubscription serializer for list views (excludes heavy nested data)
+class MemberSubscriptionListSerializer(serializers.ModelSerializer):
+    member_name = serializers.SerializerMethodField()
+    plan_name = serializers.SerializerMethodField()
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    days_remaining = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = MemberSubscription
+        fields = [
+            'id', 'subscription_id', 'start_date', 'end_date', 'status_display',
+            'member_name', 'plan_name', 'amount_paid', 'payment_method', 'days_remaining'
+        ]
+        # Exclude heavy fields: full member object, full subscription_plan object, gym_owner object, etc.
+    
+    def get_member_name(self, obj):
+        if obj.member and obj.member.user:
+            return f"{obj.member.user.first_name} {obj.member.user.last_name}"
+        return "Unknown Member"
+    
+    def get_plan_name(self, obj):
+        return obj.subscription_plan.name if obj.subscription_plan else "No Plan"
+    
+    def get_days_remaining(self, obj):
+        return obj.days_remaining if hasattr(obj, 'days_remaining') else 0
 
 
 class WorkoutPlanSerializer(serializers.ModelSerializer):
