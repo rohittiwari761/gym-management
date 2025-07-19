@@ -95,6 +95,13 @@ class UserMinimalSerializer(serializers.ModelSerializer):
         fields = ['id', 'first_name', 'last_name', 'email']  # Essential fields only
 
 
+# Optimized GymOwner serializer for Equipment responses (excludes heavy data)
+class GymOwnerMinimalSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GymOwner
+        fields = ['id', 'gym_name']  # Only essential fields
+
+
 class MemberSerializer(serializers.ModelSerializer):
     user = UserMinimalSerializer(read_only=True)
     gym_owner = GymOwnerMinimalSerializer(read_only=True)
@@ -261,13 +268,6 @@ class TrainerListSerializer(serializers.ModelSerializer):
             
         except Exception as e:
             raise serializers.ValidationError(f"Error creating trainer: {str(e)}")
-
-
-# Optimized GymOwner serializer for Equipment responses (excludes heavy data)
-class GymOwnerMinimalSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = GymOwner
-        fields = ['id', 'gym_name']  # Only essential fields
 
 
 class EquipmentSerializer(serializers.ModelSerializer):
