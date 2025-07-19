@@ -2,6 +2,7 @@ from rest_framework import viewsets, status, permissions, serializers
 from rest_framework.decorators import action, throttle_classes
 from rest_framework.response import Response
 from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
+from rest_framework.pagination import PageNumberPagination
 from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404
 from django.db.models import Q, Count, Sum, Prefetch, F, Avg
@@ -254,7 +255,7 @@ class TrainerViewSet(viewsets.ModelViewSet):
         
         # Handle pagination
         page_size = min(int(request.query_params.get('page_size', 20)), 50)  # Max 50 per page
-        paginator = self.pagination_class()
+        paginator = PageNumberPagination()
         paginator.page_size = page_size
         
         page = paginator.paginate_queryset(queryset, request)
@@ -874,7 +875,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         
         # Handle pagination
         page_size = min(int(request.query_params.get('page_size', 30)), 100)  # Max 100 per page
-        paginator = self.pagination_class()
+        paginator = PageNumberPagination()
         paginator.page_size = page_size
         
         page = paginator.paginate_queryset(queryset, request)
@@ -1201,7 +1202,7 @@ class SubscriptionPlanViewSet(viewsets.ModelViewSet):
         
         # Handle pagination
         page_size = min(int(request.query_params.get('page_size', 25)), 50)  # Max 50 per page
-        paginator = self.pagination_class()
+        paginator = PageNumberPagination()
         paginator.page_size = page_size
         
         page = paginator.paginate_queryset(queryset, request)
