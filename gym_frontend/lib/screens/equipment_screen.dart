@@ -122,11 +122,6 @@ class _EquipmentScreenState extends State<EquipmentScreen> with SingleTickerProv
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddEquipmentDialog(),
-        child: const Icon(Icons.add),
-        tooltip: 'Add Equipment',
-      ),
     );
   }
 

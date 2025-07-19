@@ -15,11 +15,11 @@ class User {
 
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
-      id: json['id'],
-      username: json['username'],
-      email: json['email'],
-      firstName: json['first_name'],
-      lastName: json['last_name'],
+      id: json['id'] ?? 0,
+      username: json['username'] ?? '',
+      email: json['email'] ?? '',
+      firstName: json['first_name'] ?? '',
+      lastName: json['last_name'] ?? '',
     );
   }
 
@@ -73,7 +73,9 @@ class Member {
       dateOfBirth: json['date_of_birth'] != null ? DateTime.parse(json['date_of_birth']) : null,
       membershipType: json['membership_type'] ?? '',
       joinDate: json['join_date'] != null ? DateTime.parse(json['join_date']) : null,
-      membershipExpiry: DateTime.parse(json['membership_expiry']),
+      membershipExpiry: json['membership_expiry'] != null 
+          ? DateTime.parse(json['membership_expiry'])
+          : DateTime.now().add(Duration(days: 30)), // Fallback for missing expiry
       isActive: json['is_active'] ?? true,
       emergencyContactName: json['emergency_contact_name'],
       emergencyContactPhone: json['emergency_contact_phone'],

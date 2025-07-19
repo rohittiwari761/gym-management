@@ -128,6 +128,9 @@ class ApiService {
         final responseData = response.data;
         List<dynamic> jsonList;
         
+        print('🔍 MEMBERS: Response data type: ${responseData.runtimeType}');
+        print('🔍 MEMBERS: Response data: ${responseData.toString()}');
+        
         if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
           // Paginated response from Django REST Framework
           jsonList = responseData['results'] as List<dynamic>;
@@ -139,7 +142,8 @@ class ApiService {
           jsonList = responseData;
           print('✅ MEMBERS: Loaded ${jsonList.length} items (direct list)');
         } else {
-          throw Exception('Unexpected response format');
+          print('❌ MEMBERS: Unexpected response format: ${responseData.runtimeType}');
+          throw Exception('Unexpected response format: expected Map with results or List, got ${responseData.runtimeType}');
         }
         
         SecurityConfig.logSecurityEvent('MEMBERS_LOADED', {
@@ -147,7 +151,24 @@ class ApiService {
           'page': page,
           'limit': limit,
         });
-        return jsonList.map((json) => Member.fromJson(json)).toList();
+        
+        // Parse each member individually with error handling
+        final List<Member> members = [];
+        for (int i = 0; i < jsonList.length; i++) {
+          try {
+            final memberJson = jsonList[i];
+            print('🔍 MEMBERS: Parsing member $i: ${memberJson.toString()}');
+            final member = Member.fromJson(memberJson);
+            members.add(member);
+          } catch (e) {
+            print('❌ MEMBERS: Failed to parse member $i: $e');
+            print('❌ MEMBERS: Member JSON: ${jsonList[i]}');
+            // Continue parsing other members, skip the problematic one
+          }
+        }
+        
+        print('✅ MEMBERS: Successfully parsed ${members.length}/${jsonList.length} members');
+        return members;
       } else {
         throw Exception(response.errorMessage ?? 'Failed to load members');
       }
@@ -656,6 +677,7 @@ class ApiService {
   /// Delete equipment
   Future<bool> deleteEquipment(int equipmentId) async {
     try {
+      print('🌐 API: Attempting to delete equipment ID: $equipmentId');
       SecurityConfig.logSecurityEvent('API_REQUEST', {
         'endpoint': 'equipment/$equipmentId',
         'method': 'DELETE',
@@ -666,15 +688,24 @@ class ApiService {
         requireAuth: true,
       );
 
+      print('🌐 API: Delete response status: ${response.statusCode}');
+      print('🌐 API: Delete response success: ${response.isSuccess}');
+      if (response.errorMessage != null) {
+        print('🌐 API: Delete error message: ${response.errorMessage}');
+      }
+
       if (response.isSuccess) {
         SecurityConfig.logSecurityEvent('EQUIPMENT_DELETED', {
           'equipment_id': equipmentId,
         });
+        print('✅ API: Equipment $equipmentId deleted successfully');
         return true;
       } else {
+        print('❌ API: Failed to delete equipment $equipmentId - Status: ${response.statusCode}');
         return false;
       }
     } catch (e) {
+      print('❌ API: Exception during equipment deletion: $e');
       return false;
     }
   }

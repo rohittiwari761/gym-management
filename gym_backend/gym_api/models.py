@@ -485,78 +485,109 @@ class MembershipPayment(models.Model):
         
         if not self.payment_id:
             # Generate unique payment ID for this gym
-            last_payment = MembershipPayment.objects.filter(gym_owner=self.gym_owner).order_by('-id').first()
-            if last_payment and last_payment.payment_id and last_payment.payment_id.startswith('PAY-'):
-                try:
-                    last_num = int(last_payment.payment_id.split('-')[-1])
-                    self.payment_id = f"PAY-{last_num + 1:04d}"
-                except (ValueError, IndexError):
-                    # Fallback if payment_id format is unexpected
-                    self.payment_id = f"PAY-{MembershipPayment.objects.filter(gym_owner=self.gym_owner).count() + 1:04d}"
-            else:
-                self.payment_id = "PAY-0001"
-            
-            # Ensure uniqueness within this gym
-            counter = 1
-            base_payment_id = self.payment_id
-            while MembershipPayment.objects.filter(gym_owner=self.gym_owner, payment_id=self.payment_id).exists():
-                self.payment_id = f"PAY-{int(base_payment_id.split('-')[-1]) + counter:04d}"
-                counter += 1
+            try:
+                last_payment = MembershipPayment.objects.filter(gym_owner=self.gym_owner).order_by('-id').first()
+                if last_payment and last_payment.payment_id and last_payment.payment_id.startswith('PAY-'):
+                    try:
+                        last_num = int(last_payment.payment_id.split('-')[-1])
+                        self.payment_id = f"PAY-{last_num + 1:04d}"
+                    except (ValueError, IndexError):
+                        # Fallback if payment_id format is unexpected
+                        count = MembershipPayment.objects.filter(gym_owner=self.gym_owner).count()
+                        self.payment_id = f"PAY-{count + 1:04d}"
+                else:
+                    self.payment_id = "PAY-0001"
+                
+                # Ensure uniqueness within this gym with safe parsing
+                counter = 1
+                base_payment_id = self.payment_id
+                while MembershipPayment.objects.filter(gym_owner=self.gym_owner, payment_id=self.payment_id).exists():
+                    try:
+                        base_num = int(base_payment_id.split('-')[-1])
+                        self.payment_id = f"PAY-{base_num + counter:04d}"
+                    except (ValueError, IndexError):
+                        # Fallback for unexpected format
+                        count = MembershipPayment.objects.filter(gym_owner=self.gym_owner).count()
+                        self.payment_id = f"PAY-{count + counter:04d}"
+                    counter += 1
+                    
+                    # Safety break to prevent infinite loop
+                    if counter > 9999:
+                        import uuid
+                        self.payment_id = f"PAY-{str(uuid.uuid4())[:8].upper()}"
+                        break
+                        
+            except Exception as e:
+                # Ultimate fallback if anything goes wrong
+                import uuid
+                self.payment_id = f"PAY-{str(uuid.uuid4())[:8].upper()}"
+                print(f"⚠️ PAYMENT: Error generating payment_id, using UUID fallback: {e}")
         
         super().save(*args, **kwargs)
         
-        # Auto-extend membership when payment is created
+        # Auto-extend membership when payment is created (with error handling)
         if is_new and self.member and self.membership_months and self.status == 'completed':
-            print(f'💳 PAYMENT: Auto-extending membership for payment ID {self.id}')
-            print(f'💳 PAYMENT: Member: {self.member.user.get_full_name()}')
-            print(f'💳 PAYMENT: Membership months: {self.membership_months}')
-            print(f'💳 PAYMENT: Current member expiry: {self.member.membership_expiry}')
-            
-            from datetime import timedelta
-            from django.utils import timezone
-            
-            member = self.member
-            today = timezone.now().date()
-            
-            # Calculate new expiry date
-            if member.membership_expiry and member.membership_expiry > today:
-                # Extend from current expiry date if still valid
-                new_expiry = member.membership_expiry + timedelta(days=self.membership_months * 30)
-                print(f'💳 PAYMENT: Extending membership from {member.membership_expiry} to {new_expiry}')
-            else:
-                # Start from today if membership is expired
-                new_expiry = today + timedelta(days=self.membership_months * 30)
-                print(f'💳 PAYMENT: Starting new membership from {today} to {new_expiry}')
-            
-            # Update member's expiry date and reactivate if needed
-            member.membership_expiry = new_expiry
-            if not member.is_active:
-                member.is_active = True
-                print(f'💳 PAYMENT: Reactivating member {member.user.get_full_name()}')
-            
-            member.save()
-            
-            # Create or update MemberSubscription if subscription_plan is specified
-            if self.subscription_plan:
-                member_subscription, created = MemberSubscription.objects.get_or_create(
-                    member=member,
-                    subscription_plan=self.subscription_plan,
-                    defaults={
-                        'gym_owner': self.gym_owner,
-                        'start_date': member.membership_expiry - timedelta(days=self.membership_months * 30),
-                        'end_date': member.membership_expiry,
-                        'status': 'active',
-                        'amount_paid': self.amount,
-                        'payment_method': self.payment_method
-                    }
-                )
-                if not created:
-                    # Update existing subscription
-                    member_subscription.end_date = member.membership_expiry
-                    member_subscription.status = 'active'
-                    member_subscription.save()
-            
-            print(f'✅ PAYMENT: Member {member.user.get_full_name()} membership extended to {new_expiry}')
+            try:
+                print(f'💳 PAYMENT: Auto-extending membership for payment ID {self.id}')
+                member_name = self.member.user.get_full_name() if self.member.user else 'Unknown Member'
+                print(f'💳 PAYMENT: Member: {member_name}')
+                print(f'💳 PAYMENT: Membership months: {self.membership_months}')
+                print(f'💳 PAYMENT: Current member expiry: {self.member.membership_expiry}')
+                
+                from datetime import timedelta
+                from django.utils import timezone
+                
+                member = self.member
+                today = timezone.now().date()
+                
+                # Calculate new expiry date
+                if member.membership_expiry and member.membership_expiry > today:
+                    # Extend from current expiry date if still valid
+                    new_expiry = member.membership_expiry + timedelta(days=self.membership_months * 30)
+                    print(f'💳 PAYMENT: Extending membership from {member.membership_expiry} to {new_expiry}')
+                else:
+                    # Start from today if membership is expired
+                    new_expiry = today + timedelta(days=self.membership_months * 30)
+                    print(f'💳 PAYMENT: Starting new membership from {today} to {new_expiry}')
+                
+                # Update member's expiry date and reactivate if needed
+                member.membership_expiry = new_expiry
+                if not member.is_active:
+                    member.is_active = True
+                    print(f'💳 PAYMENT: Reactivating member {member_name}')
+                
+                member.save()
+                
+                # Create or update MemberSubscription if subscription_plan is specified
+                if self.subscription_plan:
+                    try:
+                        member_subscription, created = MemberSubscription.objects.get_or_create(
+                            member=member,
+                            subscription_plan=self.subscription_plan,
+                            defaults={
+                                'gym_owner': self.gym_owner,
+                                'start_date': new_expiry - timedelta(days=self.membership_months * 30),
+                                'end_date': new_expiry,
+                                'status': 'active',
+                                'amount_paid': self.amount,
+                                'payment_method': self.payment_method
+                            }
+                        )
+                        if not created:
+                            # Update existing subscription
+                            member_subscription.end_date = new_expiry
+                            member_subscription.status = 'active'
+                            member_subscription.save()
+                        print(f'💳 PAYMENT: {"Created" if created else "Updated"} subscription for {member_name}')
+                    except Exception as sub_error:
+                        print(f'⚠️ PAYMENT: Subscription creation/update failed: {sub_error}')
+                        # Don't fail the payment if subscription fails
+                
+                print(f'✅ PAYMENT: Member {member_name} membership extended to {new_expiry}')
+                
+            except Exception as membership_error:
+                print(f'⚠️ PAYMENT: Membership extension failed: {membership_error}')
+                # Don't fail the payment if membership extension fails
         
         # Invalidate revenue analytics cache when payment is created/updated
         from django.core.cache import cache

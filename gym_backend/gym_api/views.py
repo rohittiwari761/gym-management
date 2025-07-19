@@ -616,58 +616,26 @@ class MembershipPaymentViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         # Automatically assign gym owner on creation and extend membership
         if hasattr(self.request.user, 'gymowner'):
-            payment = serializer.save(gym_owner=self.request.user.gymowner)
-            
-            print(f'💳 PAYMENT: Created payment ID {payment.id} for member {payment.member.user.get_full_name()}')
-            print(f'💳 PAYMENT: Membership months: {payment.membership_months}')
-            print(f'💳 PAYMENT: Amount: {payment.amount}')
-            print(f'💳 PAYMENT: Current member expiry: {payment.member.membership_expiry}')
-            
-            # Extend member's membership expiry based on payment
-            if payment.member and payment.membership_months:
-                member = payment.member
-                today = timezone.now().date()
+            try:
+                payment = serializer.save(gym_owner=self.request.user.gymowner)
                 
-                # Calculate new expiry date
-                if member.membership_expiry and member.membership_expiry > today:
-                    # Extend from current expiry date if still valid
-                    new_expiry = member.membership_expiry + timedelta(days=payment.membership_months * 30)
-                    print(f'💳 PAYMENT: Extending membership from {member.membership_expiry} to {new_expiry}')
-                else:
-                    # Start from today if membership is expired
-                    new_expiry = today + timedelta(days=payment.membership_months * 30)
-                    print(f'💳 PAYMENT: Starting new membership from {today} to {new_expiry}')
+                # Safe logging with null checks
+                member_name = 'Unknown Member'
+                if payment.member and payment.member.user:
+                    member_name = payment.member.user.get_full_name() or f"User ID: {payment.member.user.id}"
                 
-                # Update member's expiry date and reactivate if needed
-                member.membership_expiry = new_expiry
-                if not member.is_active:
-                    member.is_active = True
-                    print(f'💳 PAYMENT: Reactivating member {member.user.get_full_name()}')
+                print(f'💳 PAYMENT: Created payment ID {payment.id} for member {member_name}')
+                print(f'💳 PAYMENT: Membership months: {payment.membership_months}')
+                print(f'💳 PAYMENT: Amount: {payment.amount}')
                 
-                member.save()
-                
-                # Create or update MemberSubscription
-                subscription_plan = payment.subscription_plan
-                if subscription_plan:
-                    member_subscription, created = MemberSubscription.objects.get_or_create(
-                        member=member,
-                        subscription_plan=subscription_plan,
-                        defaults={
-                            'gym_owner': self.request.user.gymowner,
-                            'start_date': member.membership_expiry - timedelta(days=payment.membership_months * 30),
-                            'end_date': member.membership_expiry,
-                            'status': 'active',
-                            'amount_paid': payment.amount,
-                            'payment_method': payment.payment_method
-                        }
-                    )
-                    if not created:
-                        # Update existing subscription
-                        member_subscription.end_date = member.membership_expiry
-                        member_subscription.status = 'active'
-                        member_subscription.save()
-                
-                print(f'✅ PAYMENT: Member {member.user.get_full_name()} membership extended to {new_expiry}')
+                # Note: Membership extension is handled automatically in the MembershipPayment model's save method
+                print(f'✅ PAYMENT: Payment created successfully, membership extension handled by model')
+                    
+            except Exception as e:
+                print(f'❌ PAYMENT: Error in perform_create: {str(e)}')
+                import traceback
+                print(f'❌ PAYMENT: Traceback: {traceback.format_exc()}')
+                raise serializers.ValidationError(f"Payment creation failed: {str(e)}")
         else:
             raise serializers.ValidationError("User must be a gym owner to create payments")
     

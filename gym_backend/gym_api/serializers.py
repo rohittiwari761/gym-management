@@ -430,25 +430,67 @@ class MembershipPaymentListSerializer(serializers.ModelSerializer):
         subscription_plan_id = request.data.get('subscription_plan')
         gym_owner_id = request.data.get('gym_owner')
         
+        print(f'💳 SERIALIZER: Creating payment with data: {request.data}')
+        print(f'💳 SERIALIZER: Member ID: {member_id}')
+        print(f'💳 SERIALIZER: Subscription Plan ID: {subscription_plan_id}')
+        print(f'💳 SERIALIZER: Gym Owner ID: {gym_owner_id}')
+        print(f'💳 SERIALIZER: Validated data: {validated_data}')
+        
+        # Ensure we have the current gym owner if gym_owner_id is not provided
         if gym_owner_id:
             try:
                 validated_data['gym_owner'] = GymOwner.objects.get(id=gym_owner_id)
+                print(f'💳 SERIALIZER: Using provided gym owner ID: {gym_owner_id}')
             except GymOwner.DoesNotExist:
+                print(f'❌ SERIALIZER: Gym owner with id {gym_owner_id} does not exist')
                 raise serializers.ValidationError(f"Gym owner with id {gym_owner_id} does not exist")
+        elif hasattr(request.user, 'gymowner'):
+            validated_data['gym_owner'] = request.user.gymowner
+            print(f'💳 SERIALIZER: Using authenticated user gym owner: {request.user.gymowner.id}')
+        else:
+            print('❌ SERIALIZER: No gym owner found in request or user')
+            raise serializers.ValidationError("No gym owner found. User must be a gym owner.")
         
         if member_id:
             try:
-                validated_data['member'] = Member.objects.get(id=member_id)
+                # Ensure member belongs to the same gym owner for security
+                member = Member.objects.get(
+                    id=member_id, 
+                    gym_owner=validated_data['gym_owner']
+                )
+                validated_data['member'] = member
+                print(f'💳 SERIALIZER: Member found: {member.user.get_full_name() if member.user else "Unknown"}')
             except Member.DoesNotExist:
-                raise serializers.ValidationError(f"Member with id {member_id} does not exist")
+                print(f'❌ SERIALIZER: Member with id {member_id} does not exist for this gym')
+                raise serializers.ValidationError(f"Member with id {member_id} does not exist or does not belong to your gym")
+        else:
+            print('❌ SERIALIZER: Member ID is required but not provided')
+            raise serializers.ValidationError("Member ID is required")
         
         if subscription_plan_id:
             try:
-                validated_data['subscription_plan'] = SubscriptionPlan.objects.get(id=subscription_plan_id)
+                # Ensure subscription plan belongs to the same gym owner for security
+                subscription_plan = SubscriptionPlan.objects.get(
+                    id=subscription_plan_id,
+                    gym_owner=validated_data['gym_owner']
+                )
+                validated_data['subscription_plan'] = subscription_plan
+                print(f'💳 SERIALIZER: Subscription plan found: {subscription_plan.name}')
             except SubscriptionPlan.DoesNotExist:
-                raise serializers.ValidationError(f"Subscription plan with id {subscription_plan_id} does not exist")
+                print(f'❌ SERIALIZER: Subscription plan with id {subscription_plan_id} does not exist for this gym')
+                raise serializers.ValidationError(f"Subscription plan with id {subscription_plan_id} does not exist or does not belong to your gym")
+        else:
+            print('💳 SERIALIZER: No subscription plan provided (optional)')
         
-        return MembershipPayment.objects.create(**validated_data)
+        try:
+            payment = MembershipPayment.objects.create(**validated_data)
+            print(f'✅ SERIALIZER: Payment created successfully with ID: {payment.id}')
+            return payment
+        except Exception as e:
+            print(f'❌ SERIALIZER: Error creating payment: {str(e)}')
+            import traceback
+            print(f'❌ SERIALIZER: Traceback: {traceback.format_exc()}')
+            raise serializers.ValidationError(f"Failed to create payment: {str(e)}")
 
 
 class AttendanceSerializer(serializers.ModelSerializer):

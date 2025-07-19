@@ -62,6 +62,10 @@ class MemberProvider with ChangeNotifier {
       // Don't create mock data - use real backend data only
     } catch (e) {
       print('💥 MemberProvider ERROR: $e');
+      print('💥 MemberProvider ERROR TYPE: ${e.runtimeType}');
+      if (e is Exception) {
+        print('💥 MemberProvider STACK TRACE: ${StackTrace.current}');
+      }
       
       // Handle network errors with user-friendly messages
       final errorResult = OfflineHandler.handleNetworkError(e);

@@ -259,24 +259,48 @@ class EquipmentProvider with ChangeNotifier {
   Future<bool> deleteEquipment(int equipmentId) async {
     try {
       _setLoading(true);
+      print('🗑️ EQUIPMENT: Starting deletion of equipment ID: $equipmentId');
+      
+      // Store the equipment being deleted for logging
+      final equipmentToDelete = _equipment.firstWhere(
+        (e) => e.id == equipmentId,
+        orElse: () => Equipment(
+          id: equipmentId,
+          name: 'Unknown Equipment',
+          equipmentType: '',
+          brand: '',
+          purchaseDate: DateTime.now(),
+          warrantyExpiry: DateTime.now(),
+          isWorking: true,
+        ),
+      );
+      print('🗑️ EQUIPMENT: Deleting "${equipmentToDelete.name}" (ID: $equipmentId)');
       
       // Call API to delete equipment on backend
       final success = await _apiService.deleteEquipment(equipmentId);
+      print('🗑️ EQUIPMENT: API deletion result: $success');
       
       if (success) {
         // Remove from local data if API call was successful
-        _equipment.removeWhere((e) => e.id == equipmentId);
-        _workingEquipment.removeWhere((e) => e.id == equipmentId);
+        final removedFromMain = _equipment.removeWhere((e) => e.id == equipmentId);
+        final removedFromWorking = _workingEquipment.removeWhere((e) => e.id == equipmentId);
+        
+        print('🗑️ EQUIPMENT: Removed from local data - main list: ${_equipment.length} items');
+        print('🗑️ EQUIPMENT: Removed from working list: ${_workingEquipment.length} items');
+        
         _errorMessage = '';
         _setLoading(false);
+        notifyListeners(); // Ensure UI updates
         return true;
       } else {
-        _errorMessage = 'Failed to delete equipment from server';
+        _errorMessage = 'Failed to delete equipment from server. Equipment may still exist on server.';
+        print('❌ EQUIPMENT: Server deletion failed for ID: $equipmentId');
         _setLoading(false);
         return false;
       }
     } catch (e) {
       _errorMessage = 'Failed to delete equipment: $e';
+      print('❌ EQUIPMENT: Exception during deletion: $e');
       _setLoading(false);
       return false;
     }
