@@ -106,18 +106,16 @@ class ApiService {
       // Build query parameters to optimize response size
       final queryParams = <String, dynamic>{
         'page': page.toString(),
-        'limit': limit.toString(),
+        'page_size': limit.toString(),  // Changed from 'limit' to 'page_size' for backend compatibility
+        'minimal': 'true',  // Request optimized serializer
       };
       
-      // Exclude heavy fields that aren't needed for list view
+      // Exclude heavy fields that aren't needed for list view (for backward compatibility)
       if (excludeFields != null && excludeFields.isNotEmpty) {
         queryParams['exclude'] = excludeFields.join(',');
-      } else {
-        // Default exclusions for performance
-        queryParams['exclude'] = 'profile_picture,detailed_notes,medical_history,workout_history';
       }
       
-      print('👥 MEMBERS: Requesting page $page with limit $limit (exclude: ${queryParams['exclude']})');
+      print('👥 MEMBERS: Requesting page $page with page_size $limit (minimal=true)');
 
       final response = await _httpClient.get(
         'members/', 

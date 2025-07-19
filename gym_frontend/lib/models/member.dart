@@ -40,39 +40,45 @@ class Member {
   final int? id;
   final User? user;
   final String phone;
-  final DateTime dateOfBirth;
+  final DateTime? dateOfBirth;  // Made optional for list serializer
   final String membershipType;
   final DateTime? joinDate;
   final DateTime membershipExpiry;
   final bool isActive;
-  final String emergencyContactName;
-  final String emergencyContactPhone;
+  final String? emergencyContactName;  // Made optional for list serializer
+  final String? emergencyContactPhone;  // Made optional for list serializer
+  final String? memberId;  // Added for backend compatibility
+  final int? daysUntilExpiry;  // Added for optimized response
 
   Member({
     this.id,
     this.user,
     required this.phone,
-    required this.dateOfBirth,
+    this.dateOfBirth,  // Made optional
     required this.membershipType,
     this.joinDate,
     required this.membershipExpiry,
     this.isActive = true,
-    required this.emergencyContactName,
-    required this.emergencyContactPhone,
+    this.emergencyContactName,  // Made optional
+    this.emergencyContactPhone,  // Made optional
+    this.memberId,
+    this.daysUntilExpiry,
   });
 
   factory Member.fromJson(Map<String, dynamic> json) {
     return Member(
       id: json['id'],
       user: json['user'] != null ? User.fromJson(json['user']) : null,
-      phone: json['phone'],
-      dateOfBirth: DateTime.parse(json['date_of_birth']),
-      membershipType: json['membership_type'],
+      phone: json['phone'] ?? '',
+      dateOfBirth: json['date_of_birth'] != null ? DateTime.parse(json['date_of_birth']) : null,
+      membershipType: json['membership_type'] ?? '',
       joinDate: json['join_date'] != null ? DateTime.parse(json['join_date']) : null,
       membershipExpiry: DateTime.parse(json['membership_expiry']),
-      isActive: json['is_active'],
+      isActive: json['is_active'] ?? true,
       emergencyContactName: json['emergency_contact_name'],
       emergencyContactPhone: json['emergency_contact_phone'],
+      memberId: json['member_id'],
+      daysUntilExpiry: json['days_until_expiry'],
     );
   }
 
@@ -81,13 +87,15 @@ class Member {
       'id': id,
       'user': user?.toJson(),
       'phone': phone,
-      'date_of_birth': dateOfBirth.toIso8601String().split('T')[0],
+      'date_of_birth': dateOfBirth?.toIso8601String().split('T')[0],
       'membership_type': membershipType,
       'join_date': joinDate?.toIso8601String().split('T')[0],
       'membership_expiry': membershipExpiry.toIso8601String().split('T')[0],
       'is_active': isActive,
       'emergency_contact_name': emergencyContactName,
       'emergency_contact_phone': emergencyContactPhone,
+      'member_id': memberId,
+      'days_until_expiry': daysUntilExpiry,
     };
   }
 
