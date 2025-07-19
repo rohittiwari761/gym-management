@@ -192,8 +192,8 @@ class ApiService {
         joinDate: member.joinDate,
         membershipExpiry: member.membershipExpiry,
         isActive: member.isActive,
-        emergencyContactName: InputValidator.sanitizeInput(member.emergencyContactName),
-        emergencyContactPhone: InputValidator.sanitizeInput(member.emergencyContactPhone),
+        emergencyContactName: member.emergencyContactName != null ? InputValidator.sanitizeInput(member.emergencyContactName!) : '',
+        emergencyContactPhone: member.emergencyContactPhone != null ? InputValidator.sanitizeInput(member.emergencyContactPhone!) : '',
       );
 
       final response = await _httpClient.post(

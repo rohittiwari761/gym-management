@@ -545,8 +545,8 @@ class _MembersScreenState extends State<MembersScreen> with SingleTickerProvider
               _buildDetailRow(Icons.card_membership, 'Membership Type', member.membershipType.toUpperCase()),
               _buildDetailRow(Icons.calendar_today, 'Join Date', member.joinDate?.toString().split(' ')[0] ?? 'Unknown'),
               _buildDetailRow(Icons.schedule, 'Membership Expiry', member.membershipExpiry.toString().split(' ')[0]),
-              _buildDetailRow(Icons.contact_emergency, 'Emergency Contact', member.emergencyContactName),
-              _buildDetailRow(Icons.phone_callback, 'Emergency Phone', member.emergencyContactPhone),
+              _buildDetailRow(Icons.contact_emergency, 'Emergency Contact', member.emergencyContactName ?? 'Not provided'),
+              _buildDetailRow(Icons.phone_callback, 'Emergency Phone', member.emergencyContactPhone ?? 'Not provided'),
               const SizedBox(height: 24),
               Row(
                 children: [
