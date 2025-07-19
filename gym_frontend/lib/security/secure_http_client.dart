@@ -141,7 +141,7 @@ class SecureHttpClient {
       final uri = _buildSecureUri(endpoint, queryParams);
 
       // Prepare headers
-      final secureHeaders = await _buildSecureHeaders(headers, requireAuth);
+      final secureHeaders = await _buildSecureHeaders(headers, requireAuth, endpoint);
 
       // Prepare body
       String? jsonBody;
@@ -153,8 +153,8 @@ class SecureHttpClient {
         print('✅ SECURE_HTTP: Request body processed successfully');
       }
 
-      // Make request with shorter timeout and retry logic
-      const timeout = Duration(seconds: 5); // Faster timeout for mobile
+      // Make request with adaptive timeout based on endpoint
+      final timeout = _getTimeoutForEndpoint(endpoint);
       
       final response = await _makeRequestWithRetry(
         method,
@@ -172,7 +172,7 @@ class SecureHttpClient {
         
         // Retry once with fresh authentication
         try {
-          final freshHeaders = await _buildSecureHeaders(headers, requireAuth);
+          final freshHeaders = await _buildSecureHeaders(headers, requireAuth, endpoint);
           final retryResponse = await _executeRequest(method, _buildSecureUri(endpoint, queryParams), freshHeaders, jsonBody, timeout);
           
           if (retryResponse.statusCode != 401) {
@@ -321,6 +321,7 @@ class SecureHttpClient {
   Future<Map<String, String>> _buildSecureHeaders(
     Map<String, String>? customHeaders,
     bool requireAuth,
+    String endpoint,
   ) async {
     final headers = <String, String>{
       'Content-Type': 'application/json',
@@ -333,10 +334,25 @@ class SecureHttpClient {
     if (requireAuth) {
       print('🔐 SECURE_HTTP: Authentication required - retrieving token...');
       
-      // Try to get token with retry logic
+      // Try to get token with retry logic - prefer JWT for data endpoints
       String? token;
+      
+      // Data endpoints that might need JWT authentication
+      final jwtEndpoints = ['equipment/', 'members/', 'trainers/', 'attendance/', 'subscriptions/'];
+      final needsJWT = jwtEndpoints.any((ep) => endpoint.contains(ep));
+      
       for (int attempt = 0; attempt < 3; attempt++) {
-        token = await JWTManager.getAccessToken();
+        if (needsJWT) {
+          print('🔍 SECURE_HTTP: Data endpoint detected, trying JWT token first');
+          token = await JWTManager.getJWTAccessToken();
+        }
+        
+        // Fallback to regular token if JWT not found
+        if (token == null) {
+          print('🔍 SECURE_HTTP: Getting regular access token (attempt ${attempt + 1})');
+          token = await JWTManager.getAccessToken();
+        }
+        
         if (token != null) break;
         
         print('🔄 SECURE_HTTP: Token retrieval attempt ${attempt + 1}/3 failed, retrying...');
@@ -376,7 +392,16 @@ class SecureHttpClient {
         throw SecurityException('Authentication required - please login again');
       }
       
-      headers['Authorization'] = 'Token $token';
+      // Smart token format detection
+      if (token.length > 100 && token.contains('.')) {
+        // JWT token - use Bearer format
+        headers['Authorization'] = 'Bearer $token';
+        print('🔐 SECURE_HTTP: Using Bearer JWT token format');
+      } else {
+        // Django token - use Token format
+        headers['Authorization'] = 'Token $token';
+        print('🔐 SECURE_HTTP: Using Django Token format');
+      }
       print('🔐 SECURE_HTTP: Authorization header set');
       print('🔐 SECURE_HTTP: Final headers: ${headers.keys.toList()}');
     }
@@ -531,6 +556,46 @@ class SecureHttpClient {
     _lastRequestTimes[clientId] = now;
 
     return true;
+  }
+
+  /// Get timeout duration based on endpoint type
+  Duration _getTimeoutForEndpoint(String endpoint) {
+    print('🕐 SECURE_HTTP: Determining timeout for endpoint: $endpoint');
+    
+    // Data-heavy endpoints that might need more time (especially for sleeping servers)
+    final heavyEndpoints = [
+      'equipment/',
+      'members/',
+      'trainers/',
+      'payments/',
+      'attendance/',
+      'subscriptions/',
+    ];
+    
+    // Quick endpoints that should be fast
+    final quickEndpoints = [
+      'health/',
+      'ping/',
+      'status/',
+      'auth/',
+    ];
+    
+    for (final heavyEndpoint in heavyEndpoints) {
+      if (endpoint.contains(heavyEndpoint)) {
+        print('🕐 SECURE_HTTP: Using extended timeout (15s) for heavy endpoint');
+        return const Duration(seconds: 15); // Longer timeout for data endpoints
+      }
+    }
+    
+    for (final quickEndpoint in quickEndpoints) {
+      if (endpoint.contains(quickEndpoint)) {
+        print('🕐 SECURE_HTTP: Using quick timeout (5s) for health endpoint');
+        return const Duration(seconds: 5); // Quick timeout for health checks
+      }
+    }
+    
+    print('🕐 SECURE_HTTP: Using default timeout (10s)');
+    return const Duration(seconds: 10); // Default timeout
   }
 
   /// Dispose of resources

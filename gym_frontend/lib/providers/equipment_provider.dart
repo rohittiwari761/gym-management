@@ -78,13 +78,36 @@ class EquipmentProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> fetchEquipment() async {
-    _isLoading = true;
-    _errorMessage = '';
-    notifyListeners();
+  Future<void> fetchEquipment({
+    int page = 1,
+    bool loadMore = false,
+  }) async {
+    if (!loadMore) {
+      _isLoading = true;
+      _errorMessage = '';
+      notifyListeners();
+    }
 
     try {
-      _equipment = await _apiService.getEquipment();
+      // Use optimized API call with pagination and image exclusion
+      final newEquipment = await _apiService.getEquipment(
+        page: page,
+        limit: 50, // Load 50 items at a time instead of all at once
+        excludeImages: true, // Exclude images to reduce from 25MB to ~500KB
+        status: _selectedStatus,
+      );
+      
+      if (loadMore && page > 1) {
+        // Append new items for pagination
+        _equipment.addAll(newEquipment);
+      } else {
+        // Replace all items for initial load
+        _equipment = newEquipment;
+      }
+      
+      // Update working equipment list
+      _workingEquipment = _equipment.where((eq) => eq.isWorking).toList();
+      
     } catch (e) {
       // Handle network errors with user-friendly messages
       final errorResult = OfflineHandler.handleNetworkError(e);
@@ -99,6 +122,32 @@ class EquipmentProvider with ChangeNotifier {
     } finally {
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  /// Load equipment image separately when needed (for detail view)
+  Future<String?> loadEquipmentImage(int equipmentId) async {
+    try {
+      print('🖼️ EQUIPMENT: Loading image for equipment $equipmentId');
+      
+      // Call equipment detail endpoint with images included
+      final response = await _apiService.getEquipment(
+        page: 1,
+        limit: 1,
+        excludeImages: false, // Include images for detail view
+      );
+      
+      final equipment = response.firstWhere(
+        (eq) => eq.id == equipmentId,
+        orElse: () => throw Exception('Equipment not found'),
+      );
+      
+      print('✅ EQUIPMENT: Image loaded for equipment $equipmentId');
+      return equipment.imageUrl; // Assuming Equipment model has imageUrl field
+      
+    } catch (e) {
+      print('❌ EQUIPMENT: Failed to load image for equipment $equipmentId: $e');
+      return null;
     }
   }
 

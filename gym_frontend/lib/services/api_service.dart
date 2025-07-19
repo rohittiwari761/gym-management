@@ -395,9 +395,36 @@ class ApiService {
   }
 
   // Equipment API
-  Future<List<Equipment>> getEquipment() async {
+  Future<List<Equipment>> getEquipment({
+    int page = 1, 
+    int limit = 50,
+    bool excludeImages = true,
+    String? status,
+  }) async {
     try {
-      final response = await _httpClient.get('equipment/', requireAuth: true);
+      // Build query parameters to reduce response size
+      final queryParams = <String, dynamic>{
+        'page': page.toString(),
+        'limit': limit.toString(),
+      };
+      
+      // Exclude images for list view to reduce response size from 25MB to manageable size
+      if (excludeImages) {
+        queryParams['exclude'] = 'image,image_data,image_url'; // Exclude image fields
+      }
+      
+      // Filter by status if provided
+      if (status != null && status.isNotEmpty() && status != 'All') {
+        queryParams['status'] = status.toLowerCase();
+      }
+      
+      print('🔧 EQUIPMENT: Requesting with params: $queryParams');
+      
+      final response = await _httpClient.get(
+        'equipment/', 
+        requireAuth: true,
+        queryParams: queryParams,
+      );
 
       if (response.isSuccess && response.data != null) {
         // Handle Django pagination format: {"count": X, "results": [...]}
@@ -407,9 +434,12 @@ class ApiService {
         if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
           // Paginated response from Django REST Framework
           jsonList = responseData['results'] as List<dynamic>;
+          final totalCount = responseData['count'] ?? jsonList.length;
+          print('✅ EQUIPMENT: Loaded ${jsonList.length} items (Total: $totalCount)');
         } else if (responseData is List<dynamic>) {
           // Direct list response (fallback)
           jsonList = responseData;
+          print('✅ EQUIPMENT: Loaded ${jsonList.length} items (direct list)');
         } else {
           throw Exception('Unexpected response format');
         }
@@ -419,6 +449,7 @@ class ApiService {
         throw Exception(response.errorMessage ?? 'Failed to load equipment');
       }
     } catch (e) {
+      print('❌ EQUIPMENT: Load failed - ${e.toString()}');
       throw Exception('Failed to load equipment. Please try again.');
     }
   }
