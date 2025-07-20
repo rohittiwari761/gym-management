@@ -22,11 +22,6 @@ class Migration(migrations.Migration):
         ),
         migrations.AddField(
             model_name='member',
-            name='profile_picture',
-            field=models.ImageField(blank=True, null=True, upload_to='member_profiles/'),
-        ),
-        migrations.AddField(
-            model_name='member',
             name='profile_picture_base64',
             field=models.TextField(blank=True, help_text='Base64 encoded profile picture for Railway deployment', null=True),
         ),
