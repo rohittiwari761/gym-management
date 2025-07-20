@@ -121,6 +121,74 @@ class MemberSerializer(serializers.ModelSerializer):
             days_left = (obj.membership_expiry - date.today()).days
             return days_left
         return None
+    
+    def create(self, validated_data):
+        # Extract user data from request
+        request = self.context['request']
+        user_data = request.data.get('user', {})
+        
+        print(f'👤 MEMBER: Creating member with data: {dict(request.data)}')
+        print(f'👤 MEMBER: User data: {user_data}')
+        print(f'👤 MEMBER: Validated data before processing: {validated_data}')
+        
+        # Create user first
+        try:
+            email = user_data.get('email')
+            if not email:
+                print('❌ MEMBER: Email is required but not provided')
+                raise serializers.ValidationError("Email is required")
+            
+            # Check if a member with this email already exists
+            existing_user = User.objects.filter(email=email).first()
+            if existing_user and hasattr(existing_user, 'member'):
+                print(f'❌ MEMBER: Member with email {email} already exists')
+                raise serializers.ValidationError(f"A member with email {email} already exists")
+            
+            # Create or get user
+            if existing_user:
+                # Use existing user but create a new member
+                user = existing_user
+                print(f'👤 MEMBER: Using existing user: {user.email}')
+            else:
+                # Create new user
+                username = user_data.get('username', email)
+                user = User.objects.create(
+                    username=username,
+                    email=email,
+                    first_name=user_data.get('first_name', ''),
+                    last_name=user_data.get('last_name', ''),
+                )
+                print(f'👤 MEMBER: Created new user: {user.email}')
+            
+            # Get gym_owner from request context or data
+            gym_owner_id = self.context['request'].data.get('gym_owner')
+            if gym_owner_id:
+                try:
+                    validated_data['gym_owner'] = GymOwner.objects.get(id=gym_owner_id)
+                    print(f'👤 MEMBER: Using provided gym owner ID: {gym_owner_id}')
+                except GymOwner.DoesNotExist:
+                    print(f'❌ MEMBER: Gym owner with id {gym_owner_id} does not exist')
+                    raise serializers.ValidationError(f"Gym owner with id {gym_owner_id} does not exist")
+            elif hasattr(self.context['request'].user, 'gymowner'):
+                validated_data['gym_owner'] = self.context['request'].user.gymowner
+                print(f'👤 MEMBER: Using authenticated user gym owner: {self.context["request"].user.gymowner.id}')
+            else:
+                print('❌ MEMBER: No gym owner found')
+                raise serializers.ValidationError("No gym owner found. User must be a gym owner.")
+            
+            # Create member with the user
+            validated_data['user'] = user
+            print(f'👤 MEMBER: Final validated_data: {validated_data}')
+            
+            member = Member.objects.create(**validated_data)
+            print(f'✅ MEMBER: Member created successfully with ID: {member.id}')
+            return member
+            
+        except Exception as e:
+            print(f'❌ MEMBER: Error creating member: {str(e)}')
+            import traceback
+            print(f'❌ MEMBER: Traceback: {traceback.format_exc()}')
+            raise serializers.ValidationError(f"Error creating member: {str(e)}")
 
 
 # Super minimal Member serializer for list views (excludes heavy fields)
