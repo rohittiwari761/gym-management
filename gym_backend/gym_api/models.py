@@ -400,6 +400,7 @@ class MemberSubscription(models.Model):
     gym_owner = models.ForeignKey(GymOwner, on_delete=models.CASCADE, related_name='member_subscriptions')
     member = models.ForeignKey(Member, on_delete=models.CASCADE)
     subscription_plan = models.ForeignKey(SubscriptionPlan, on_delete=models.CASCADE)
+    subscription_id = models.CharField(max_length=20, blank=True)  # Unique subscription ID
     start_date = models.DateField()
     end_date = models.DateField()
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
@@ -410,8 +411,32 @@ class MemberSubscription(models.Model):
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
     
+    class Meta:
+        unique_together = ['gym_owner', 'subscription_id']
+        indexes = [
+            models.Index(fields=['gym_owner', 'status']),
+            models.Index(fields=['gym_owner', 'member']),
+            models.Index(fields=['gym_owner', 'start_date']),
+            models.Index(fields=['subscription_id']),
+        ]
+    
     def __str__(self):
         return f"{self.member} - {self.subscription_plan.name} - {self.gym_owner.gym_name}"
+    
+    def save(self, *args, **kwargs):
+        if not self.subscription_id:
+            # Generate unique subscription ID for this gym
+            last_subscription = MemberSubscription.objects.filter(gym_owner=self.gym_owner).order_by('-id').first()
+            if last_subscription and last_subscription.subscription_id and last_subscription.subscription_id.startswith('SUB-'):
+                try:
+                    last_number = int(last_subscription.subscription_id.split('-')[1])
+                    new_number = last_number + 1
+                    self.subscription_id = f"SUB-{new_number:04d}"
+                except (ValueError, IndexError):
+                    self.subscription_id = "SUB-0001"
+            else:
+                self.subscription_id = "SUB-0001"
+        super().save(*args, **kwargs)
     
     @property
     def is_active(self):

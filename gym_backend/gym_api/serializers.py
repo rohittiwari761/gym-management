@@ -574,6 +574,81 @@ class MemberSubscriptionSerializer(serializers.ModelSerializer):
     class Meta:
         model = MemberSubscription
         fields = '__all__'
+        extra_kwargs = {
+            'subscription_id': {'required': False, 'read_only': True},
+            'gym_owner': {'read_only': True},
+        }
+    
+    def create(self, validated_data):
+        # Extract member and subscription_plan IDs from request data
+        request = self.context['request']
+        member_id = request.data.get('member')
+        subscription_plan_id = request.data.get('subscription_plan')
+        gym_owner_id = request.data.get('gym_owner')
+        
+        print(f'📋 SUBSCRIPTION: Creating subscription with data: {dict(request.data)}')
+        print(f'📋 SUBSCRIPTION: Member ID: {member_id} (type: {type(member_id)})')
+        print(f'📋 SUBSCRIPTION: Subscription Plan ID: {subscription_plan_id} (type: {type(subscription_plan_id)})')
+        print(f'📋 SUBSCRIPTION: Gym Owner ID: {gym_owner_id} (type: {type(gym_owner_id)})')
+        
+        # Ensure we have the current gym owner
+        if gym_owner_id:
+            try:
+                validated_data['gym_owner'] = GymOwner.objects.get(id=gym_owner_id)
+                print(f'📋 SUBSCRIPTION: Using provided gym owner ID: {gym_owner_id}')
+            except GymOwner.DoesNotExist:
+                print(f'❌ SUBSCRIPTION: Gym owner with id {gym_owner_id} does not exist')
+                raise serializers.ValidationError(f"Gym owner with id {gym_owner_id} does not exist")
+        elif hasattr(request.user, 'gymowner'):
+            validated_data['gym_owner'] = request.user.gymowner
+            print(f'📋 SUBSCRIPTION: Using authenticated user gym owner: {request.user.gymowner.id}')
+        else:
+            print('❌ SUBSCRIPTION: No gym owner found in request or user')
+            raise serializers.ValidationError("No gym owner found. User must be a gym owner.")
+        
+        if member_id:
+            try:
+                # Ensure member belongs to the same gym owner for security
+                member = Member.objects.get(
+                    id=member_id, 
+                    gym_owner=validated_data['gym_owner']
+                )
+                validated_data['member'] = member
+                print(f'📋 SUBSCRIPTION: Member found: {member.user.get_full_name() if member.user else "Unknown"}')
+            except Member.DoesNotExist:
+                print(f'❌ SUBSCRIPTION: Member with id {member_id} does not exist for this gym')
+                raise serializers.ValidationError(f"Member with id {member_id} does not exist or does not belong to your gym")
+        else:
+            print('❌ SUBSCRIPTION: Member ID is required but not provided')
+            raise serializers.ValidationError("Member ID is required")
+        
+        if subscription_plan_id:
+            try:
+                # Ensure subscription plan belongs to the same gym owner for security
+                subscription_plan = SubscriptionPlan.objects.get(
+                    id=subscription_plan_id,
+                    gym_owner=validated_data['gym_owner']
+                )
+                validated_data['subscription_plan'] = subscription_plan
+                print(f'📋 SUBSCRIPTION: Subscription plan found: {subscription_plan.name}')
+            except SubscriptionPlan.DoesNotExist:
+                print(f'❌ SUBSCRIPTION: Subscription plan with id {subscription_plan_id} does not exist for this gym')
+                raise serializers.ValidationError(f"Subscription plan with id {subscription_plan_id} does not exist or does not belong to your gym")
+        else:
+            print('❌ SUBSCRIPTION: Subscription plan ID is required but not provided')
+            raise serializers.ValidationError("Subscription plan ID is required")
+        
+        print(f'📋 SUBSCRIPTION: Final validated_data for creation: {validated_data}')
+        
+        try:
+            subscription = MemberSubscription.objects.create(**validated_data)
+            print(f'✅ SUBSCRIPTION: Subscription created successfully with ID: {subscription.id}')
+            return subscription
+        except Exception as e:
+            print(f'❌ SUBSCRIPTION: Error creating subscription: {str(e)}')
+            import traceback
+            print(f'❌ SUBSCRIPTION: Traceback: {traceback.format_exc()}')
+            raise serializers.ValidationError(f"Failed to create subscription: {str(e)}")
 
 
 # Super minimal MemberSubscription serializer for list views (excludes heavy nested data)
