@@ -37,6 +37,9 @@ dependencies:
   # Google Sign-In
   google_sign_in: ^6.2.1
   
+  # URL launcher for phone, email, WhatsApp
+  url_launcher: ^6.2.5
+  
   # Web QR Code alternative
   qr_flutter: ^4.1.0
 
