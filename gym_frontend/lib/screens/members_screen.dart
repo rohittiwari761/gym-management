@@ -7,6 +7,7 @@ import '../utils/app_theme.dart';
 import '../widgets/common_widgets.dart' as common_widgets;
 import '../widgets/optimized_widgets.dart';
 import 'add_member_screen.dart';
+import 'member_detail_screen.dart';
 
 class MembersScreen extends StatefulWidget {
   const MembersScreen({super.key});
@@ -477,146 +478,13 @@ class _MembersScreenState extends State<MembersScreen> with SingleTickerProvider
   }
 
   void _showMemberDetails(BuildContext context, Member member) {
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        colors: member.isActive 
-                          ? [Colors.green.shade400, Colors.green.shade600]
-                          : [Colors.red.shade400, Colors.red.shade600],
-                      ),
-                    ),
-                    child: Center(
-                      child: Text(
-                        member.fullName.isNotEmpty ? member.fullName[0].toUpperCase() : 'M',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          member.fullName,
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.of(context).pop();
-                            _toggleMemberStatusDirect(context, member);
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: member.isActive ? Colors.green.shade50 : Colors.red.shade50,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: member.isActive ? Colors.green.shade200 : Colors.red.shade200,
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  member.isActive ? 'Active' : 'Inactive',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: member.isActive ? Colors.green.shade700 : Colors.red.shade700,
-                                  ),
-                                ),
-                                const SizedBox(width: 4),
-                                Icon(
-                                  Icons.touch_app,
-                                  size: 12,
-                                  color: member.isActive ? Colors.green.shade700 : Colors.red.shade700,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              _buildDetailRow(Icons.email, 'Email', member.user?.email ?? 'Not provided'),
-              _buildDetailRow(Icons.phone, 'Phone', member.phone),
-              _buildDetailRow(Icons.card_membership, 'Membership Type', member.membershipType.toUpperCase()),
-              _buildDetailRow(Icons.calendar_today, 'Join Date', member.joinDate?.toString().split(' ')[0] ?? 'Unknown'),
-              _buildDetailRow(Icons.schedule, 'Membership Expiry', member.membershipExpiry.toString().split(' ')[0]),
-              _buildDetailRow(Icons.contact_emergency, 'Emergency Contact', member.emergencyContactName ?? 'Not provided'),
-              _buildDetailRow(Icons.phone_callback, 'Emergency Phone', member.emergencyContactPhone ?? 'Not provided'),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Close'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => MemberDetailScreen(member: member),
       ),
     );
   }
 
-  Widget _buildDetailRow(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: Colors.grey[600]),
-          const SizedBox(width: 12),
-          Expanded(
-            flex: 2,
-            child: Text(
-              label,
-              style: TextStyle(
-                fontWeight: FontWeight.w500,
-                color: Colors.grey[700],
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 3,
-            child: Text(
-              value,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   // Helper Methods
   List<Member> _getFilteredMembers(List<Member> members, bool? activeFilter) {
