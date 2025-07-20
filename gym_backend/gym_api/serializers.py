@@ -398,30 +398,6 @@ class MembershipPaymentSerializer(serializers.ModelSerializer):
             'payment_id': {'required': False, 'read_only': True},
             'gym_owner': {'read_only': True},
         }
-
-
-# Super minimal Payment serializer for list views (excludes heavy nested data)
-class MembershipPaymentListSerializer(serializers.ModelSerializer):
-    member_name = serializers.SerializerMethodField()
-    plan_name = serializers.SerializerMethodField()
-    payment_method_display = serializers.CharField(source='get_payment_method_display', read_only=True)
-    status_display = serializers.CharField(source='get_status_display', read_only=True)
-    
-    class Meta:
-        model = MembershipPayment
-        fields = [
-            'id', 'payment_id', 'amount', 'payment_date', 'payment_method_display',
-            'status_display', 'member_name', 'plan_name', 'membership_months'
-        ]
-        # Exclude heavy fields: member object, subscription_plan object, notes, etc.
-    
-    def get_member_name(self, obj):
-        if obj.member and obj.member.user:
-            return f"{obj.member.user.first_name} {obj.member.user.last_name}"
-        return "Unknown Member"
-    
-    def get_plan_name(self, obj):
-        return obj.subscription_plan.name if obj.subscription_plan else "No Plan"
     
     def create(self, validated_data):
         # Extract member and subscription_plan IDs from request data
@@ -430,11 +406,18 @@ class MembershipPaymentListSerializer(serializers.ModelSerializer):
         subscription_plan_id = request.data.get('subscription_plan')
         gym_owner_id = request.data.get('gym_owner')
         
-        print(f'💳 SERIALIZER: Creating payment with data: {request.data}')
-        print(f'💳 SERIALIZER: Member ID: {member_id}')
-        print(f'💳 SERIALIZER: Subscription Plan ID: {subscription_plan_id}')
-        print(f'💳 SERIALIZER: Gym Owner ID: {gym_owner_id}')
-        print(f'💳 SERIALIZER: Validated data: {validated_data}')
+        print(f'💳 SERIALIZER: Creating payment with data: {dict(request.data)}')
+        print(f'💳 SERIALIZER: Member ID: {member_id} (type: {type(member_id)})')
+        print(f'💳 SERIALIZER: Subscription Plan ID: {subscription_plan_id} (type: {type(subscription_plan_id)})')
+        print(f'💳 SERIALIZER: Gym Owner ID: {gym_owner_id} (type: {type(gym_owner_id)})')
+        print(f'💳 SERIALIZER: Validated data before processing: {validated_data}')
+        print(f'💳 SERIALIZER: Available request data keys: {list(request.data.keys())}')
+        
+        # Check if member is already in validated_data
+        if 'member' in validated_data:
+            print(f'💳 SERIALIZER: Member already in validated_data: {validated_data["member"]}')
+        else:
+            print(f'💳 SERIALIZER: Member NOT in validated_data - will extract from request')
         
         # Ensure we have the current gym owner if gym_owner_id is not provided
         if gym_owner_id:
@@ -482,6 +465,20 @@ class MembershipPaymentListSerializer(serializers.ModelSerializer):
         else:
             print('💳 SERIALIZER: No subscription plan provided (optional)')
         
+        # Final validation before creating payment
+        if 'member' not in validated_data or validated_data['member'] is None:
+            print(f'❌ SERIALIZER: CRITICAL ERROR - Member is missing from validated_data')
+            print(f'❌ SERIALIZER: Final validated_data: {validated_data}')
+            raise serializers.ValidationError("Member is required but missing from validated data")
+        
+        if 'gym_owner' not in validated_data or validated_data['gym_owner'] is None:
+            print(f'❌ SERIALIZER: CRITICAL ERROR - Gym owner is missing from validated_data')
+            raise serializers.ValidationError("Gym owner is required but missing from validated data")
+        
+        print(f'💳 SERIALIZER: Final validated_data for creation: {validated_data}')
+        print(f'💳 SERIALIZER: Member object: {validated_data["member"]} (ID: {validated_data["member"].id})')
+        print(f'💳 SERIALIZER: Gym owner object: {validated_data["gym_owner"]} (ID: {validated_data["gym_owner"].id})')
+        
         try:
             payment = MembershipPayment.objects.create(**validated_data)
             print(f'✅ SERIALIZER: Payment created successfully with ID: {payment.id}')
@@ -491,6 +488,30 @@ class MembershipPaymentListSerializer(serializers.ModelSerializer):
             import traceback
             print(f'❌ SERIALIZER: Traceback: {traceback.format_exc()}')
             raise serializers.ValidationError(f"Failed to create payment: {str(e)}")
+
+
+# Super minimal Payment serializer for list views (excludes heavy nested data)
+class MembershipPaymentListSerializer(serializers.ModelSerializer):
+    member_name = serializers.SerializerMethodField()
+    plan_name = serializers.SerializerMethodField()
+    payment_method_display = serializers.CharField(source='get_payment_method_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    
+    class Meta:
+        model = MembershipPayment
+        fields = [
+            'id', 'payment_id', 'amount', 'payment_date', 'payment_method_display',
+            'status_display', 'member_name', 'plan_name', 'membership_months'
+        ]
+        # Exclude heavy fields: member object, subscription_plan object, notes, etc.
+    
+    def get_member_name(self, obj):
+        if obj.member and obj.member.user:
+            return f"{obj.member.user.first_name} {obj.member.user.last_name}"
+        return "Unknown Member"
+    
+    def get_plan_name(self, obj):
+        return obj.subscription_plan.name if obj.subscription_plan else "No Plan"
 
 
 class AttendanceSerializer(serializers.ModelSerializer):
