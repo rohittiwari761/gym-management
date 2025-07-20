@@ -449,7 +449,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               child: common_widgets.ResponsiveButton(
                 text: 'View Payments',
                 icon: Icons.payment,
-                type: common_widgets.ButtonType.primary,
+                type: common_widgets.ButtonType.filled,
                 onPressed: () {
                   // TODO: Navigate to member payments screen
                   ScaffoldMessenger.of(context).showSnackBar(
