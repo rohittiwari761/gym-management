@@ -205,6 +205,74 @@ class TrainerSerializer(serializers.ModelSerializer):
     
     def get_total_sessions(self, obj):
         return obj.workoutsession_set.filter(completed=True).count()
+    
+    def create(self, validated_data):
+        # Extract user data from request
+        request = self.context['request']
+        user_data = request.data.get('user', {})
+        
+        print(f'👨‍🏋️ TRAINER: Creating trainer with data: {dict(request.data)}')
+        print(f'👨‍🏋️ TRAINER: User data: {user_data}')
+        print(f'👨‍🏋️ TRAINER: Validated data before processing: {validated_data}')
+        
+        # Create user first
+        try:
+            email = user_data.get('email')
+            if not email:
+                print('❌ TRAINER: Email is required but not provided')
+                raise serializers.ValidationError("Email is required")
+            
+            # Check if a trainer with this email already exists
+            existing_user = User.objects.filter(email=email).first()
+            if existing_user and hasattr(existing_user, 'trainer'):
+                print(f'❌ TRAINER: Trainer with email {email} already exists')
+                raise serializers.ValidationError(f"A trainer with email {email} already exists")
+            
+            # Create or get user
+            if existing_user:
+                # Use existing user but create a new trainer
+                user = existing_user
+                print(f'👨‍🏋️ TRAINER: Using existing user: {user.email}')
+            else:
+                # Create new user
+                username = user_data.get('username', email)
+                user = User.objects.create(
+                    username=username,
+                    email=email,
+                    first_name=user_data.get('first_name', ''),
+                    last_name=user_data.get('last_name', ''),
+                )
+                print(f'👨‍🏋️ TRAINER: Created new user: {user.email}')
+            
+            # Get gym_owner from request context or data
+            gym_owner_id = self.context['request'].data.get('gym_owner')
+            if gym_owner_id:
+                try:
+                    validated_data['gym_owner'] = GymOwner.objects.get(id=gym_owner_id)
+                    print(f'👨‍🏋️ TRAINER: Using provided gym owner ID: {gym_owner_id}')
+                except GymOwner.DoesNotExist:
+                    print(f'❌ TRAINER: Gym owner with id {gym_owner_id} does not exist')
+                    raise serializers.ValidationError(f"Gym owner with id {gym_owner_id} does not exist")
+            elif hasattr(self.context['request'].user, 'gymowner'):
+                validated_data['gym_owner'] = self.context['request'].user.gymowner
+                print(f'👨‍🏋️ TRAINER: Using authenticated user gym owner: {self.context["request"].user.gymowner.id}')
+            else:
+                print('❌ TRAINER: No gym owner found')
+                raise serializers.ValidationError("No gym owner found. User must be a gym owner.")
+            
+            # Create trainer with the user
+            validated_data['user'] = user
+            print(f'👨‍🏋️ TRAINER: Final validated_data: {validated_data}')
+            
+            trainer = Trainer.objects.create(**validated_data)
+            print(f'✅ TRAINER: Trainer created successfully with ID: {trainer.id}')
+            return trainer
+            
+        except Exception as e:
+            print(f'❌ TRAINER: Error creating trainer: {str(e)}')
+            import traceback
+            print(f'❌ TRAINER: Traceback: {traceback.format_exc()}')
+            raise serializers.ValidationError(f"Error creating trainer: {str(e)}")
 
 
 # Super minimal Trainer serializer for list views (excludes heavy fields)
