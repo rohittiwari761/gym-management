@@ -309,6 +309,25 @@ class _MembersScreenState extends State<MembersScreen> with SingleTickerProvider
                       Icons.card_membership,
                       member.membershipType.toUpperCase(),
                     ),
+                    // Emergency contact info
+                    if (member.emergencyContactName != null && member.emergencyContactName!.isNotEmpty) ...[
+                      SizedBox(height: AppSpacing.xs),
+                      _buildInfoRow(
+                        context,
+                        Icons.contact_emergency,
+                        'Emergency: ${member.emergencyContactName}',
+                        isSecondary: true,
+                      ),
+                      if (member.emergencyContactPhone != null && member.emergencyContactPhone!.isNotEmpty) ...[
+                        SizedBox(height: AppSpacing.xs),
+                        _buildInfoRow(
+                          context,
+                          Icons.phone_callback,
+                          '${member.emergencyContactPhone}',
+                          isSecondary: true,
+                        ),
+                      ],
+                    ],
                   ],
                 ),
               ),
@@ -357,13 +376,13 @@ class _MembersScreenState extends State<MembersScreen> with SingleTickerProvider
     );
   }
 
-  Widget _buildInfoRow(BuildContext context, IconData icon, String text) {
+  Widget _buildInfoRow(BuildContext context, IconData icon, String text, {bool isSecondary = false}) {
     return Row(
       children: [
         Icon(
           icon,
           size: context.smallIconSize,
-          color: AppTheme.textSecondary(context),
+          color: isSecondary ? AppTheme.textSecondary(context).withOpacity(0.7) : AppTheme.textSecondary(context),
         ),
         SizedBox(width: AppSpacing.xs),
         Expanded(
@@ -371,7 +390,12 @@ class _MembersScreenState extends State<MembersScreen> with SingleTickerProvider
             text,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: AppTextStyles.body2(context),
+            style: isSecondary 
+                ? AppTextStyles.body2(context).copyWith(
+                    fontSize: 12,
+                    color: AppTheme.textSecondary(context).withOpacity(0.8),
+                  )
+                : AppTextStyles.body2(context),
           ),
         ),
       ],
