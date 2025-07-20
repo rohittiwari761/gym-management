@@ -49,6 +49,14 @@ class Member {
   final String? emergencyContactPhone;  // Made optional for list serializer
   final String? memberId;  // Added for backend compatibility
   final int? daysUntilExpiry;  // Added for optimized response
+  
+  // New physical attributes
+  final double? heightCm;
+  final double? weightKg;
+  final double? bmi;
+  final String? bmiCategory;
+  final String? profilePictureUrl;
+  final int? age;
 
   Member({
     this.id,
@@ -63,6 +71,13 @@ class Member {
     this.emergencyContactPhone,  // Made optional
     this.memberId,
     this.daysUntilExpiry,
+    // New fields
+    this.heightCm,
+    this.weightKg,
+    this.bmi,
+    this.bmiCategory,
+    this.profilePictureUrl,
+    this.age,
   });
 
   factory Member.fromJson(Map<String, dynamic> json) {
@@ -81,6 +96,13 @@ class Member {
       emergencyContactPhone: json['emergency_contact_phone'],
       memberId: json['member_id'],
       daysUntilExpiry: json['days_until_expiry'],
+      // New fields
+      heightCm: json['height_cm']?.toDouble(),
+      weightKg: json['weight_kg']?.toDouble(),
+      bmi: json['bmi']?.toDouble(),
+      bmiCategory: json['bmi_category'],
+      profilePictureUrl: json['profile_picture_url'],
+      age: json['age'],
     );
   }
 
@@ -98,9 +120,42 @@ class Member {
       'emergency_contact_phone': emergencyContactPhone,
       'member_id': memberId,
       'days_until_expiry': daysUntilExpiry,
+      // New fields
+      'height_cm': heightCm,
+      'weight_kg': weightKg,
+      'bmi': bmi,
+      'bmi_category': bmiCategory,
+      'profile_picture_url': profilePictureUrl,
+      'age': age,
     };
   }
 
   String get fullName => user?.firstName != null && user?.lastName != null ? '${user!.firstName} ${user!.lastName}' : 'Unknown';
   String get phoneNumber => phone;
+  
+  // Helper getters for physical attributes
+  String get heightDisplay => heightCm != null ? '${heightCm!.toStringAsFixed(0)} cm' : 'Not provided';
+  String get weightDisplay => weightKg != null ? '${weightKg!.toStringAsFixed(1)} kg' : 'Not provided';
+  String get bmiDisplay => bmi != null ? '${bmi!.toStringAsFixed(1)}' : 'N/A';
+  String get ageDisplay => age != null ? '$age years old' : 'Unknown age';
+  
+  bool get hasPhysicalData => heightCm != null && weightKg != null;
+  bool get hasBmi => bmi != null;
+  
+  // BMI status color helper
+  String get bmiStatusColor {
+    if (bmiCategory == null) return 'grey';
+    switch (bmiCategory!) {
+      case 'Underweight':
+        return 'blue';
+      case 'Normal weight':
+        return 'green';
+      case 'Overweight':
+        return 'orange';
+      case 'Obese':
+        return 'red';
+      default:
+        return 'grey';
+    }
+  }
 }

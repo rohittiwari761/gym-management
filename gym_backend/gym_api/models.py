@@ -74,7 +74,16 @@ class Member(models.Model):
     emergency_contact_phone = models.CharField(max_length=15)
     emergency_contact_relation = models.CharField(max_length=50, default='Family')
     member_id = models.CharField(max_length=20, blank=True)  # Unique member ID
+    
+    # Physical attributes
+    height_cm = models.FloatField(null=True, blank=True, help_text="Height in centimeters")
+    weight_kg = models.FloatField(null=True, blank=True, help_text="Weight in kilograms")
+    
+    # Profile picture with Railway-compatible base64 storage
     profile_picture = models.ImageField(upload_to='member_profiles/', blank=True, null=True)
+    profile_picture_base64 = models.TextField(blank=True, null=True, help_text="Base64 encoded profile picture for Railway deployment")
+    profile_picture_content_type = models.CharField(max_length=50, blank=True, null=True, help_text="Content type of the base64 image")
+    
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -113,6 +122,52 @@ class Member(models.Model):
                 self.member_id = f"MEM-{int(base_member_id.split('-')[-1]) + counter:04d}"
                 counter += 1
         super().save(*args, **kwargs)
+    
+    @property
+    def bmi(self):
+        """Calculate BMI if height and weight are available"""
+        if self.height_cm and self.weight_kg and self.height_cm > 0:
+            height_m = self.height_cm / 100  # Convert to meters
+            return round(self.weight_kg / (height_m ** 2), 1)
+        return None
+    
+    @property
+    def bmi_category(self):
+        """Get BMI category based on WHO standards"""
+        bmi = self.bmi
+        if bmi is None:
+            return None
+        elif bmi < 18.5:
+            return "Underweight"
+        elif bmi < 25:
+            return "Normal weight"
+        elif bmi < 30:
+            return "Overweight"
+        else:
+            return "Obese"
+    
+    @property
+    def profile_picture_url(self):
+        """Get the full URL for the profile picture - prefer base64 data URL for Railway"""
+        # First try base64 data URL (works reliably on Railway)
+        if self.profile_picture_base64 and self.profile_picture_content_type:
+            data_url = f"data:{self.profile_picture_content_type};base64,{self.profile_picture_base64}"
+            return data_url
+        
+        # Fallback to traditional file URL
+        if self.profile_picture and self.profile_picture.name:
+            # Note: This might not work on Railway due to ephemeral storage
+            return self.profile_picture.url
+        return None
+    
+    @property
+    def age(self):
+        """Calculate age from date of birth"""
+        if self.date_of_birth:
+            from datetime import date
+            today = date.today()
+            return today.year - self.date_of_birth.year - ((today.month, today.day) < (self.date_of_birth.month, self.date_of_birth.day))
+        return None
 
 
 class Trainer(models.Model):

@@ -106,6 +106,10 @@ class MemberSerializer(serializers.ModelSerializer):
     user = UserMinimalSerializer(read_only=True)
     gym_owner = GymOwnerMinimalSerializer(read_only=True)
     days_until_expiry = serializers.SerializerMethodField()
+    bmi = serializers.FloatField(read_only=True)
+    bmi_category = serializers.CharField(read_only=True)
+    profile_picture_url = serializers.CharField(read_only=True)
+    age = serializers.IntegerField(read_only=True)
     
     class Meta:
         model = Member
@@ -113,6 +117,8 @@ class MemberSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'member_id': {'required': False, 'read_only': True},
             'gym_owner': {'read_only': True},
+            'profile_picture_base64': {'write_only': True},
+            'profile_picture_content_type': {'write_only': True},
         }
     
     def get_days_until_expiry(self, obj):
@@ -195,14 +201,19 @@ class MemberSerializer(serializers.ModelSerializer):
 class MemberListSerializer(serializers.ModelSerializer):
     user = UserMinimalSerializer(read_only=True)
     days_until_expiry = serializers.SerializerMethodField()
+    bmi = serializers.FloatField(read_only=True)
+    bmi_category = serializers.CharField(read_only=True)
+    profile_picture_url = serializers.CharField(read_only=True)
+    age = serializers.IntegerField(read_only=True)
     
     class Meta:
         model = Member
         fields = [
             'id', 'member_id', 'user', 'phone', 'membership_type',
-            'join_date', 'membership_expiry', 'is_active', 'days_until_expiry'
+            'join_date', 'membership_expiry', 'is_active', 'days_until_expiry',
+            'height_cm', 'weight_kg', 'bmi', 'bmi_category', 'profile_picture_url', 'age'
         ]
-        # Exclude heavy fields: emergency_contact_*, address, medical_history, etc.
+        # Exclude heavy fields: emergency_contact_*, address, notes, base64 data, etc.
     
     def get_days_until_expiry(self, obj):
         if obj.membership_expiry:
