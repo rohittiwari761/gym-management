@@ -609,9 +609,13 @@ class MembershipPaymentViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
-        # Filter payments by gym owner
+        # Filter payments by gym owner with optimized queries and descending order
         if hasattr(self.request.user, 'gymowner'):
-            return MembershipPayment.objects.filter(gym_owner=self.request.user.gymowner)
+            return MembershipPayment.objects.select_related(
+                'member__user', 'subscription_plan', 'gym_owner'
+            ).filter(
+                gym_owner=self.request.user.gymowner
+            ).order_by('-payment_date', '-created_at')  # Newest payments first
         return MembershipPayment.objects.none()
     
     def perform_create(self, serializer):
