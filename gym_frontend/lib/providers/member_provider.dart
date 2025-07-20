@@ -101,6 +101,8 @@ class MemberProvider with ChangeNotifier {
     required String membershipType,
     required DateTime joinDate,
     required int subscriptionPlanId,
+    double? heightCm,  // New optional field
+    double? weightKg,  // New optional field
   }) async {
     _isLoading = true;
     _errorMessage = null;
@@ -147,6 +149,9 @@ class MemberProvider with ChangeNotifier {
           'emergency_contact_relation': emergencyContactRelation, // Add missing relation field
           'membership_type': membershipType.toLowerCase(), // Ensure lowercase
           'membership_expiry': endDate.toIso8601String().split('T')[0], // Date only
+          // New physical attributes
+          if (heightCm != null) 'height_cm': heightCm,
+          if (weightKg != null) 'weight_kg': weightKg,
         }),
       );
 

@@ -35,6 +35,10 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
   // Address
   final _addressController = TextEditingController();
 
+  // Physical Attributes (New)
+  final _heightController = TextEditingController();
+  final _weightController = TextEditingController();
+
   // Membership Details
   SubscriptionPlan? _selectedPlan;
   DateTime? _joinDate;
@@ -46,8 +50,19 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
   void initState() {
     super.initState();
     _joinDate = DateTime.now();
+    
+    // Add listeners for BMI calculation
+    _heightController.addListener(_updateBMI);
+    _weightController.addListener(_updateBMI);
+    
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<SubscriptionProvider>(context, listen: false).fetchSubscriptionPlans();
+    });
+  }
+  
+  void _updateBMI() {
+    setState(() {
+      // Trigger rebuild to update BMI preview
     });
   }
 
@@ -61,6 +76,8 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
     _emergencyPhoneController.dispose();
     _emergencyRelationController.dispose();
     _addressController.dispose();
+    _heightController.dispose();
+    _weightController.dispose();
     _pageController.dispose();
     super.dispose();
   }
@@ -84,7 +101,9 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
                 _buildStepConnector(),
                 _buildStepIndicator(1, 'Contact'),
                 _buildStepConnector(),
-                _buildStepIndicator(2, 'Membership'),
+                _buildStepIndicator(2, 'Physical'),
+                _buildStepConnector(),
+                _buildStepIndicator(3, 'Membership'),
               ],
             ),
           ),
@@ -100,6 +119,7 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
               children: [
                 _buildPersonalInfoStep(),
                 _buildContactInfoStep(),
+                _buildPhysicalAttributesStep(),
                 _buildMembershipStep(),
               ],
             ),
@@ -131,7 +151,7 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
                     ),
                     child: _isLoading
                         ? const CircularProgressIndicator(color: Colors.white)
-                        : Text(_currentStep == 2 ? 'Add Member' : 'Next'),
+                        : Text(_currentStep == 3 ? 'Add Member' : 'Next'),
                   ),
                 ),
               ],
@@ -426,6 +446,199 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
     );
   }
 
+  Widget _buildPhysicalAttributesStep() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Physical Attributes',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Help us track fitness progress (Optional)',
+                    style: TextStyle(fontSize: 14, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 24),
+                  
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: _heightController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Height (cm)',
+                            border: OutlineInputBorder(),
+                            suffixText: 'cm',
+                            hintText: '170',
+                            prefixIcon: Icon(Icons.height),
+                          ),
+                          validator: (value) {
+                            if (value != null && value.isNotEmpty) {
+                              final height = double.tryParse(value);
+                              if (height == null) {
+                                return 'Please enter a valid height';
+                              }
+                              if (height < 50 || height > 300) {
+                                return 'Height must be between 50-300 cm';
+                              }
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: TextFormField(
+                          controller: _weightController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Weight (kg)',
+                            border: OutlineInputBorder(),
+                            suffixText: 'kg',
+                            hintText: '70',
+                            prefixIcon: Icon(Icons.monitor_weight),
+                          ),
+                          validator: (value) {
+                            if (value != null && value.isNotEmpty) {
+                              final weight = double.tryParse(value);
+                              if (weight == null) {
+                                return 'Please enter a valid weight';
+                              }
+                              if (weight < 20 || weight > 500) {
+                                return 'Weight must be between 20-500 kg';
+                              }
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 24),
+                  
+                  // BMI Preview
+                  if (_heightController.text.isNotEmpty && _weightController.text.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blue.shade200),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.calculate, color: Colors.blue.shade700),
+                              const SizedBox(width: 8),
+                              Text(
+                                'BMI Preview',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blue.shade700,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          _buildBMIPreview(),
+                        ],
+                      ),
+                    ),
+                  
+                  const SizedBox(height: 16),
+                  
+                  const Text(
+                    'Note: BMI will be automatically calculated and can help track fitness progress over time.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBMIPreview() {
+    final heightStr = _heightController.text;
+    final weightStr = _weightController.text;
+    
+    if (heightStr.isEmpty || weightStr.isEmpty) {
+      return const Text('Enter height and weight to see BMI');
+    }
+    
+    final height = double.tryParse(heightStr);
+    final weight = double.tryParse(weightStr);
+    
+    if (height == null || weight == null || height <= 0) {
+      return const Text('Invalid height or weight');
+    }
+    
+    final heightM = height / 100;
+    final bmi = weight / (heightM * heightM);
+    
+    String category;
+    Color categoryColor;
+    
+    if (bmi < 18.5) {
+      category = 'Underweight';
+      categoryColor = Colors.blue;
+    } else if (bmi < 25) {
+      category = 'Normal weight';
+      categoryColor = Colors.green;
+    } else if (bmi < 30) {
+      category = 'Overweight';
+      categoryColor = Colors.orange;
+    } else {
+      category = 'Obese';
+      categoryColor = Colors.red;
+    }
+    
+    return Column(
+      children: [
+        Text(
+          'BMI: ${bmi.toStringAsFixed(1)}',
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            color: categoryColor.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: categoryColor),
+          ),
+          child: Text(
+            category,
+            style: TextStyle(
+              color: categoryColor,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildMembershipStep() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -634,6 +847,14 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
           ),
         );
       }
+    } else if (_currentStep == 2) {
+      // Physical attributes step - validation is optional but check format if provided
+      if (_formKey.currentState!.validate()) {
+        _pageController.nextPage(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      }
     } else {
       _addMember();
     }
@@ -671,6 +892,18 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
       'membershipType': _membershipType,
     });
 
+    // Parse height and weight if provided
+    double? heightCm;
+    double? weightKg;
+    
+    if (_heightController.text.isNotEmpty) {
+      heightCm = double.tryParse(_heightController.text.trim());
+    }
+    
+    if (_weightController.text.isNotEmpty) {
+      weightKg = double.tryParse(_weightController.text.trim());
+    }
+
     final success = await memberProvider.createMember(
       firstName: sanitizedFirstName,
       lastName: sanitizedLastName,
@@ -685,6 +918,8 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
       membershipType: _membershipType,
       joinDate: _joinDate!,
       subscriptionPlanId: _selectedPlan!.id,
+      heightCm: heightCm,
+      weightKg: weightKg,
     );
 
     setState(() {
