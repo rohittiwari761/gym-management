@@ -50,7 +50,8 @@ class _EquipmentScreenState extends State<EquipmentScreen> with SingleTickerProv
   }
 
   Future<void> _loadData() async {
-    await _equipmentProvider!.fetchEquipment();
+    // Always load all equipment to ensure we show complete list
+    await _equipmentProvider!.fetchEquipment(loadAll: true);
   }
 
   @override

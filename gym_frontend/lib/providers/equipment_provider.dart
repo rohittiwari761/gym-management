@@ -81,7 +81,7 @@ class EquipmentProvider with ChangeNotifier {
   Future<void> fetchEquipment({
     int page = 1,
     bool loadMore = false,
-    bool loadAll = false,  // Whether to load all equipment or just summary
+    bool loadAll = true,  // Changed default to true - always load all equipment
   }) async {
     if (!loadMore) {
       _isLoading = true;
@@ -100,8 +100,8 @@ class EquipmentProvider with ChangeNotifier {
             limit: limit,
             excludeImages: true,  // Always exclude images for list view
           ),
-          maxPages: 3,  // Limit to 3 pages (45 equipment items max)
-          pageSize: 15,  // Reduced from 50 to 15 per page
+          maxPages: 5,  // Increased to 5 pages (75 equipment items max)
+          pageSize: 15,  // Keep at 15 per page for performance
         );
       } else {
         // Load single page for faster response (for dashboard/summary)
@@ -199,7 +199,7 @@ class EquipmentProvider with ChangeNotifier {
       
       if (success) {
         // Refresh data from backend to get the actual ID and updated list
-        await fetchEquipment();
+        await fetchEquipment(loadAll: true);
         _errorMessage = '';
         _setLoading(false);
         return true;
@@ -281,17 +281,30 @@ class EquipmentProvider with ChangeNotifier {
       print('🗑️ EQUIPMENT: API deletion result: $success');
       
       if (success) {
-        // Remove from local data if API call was successful
-        final removedFromMain = _equipment.removeWhere((e) => e.id == equipmentId);
-        final removedFromWorking = _workingEquipment.removeWhere((e) => e.id == equipmentId);
+        // Refresh the full list from server to ensure consistency
+        print('🗑️ EQUIPMENT: Deletion successful, refreshing full list from server...');
         
-        print('🗑️ EQUIPMENT: Removed from local data - main list: ${_equipment.length} items');
-        print('🗑️ EQUIPMENT: Removed from working list: ${_workingEquipment.length} items');
-        
-        _errorMessage = '';
-        _setLoading(false);
-        notifyListeners(); // Ensure UI updates
-        return true;
+        try {
+          // Fetch fresh data from server to get accurate count and list
+          await fetchEquipment(loadAll: true);
+          print('🗑️ EQUIPMENT: Refreshed equipment list - now showing ${_equipment.length} items');
+          
+          _errorMessage = '';
+          _setLoading(false);
+          return true;
+        } catch (e) {
+          print('❌ EQUIPMENT: Failed to refresh after deletion: $e');
+          // Fallback: remove from local data if refresh fails
+          _equipment.removeWhere((e) => e.id == equipmentId);
+          _workingEquipment.removeWhere((e) => e.id == equipmentId);
+          
+          print('🗑️ EQUIPMENT: Using fallback local removal - main list: ${_equipment.length} items');
+          
+          _errorMessage = '';
+          _setLoading(false);
+          notifyListeners();
+          return true;
+        }
       } else {
         _errorMessage = 'Failed to delete equipment from server. Equipment may still exist on server.';
         print('❌ EQUIPMENT: Server deletion failed for ID: $equipmentId');
@@ -502,7 +515,7 @@ class EquipmentProvider with ChangeNotifier {
   Future<void> forceRefresh() async {
     print('🔄 EQUIPMENT: Force refreshing equipment data');
     clearAllData();
-    await fetchEquipment();
+    await fetchEquipment(loadAll: true);
   }
 
   /// Set loading state and notify listeners
