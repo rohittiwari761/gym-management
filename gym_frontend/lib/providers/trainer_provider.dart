@@ -24,16 +24,18 @@ class TrainerProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      print('👨‍💼 TRAINERS: Fetching trainers...');
+      // Fetching trainers...
       _trainers = await _apiService.getTrainers();
-      print('✅ TRAINERS: Loaded ${_trainers.length} trainers from Django backend');
+      // Loaded ${_trainers.length} trainers from Django backend
       
       // Update available trainers list
       _availableTrainers = _trainers.where((t) => t.isAvailable).toList();
       
       // Don't create mock data - use real backend data only
     } catch (e) {
-      print('💥 TRAINERS ERROR: $e');
+      if (kDebugMode) {
+        if (kDebugMode) print('Trainers fetch error: $e');
+      }
       
       // Handle network errors with user-friendly messages
       final errorResult = OfflineHandler.handleNetworkError(e);
@@ -43,10 +45,10 @@ class TrainerProvider with ChangeNotifier {
       if (e.toString().contains('SocketException') || 
           e.toString().contains('Connection refused') ||
           e.toString().contains('Connection failed')) {
-        print('🔌 TRAINERS: Backend unreachable, using mock data');
+        // Backend unreachable, using mock data
         _createMockTrainers();
       } else {
-        print('🔌 TRAINERS: Backend reachable but returned error - no mock data');
+        // Backend reachable but returned error - no mock data
       }
     } finally {
       _isLoading = false;
@@ -60,11 +62,13 @@ class TrainerProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      print('👨‍💼 TRAINERS: Fetching available trainers...');
+      // Fetching available trainers...
       _availableTrainers = await _apiService.getAvailableTrainers();
-      print('✅ TRAINERS: Loaded ${_availableTrainers.length} available trainers');
+      // Loaded ${_availableTrainers.length} available trainers
     } catch (e) {
-      print('💥 TRAINERS ERROR: $e');
+      if (kDebugMode) {
+        if (kDebugMode) print('Trainers fetch error: $e');
+      }
       
       // Handle network errors with user-friendly messages
       final errorResult = OfflineHandler.handleNetworkError(e);
@@ -181,7 +185,7 @@ class TrainerProvider with ChangeNotifier {
     final gymDataService = GymDataService();
     final gymName = gymDataService.currentGymName ?? 'Sample Gym';
     
-    print('👨‍💼 TRAINERS: Creating mock trainer data for gym: $gymName');
+    // Creating mock trainer data for gym: $gymName
     
     final baseMockTrainers = [
       Trainer(
@@ -278,7 +282,7 @@ class TrainerProvider with ChangeNotifier {
   
   /// Clear all trainer data and reset for new gym context
   void clearAllData() {
-    print('🧹 TRAINERS: Clearing all trainer data for new gym context');
+    // Clearing all trainer data for new gym context
     _trainers.clear();
     _availableTrainers.clear();
     _errorMessage = '';
@@ -288,7 +292,7 @@ class TrainerProvider with ChangeNotifier {
   
   /// Force refresh trainer data for current gym
   Future<void> forceRefresh() async {
-    print('🔄 TRAINERS: Force refreshing trainer data');
+    // Force refreshing trainer data
     clearAllData();
     await fetchTrainers();
   }

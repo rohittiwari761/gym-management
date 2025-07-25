@@ -34,7 +34,7 @@ class MemberProvider with ChangeNotifier {
     if (!forceRefresh && _lastFetchTime != null && _members.isNotEmpty) {
       final timeSinceLastFetch = DateTime.now().difference(_lastFetchTime!);
       if (timeSinceLastFetch < _cacheDuration) {
-        print('👥 MEMBERS: Using cached data (${_members.length} items)');
+        // Using cached member data (${_members.length} items)
         return; // Use cached data
       }
     }
@@ -57,14 +57,13 @@ class MemberProvider with ChangeNotifier {
       }
       
       _lastFetchTime = DateTime.now();
-      print('👥 MEMBERS: Loaded ${_members.length} members successfully');
+      // Loaded ${_members.length} members successfully
       
       // Don't create mock data - use real backend data only
     } catch (e) {
-      print('💥 MemberProvider ERROR: $e');
-      print('💥 MemberProvider ERROR TYPE: ${e.runtimeType}');
-      if (e is Exception) {
-        print('💥 MemberProvider STACK TRACE: ${StackTrace.current}');
+      if (kDebugMode) {
+        print('MemberProvider ERROR: $e');
+        print('MemberProvider ERROR TYPE: ${e.runtimeType}');
       }
       
       // Handle network errors with user-friendly messages
@@ -75,15 +74,15 @@ class MemberProvider with ChangeNotifier {
       if (e.toString().contains('SocketException') || 
           e.toString().contains('Connection refused') ||
           e.toString().contains('Connection failed')) {
-        print('🔌 MEMBERS: Backend unreachable, using mock data');
+        // Backend unreachable, using mock data
         _createMockMembers();
       } else {
-        print('🔌 MEMBERS: Backend reachable but returned error - no mock data');
+        // Backend error - no mock data used for API errors
       }
     } finally {
       _isLoading = false;
       notifyListeners();
-      print('🏋️ MemberProvider: fetchMembers() completed. Loading: $_isLoading, Error: $_errorMessage');
+      if (kDebugMode) print('MemberProvider: fetchMembers completed');
     }
   }
 
@@ -114,7 +113,9 @@ class MemberProvider with ChangeNotifier {
       if (existingMembers.isNotEmpty) {
         final existingMember = existingMembers.first;
         _errorMessage = 'A member with this email already exists: ${existingMember.fullName}';
-        print('❌ CREATE MEMBER ERROR: $_errorMessage');
+        if (kDebugMode) {
+          print('CREATE MEMBER ERROR: $_errorMessage');
+        }
         _isLoading = false;
         notifyListeners();
         return false;
@@ -155,15 +156,17 @@ class MemberProvider with ChangeNotifier {
         }),
       );
 
-      print('🏋️ CREATE MEMBER - Status: ${response.statusCode}');
-      print('🏋️ CREATE MEMBER - Response: ${response.body}');
+      if (kDebugMode) {
+        print('CREATE MEMBER - Status: ${response.statusCode}');
+        print('CREATE MEMBER - Response: ${response.body}');
+      }
       
       if (response.statusCode == 201) {
         final newMember = Member.fromJson(jsonDecode(response.body));
         _members.insert(0, newMember);
         _isLoading = false;
         notifyListeners();
-        print('✅ Member created successfully: ${newMember.fullName}');
+        // Member created successfully: ${newMember.fullName}
         return true;
       } else {
         // Parse error message from response
@@ -192,7 +195,9 @@ class MemberProvider with ChangeNotifier {
         }
         
         _errorMessage = errorMsg;
-        print('❌ CREATE MEMBER ERROR: $_errorMessage');
+        if (kDebugMode) {
+          print('CREATE MEMBER ERROR: $_errorMessage');
+        }
         _isLoading = false;
         notifyListeners();
         return false;
@@ -228,7 +233,7 @@ class MemberProvider with ChangeNotifier {
   
   /// Clear all member data and reset for new gym context
   void clearAllData() {
-    print('🧹 MEMBERS: Clearing all member data for new gym context');
+    // Clearing all member data for new gym context
     _members.clear();
     _errorMessage = null;
     _isLoading = false;
@@ -237,7 +242,7 @@ class MemberProvider with ChangeNotifier {
   
   /// Force refresh member data for current gym
   Future<void> forceRefresh() async {
-    print('🔄 MEMBERS: Force refreshing member data');
+    // Force refreshing member data
     clearAllData();
     await fetchMembers();
   }
@@ -257,8 +262,10 @@ class MemberProvider with ChangeNotifier {
         }),
       );
 
-      print('🔄 UPDATE MEMBER STATUS - Status: ${response.statusCode}');
-      print('🔄 UPDATE MEMBER STATUS - Response: ${response.body}');
+      if (kDebugMode) {
+        print('UPDATE MEMBER STATUS - Status: ${response.statusCode}');
+        print('UPDATE MEMBER STATUS - Response: ${response.body}');
+      }
 
       if (response.statusCode == 200) {
         final updatedMember = Member.fromJson(jsonDecode(response.body));
@@ -268,7 +275,7 @@ class MemberProvider with ChangeNotifier {
         }
         _isLoading = false;
         notifyListeners();
-        print('✅ Member status updated successfully');
+        // Member status updated successfully
         return true;
       } else {
         _errorMessage = 'Failed to update member status: ${response.statusCode}';
@@ -293,7 +300,7 @@ class MemberProvider with ChangeNotifier {
     final gymDataService = GymDataService();
     final gymName = gymDataService.currentGymName ?? 'Sample Gym';
     
-    print('🏋️ MEMBERS: Creating mock member data for gym: $gymName');
+    // Creating mock member data for gym: $gymName
     
     final baseMockMembers = [
       Member(

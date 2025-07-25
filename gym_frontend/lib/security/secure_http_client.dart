@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:crypto/crypto.dart';
 import 'security_config.dart';
@@ -125,17 +126,17 @@ class SecureHttpClient {
       }
 
       // Validate endpoint
-      print('🔍 SECURE_HTTP: Validating endpoint: "$endpoint"');
       final validation = InputValidator.validateTextInput(
         endpoint,
         maxLength: 500,
         fieldName: 'Endpoint',
       );
       if (!validation.isValid) {
-        print('❌ SECURE_HTTP: Endpoint validation failed for: "$endpoint"');
+        if (kDebugMode) {
+          print('SECURE_HTTP: Endpoint validation failed for: "$endpoint"');
+        }
         throw SecurityException('Invalid endpoint: ${validation.message}');
       }
-      print('✅ SECURE_HTTP: Endpoint validation passed for: "$endpoint"');
 
       // Build URL
       final uri = _buildSecureUri(endpoint, queryParams);
@@ -146,11 +147,9 @@ class SecureHttpClient {
       // Prepare body
       String? jsonBody;
       if (body != null) {
-        print('🔍 SECURE_HTTP: Processing request body with ${body.length} fields');
         // Validate and sanitize body
         final sanitizedBody = _sanitizeRequestBody(body);
         jsonBody = jsonEncode(sanitizedBody);
-        print('✅ SECURE_HTTP: Request body processed successfully');
       }
 
       // Make request with adaptive timeout based on endpoint
@@ -167,7 +166,9 @@ class SecureHttpClient {
 
       // Check for 401 error and retry with fresh token
       if (response.statusCode == 401 && requireAuth) {
-        print('🔄 SECURE_HTTP: Got 401 error, clearing tokens and retrying...');
+        if (kDebugMode) {
+          print('SECURE_HTTP: Got 401 error, clearing tokens and retrying...');
+        }
         await JWTManager.clearTokens();
         
         // Retry once with fresh authentication
@@ -176,7 +177,9 @@ class SecureHttpClient {
           final retryResponse = await _executeRequest(method, _buildSecureUri(endpoint, queryParams), freshHeaders, jsonBody, timeout);
           
           if (retryResponse.statusCode != 401) {
-            print('✅ SECURE_HTTP: Retry after 401 successful');
+            if (kDebugMode) {
+              print('SECURE_HTTP: Retry after 401 successful');
+            }
             final secureResponse = await _validateResponse(retryResponse);
             SecurityConfig.logSecurityEvent('HTTP_REQUEST_RETRY_SUCCESS', {
               'method': method,
@@ -186,7 +189,9 @@ class SecureHttpClient {
             return secureResponse;
           }
         } catch (retryError) {
-          print('❌ SECURE_HTTP: Retry after 401 failed: $retryError');
+          if (kDebugMode) {
+            print('SECURE_HTTP: Retry after 401 failed: $retryError');
+          }
         }
       }
 
@@ -332,8 +337,6 @@ class SecureHttpClient {
 
     // Add authentication header if required with retry logic
     if (requireAuth) {
-      // Authentication required
-      
       // Try to get token with retry logic - prefer JWT for data endpoints
       String? token;
       
@@ -343,35 +346,24 @@ class SecureHttpClient {
       
       for (int attempt = 0; attempt < 3; attempt++) {
         if (needsJWT) {
-          // Data endpoint detected, trying JWT
           token = await JWTManager.getJWTAccessToken();
         }
         
         // Fallback to regular token if JWT not found
         if (token == null) {
-          // Getting access token
           token = await JWTManager.getAccessToken();
         }
         
         if (token != null) break;
         
-        // Token retrieval failed, retrying
         await Future.delayed(Duration(milliseconds: 200));
       }
       
-      // Token retrieval status logged
-      
       if (token != null) {
-        // Token format validated
-        // Token type detected
-        // Token length validated
-        
         // Validate token format
-        if (token.length < 20) {
-          // Token validation: length check
-        }
-        if (token.contains(' ') || token.contains('\n')) {
-          // Token validation: format check
+        if (token.length < 20 || token.contains(' ') || token.contains('\n')) {
+          await JWTManager.clearTokens();
+          throw SecurityException('Invalid token format - please login again');
         }
         
         // Additional validation for Django tokens
@@ -379,7 +371,6 @@ class SecureHttpClient {
           // Django token should be 40 characters of hex
           final isDjangoToken = token.length >= 20 && token.length <= 128;
           if (!isDjangoToken) {
-            // Token format invalid, clearing
             await JWTManager.clearTokens();
             throw SecurityException('Invalid token format - please login again');
           }
@@ -387,8 +378,9 @@ class SecureHttpClient {
       }
       
       if (token == null) {
-        print('❌ SECURE_HTTP: No authentication token available after retries');
-        print('❌ SECURE_HTTP: This will cause 401 Unauthorized error');
+        if (kDebugMode) {
+          print('SECURE_HTTP: No authentication token available after retries');
+        }
         throw SecurityException('Authentication required - please login again');
       }
       
@@ -396,14 +388,10 @@ class SecureHttpClient {
       if (token.length > 100 && token.contains('.')) {
         // JWT token - use Bearer format
         headers['Authorization'] = 'Bearer $token';
-        print('🔐 SECURE_HTTP: Using Bearer JWT token format');
       } else {
         // Django token - use Token format
         headers['Authorization'] = 'Token $token';
-        print('🔐 SECURE_HTTP: Using Django Token format');
       }
-      print('🔐 SECURE_HTTP: Authorization header set');
-      print('🔐 SECURE_HTTP: Final headers: ${headers.keys.toList()}');
     }
 
     // Add custom headers (with validation)
@@ -560,7 +548,7 @@ class SecureHttpClient {
 
   /// Get timeout duration based on endpoint type
   Duration _getTimeoutForEndpoint(String endpoint) {
-    print('🕐 SECURE_HTTP: Determining timeout for endpoint: $endpoint');
+    // Determining timeout for endpoint: $endpoint
     
     // Data-heavy endpoints that might need more time (especially for sleeping servers)
     final heavyEndpoints = [
@@ -582,19 +570,15 @@ class SecureHttpClient {
     
     for (final heavyEndpoint in heavyEndpoints) {
       if (endpoint.contains(heavyEndpoint)) {
-        print('🕐 SECURE_HTTP: Using extended timeout (15s) for heavy endpoint');
         return const Duration(seconds: 15); // Longer timeout for data endpoints
       }
     }
     
     for (final quickEndpoint in quickEndpoints) {
       if (endpoint.contains(quickEndpoint)) {
-        print('🕐 SECURE_HTTP: Using quick timeout (5s) for health endpoint');
         return const Duration(seconds: 5); // Quick timeout for health checks
       }
     }
-    
-    print('🕐 SECURE_HTTP: Using default timeout (10s)');
     return const Duration(seconds: 10); // Default timeout
   }
 
