@@ -66,7 +66,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       
       try {
-        print('🏠 HOME: Starting optimized data loading for dashboard...');
+        // Starting optimized data loading for dashboard
         
         // Load critical summary data first for faster UI response (only first page)
         if (mounted) {
@@ -90,7 +90,7 @@ class _HomeScreenState extends State<HomeScreen> {
           await Future.wait(futures, eagerError: false);
         }
         
-        print('✅ HOME: Optimized dashboard data loading completed');
+        // Optimized dashboard data loading completed
       } catch (e) {
         // Silently handle errors in production
         if (kDebugMode) print('HomeScreen data loading error: $e');

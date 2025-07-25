@@ -245,6 +245,21 @@ class _MembersScreenState extends State<MembersScreen> with SingleTickerProvider
     );
   }
 
+  Widget _buildWebMemberTable(MemberProvider memberProvider, bool? activeFilter) {
+    return WebMemberDataTable(
+      members: _getFilteredMembers(memberProvider.members, activeFilter),
+      isLoading: memberProvider.isLoading,
+      onMemberTap: (member) => _showMemberDetails(context, member),
+      onMemberEdit: (member) => _editMember(context, member),
+      onMemberToggle: (member) => _toggleMemberStatusDirect(context, member),
+      onSearch: (query) {
+        setState(() {
+          _searchQuery = query.toLowerCase();
+        });
+      },
+    );
+  }
+
   Widget _buildWebMembersView(BuildContext context) {
     return Consumer<MemberProvider>(
       builder: (context, memberProvider, child) {
@@ -258,42 +273,9 @@ class _MembersScreenState extends State<MembersScreen> with SingleTickerProvider
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  WebMemberDataTable(
-                    members: _getFilteredMembers(memberProvider.members, null),
-                    isLoading: memberProvider.isLoading,
-                    onMemberTap: (member) => _showMemberDetails(context, member),
-                    onMemberEdit: (member) => _editMember(context, member),
-                    onMemberToggle: (member) => _toggleMemberStatusDirect(context, member),
-                    onSearch: (query) {
-                      setState(() {
-                        _searchQuery = query.toLowerCase();
-                      });
-                    },
-                  ),
-                  WebMemberDataTable(
-                    members: _getFilteredMembers(memberProvider.members, true),
-                    isLoading: memberProvider.isLoading,
-                    onMemberTap: (member) => _showMemberDetails(context, member),
-                    onMemberEdit: (member) => _editMember(context, member),
-                    onMemberToggle: (member) => _toggleMemberStatusDirect(context, member),
-                    onSearch: (query) {
-                      setState(() {
-                        _searchQuery = query.toLowerCase();
-                      });
-                    },
-                  ),
-                  WebMemberDataTable(
-                    members: _getFilteredMembers(memberProvider.members, false),
-                    isLoading: memberProvider.isLoading,
-                    onMemberTap: (member) => _showMemberDetails(context, member),
-                    onMemberEdit: (member) => _editMember(context, member),
-                    onMemberToggle: (member) => _toggleMemberStatusDirect(context, member),
-                    onSearch: (query) {
-                      setState(() {
-                        _searchQuery = query.toLowerCase();
-                      });
-                    },
-                  ),
+                  _buildWebMemberTable(memberProvider, null),
+                  _buildWebMemberTable(memberProvider, true),
+                  _buildWebMemberTable(memberProvider, false),
                 ],
               ),
             ),

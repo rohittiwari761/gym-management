@@ -70,10 +70,10 @@ void main() async {
   // Run health check on startup (async, don't block startup)
   HealthService.runFullHealthCheck().then((results) {
     // Health check completed
-    print('✅ HEALTH_CHECK: Initial health check completed');
+    // Health check completed
   }).catchError((error) {
     // Health check failed
-    print('❌ HEALTH_CHECK: Initial health check failed: $error');
+    // Health check failed: $error
   });
 
   runApp(const MyApp());
@@ -223,19 +223,19 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
     switch (state) {
       case AppLifecycleState.resumed:
         // App is in foreground - restart keep-alive service
-        print('📱 APP_LIFECYCLE: App resumed - restarting keep-alive service');
+        // App resumed - restarting keep-alive service
         _keepAliveService.initialize();
         break;
       case AppLifecycleState.paused:
       case AppLifecycleState.inactive:
       case AppLifecycleState.detached:
         // App is in background - stop keep-alive service to save battery
-        print('📱 APP_LIFECYCLE: App paused/inactive - stopping keep-alive service');
+        // App paused/inactive - stopping keep-alive service
         _keepAliveService.stop();
         break;
       case AppLifecycleState.hidden:
         // App is hidden but still running
-        print('📱 APP_LIFECYCLE: App hidden');
+        // App hidden
         break;
     }
   }
@@ -279,9 +279,9 @@ Future<void> _preWarmTextInput() async {
       await SystemChannels.textInput.invokeMethod('TextInput.clearClient');
     }
     
-    print('✅ TEXT_INPUT: Pre-warming completed successfully');
+    // Text input pre-warming completed
   } catch (e) {
-    print('⚠️ TEXT_INPUT: Pre-warming failed (non-critical): $e');
+    // Text input pre-warming failed (non-critical): $e
     // Don't block app startup if pre-warming fails
   }
 }

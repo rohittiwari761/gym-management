@@ -48,27 +48,28 @@ class JWTManager {
       try {
         final prefixedKey = 'gym_management_public_key.$key';
         WebStorage.setItem(prefixedKey, value);
-        print('✅ JWT_MANAGER: localStorage write successful with prefix');
-        print('🔍 JWT_MANAGER: Stored value: ${value.substring(0, 20)}... (${value.length} chars)');
+        // Successfully stored to localStorage with prefix
         
         // Immediately verify the write worked
         final verification = WebStorage.getItem(prefixedKey);
-        if (verification != value) {
-          print('⚠️ JWT_MANAGER: localStorage write verification failed');
-        } else {
-          print('✅ JWT_MANAGER: localStorage write verified');
+        if (verification != value && kDebugMode) {
+          print('JWT_MANAGER: localStorage write verification failed');
         }
       } catch (storageError) {
-        print('❌ JWT_MANAGER: localStorage failed: $storageError');
+        if (kDebugMode) {
+          print('JWT_MANAGER: localStorage error: $storageError');
+        }
       }
     }
     
     // Try FlutterSecureStorage as secondary (may fail on web)
     try {
       await _storage.write(key: key, value: value);
-      print('✅ JWT_MANAGER: Secure storage write successful for key: $key');
+      // Secure storage write successful
     } catch (e) {
-      print('⚠️ JWT_MANAGER: Secure storage failed: $e');
+      if (kDebugMode) {
+        print('JWT_MANAGER: Secure storage failed: $e');
+      }
       // For web, we rely on localStorage above
       if (!kIsWeb) {
         // For mobile, this is a real problem
@@ -83,7 +84,7 @@ class JWTManager {
     if (kIsWeb) {
       // Try in-memory fallback first
       if (_webFallbackStorage.containsKey(key)) {
-        print('✅ JWT_MANAGER: Retrieved from fallback memory storage');
+        // Retrieved from fallback memory storage
         return _webFallbackStorage[key];
       }
       
@@ -92,20 +93,20 @@ class JWTManager {
         final prefixedKey = 'gym_management_public_key.$key';
         final value = WebStorage.getItem(prefixedKey);
         if (value != null) {
-          print('✅ JWT_MANAGER: Retrieved from localStorage with prefix');
-          print('🔍 JWT_MANAGER: Retrieved value: ${value.substring(0, 20)}... (${value.length} chars)');
+          // Successfully retrieved from localStorage with prefix
           return value;
         }
         
         // Also try without prefix for compatibility
         final directValue = WebStorage.getItem(key);
         if (directValue != null) {
-          print('✅ JWT_MANAGER: Retrieved from localStorage direct');
-          print('🔍 JWT_MANAGER: Retrieved value: ${directValue.substring(0, 20)}... (${directValue.length} chars)');
+          // Successfully retrieved from localStorage direct
           return directValue;
         }
       } catch (e) {
-        print('❌ JWT_MANAGER: localStorage read failed: $e');
+        if (kDebugMode) {
+          print('JWT_MANAGER: localStorage read error: $e');
+        }
       }
     }
     
@@ -113,11 +114,13 @@ class JWTManager {
     try {
       final value = await _storage.read(key: key);
       if (value != null) {
-        print('✅ JWT_MANAGER: Secure storage read successful for key: $key');
+        // Successfully read from secure storage
         return value;
       }
     } catch (e) {
-      print('⚠️ JWT_MANAGER: Secure storage read failed: $e');
+      if (kDebugMode) {
+        print('JWT_MANAGER: Secure storage read error: $e');
+      }
     }
     
     return null;
@@ -133,11 +136,7 @@ class JWTManager {
     bool persistent = false,
   }) async {
     try {
-      print('🔐 JWT_MANAGER: Storing tokens...');
-      print('🔐 JWT_MANAGER: Platform: ${kIsWeb ? "WEB" : "MOBILE"}');
-      print('🔐 JWT_MANAGER: Access token length: ${accessToken.length}');
-      print('🔐 JWT_MANAGER: User ID: $userId');
-      print('🔐 JWT_MANAGER: Persistent session: $persistent');
+      // Storing authentication tokens securely
       
       // Set expiry time only for JWT tokens, not Django tokens
       DateTime? expiryTime;
@@ -145,9 +144,9 @@ class JWTManager {
         expiryTime = DateTime.now().add(
           Duration(seconds: SecurityConfig.tokenExpiryDuration),
         );
-        print('🔐 JWT_MANAGER: JWT token detected, setting expiry: $expiryTime');
+        // JWT token detected, setting expiry time
       } else {
-        print('🔐 JWT_MANAGER: Django token detected, no expiry');
+        // Django token detected, no expiry needed
       }
 
       final futures = [
@@ -166,20 +165,18 @@ class JWTManager {
 
       await Future.wait(futures);
       
-      print('✅ JWT_MANAGER: Tokens stored successfully');
+      // Tokens stored successfully
       
       // Immediate verification for web platform
-      if (kIsWeb) {
-        print('🧪 JWT_MANAGER: Web platform - testing immediate retrieval...');
+      if (kIsWeb && kDebugMode) {
+        // Testing immediate retrieval on web platform
         try {
           final testToken = await _safeRead(_accessTokenKey);
-          if (testToken != null) {
-            print('✅ JWT_MANAGER: Immediate verification PASSED - token retrievable');
-          } else {
-            print('❌ JWT_MANAGER: Immediate verification FAILED - token not retrievable');
+          if (testToken == null) {
+            print('JWT_MANAGER: Token verification failed - not retrievable');
           }
         } catch (e) {
-          print('❌ JWT_MANAGER: Immediate verification ERROR: $e');
+          print('JWT_MANAGER: Token verification error: $e');
         }
       }
 
@@ -190,7 +187,9 @@ class JWTManager {
         'persistent': persistent,
       });
     } catch (e) {
-      print('❌ JWT_MANAGER: Token storage error: $e');
+      if (kDebugMode) {
+        print('JWT_MANAGER: Token storage error: $e');
+      }
       SecurityConfig.logSecurityEvent('TOKEN_STORE_ERROR', {
         'error': e.toString(),
       });
@@ -201,17 +200,15 @@ class JWTManager {
   /// Retrieve access token with retry logic
   static Future<String?> getAccessToken() async {
     try {
-      print('🔍 JWT_MANAGER: Attempting to retrieve access token...');
-      print('🔍 JWT_MANAGER: Platform: ${kIsWeb ? "WEB" : "MOBILE"}');
+      // Attempting to retrieve access token
       
       // Try multiple retrieval attempts for web platform
       String? token;
       if (kIsWeb) {
-        print('🌐 JWT_MANAGER: Web platform - trying multiple storage methods...');
+        // Web platform - using multiple storage methods with retry
         for (int attempt = 0; attempt < 3; attempt++) {
           token = await _safeRead(_accessTokenKey);
           if (token != null) break;
-          print('🔄 JWT_MANAGER: Attempt ${attempt + 1}/3 - token not found, retrying...');
           await Future.delayed(Duration(milliseconds: 100));
         }
       } else {
@@ -219,37 +216,37 @@ class JWTManager {
       }
       
       if (token == null) {
-        print('❌ JWT_MANAGER: No access token found after all attempts');
+        // No access token found
         return null;
       }
 
       // Validate token format before returning
       if (token.isEmpty || token.length < 10) {
-        print('❌ JWT_MANAGER: Token invalid format, clearing and returning null');
+        // Invalid token format, clearing tokens
         await clearTokens();
         return null;
       }
 
-      print('✅ JWT_MANAGER: Token found, length: ${token.length}');
-      print('🔍 JWT_MANAGER: Token type: ${_isJWTToken(token) ? "JWT" : "Django"}');
-      print('🔍 JWT_MANAGER: Token starts with: ${token.substring(0, 20)}...');
+      // Token found and validated
 
       // Only check expiry for JWT tokens, not Django tokens
       if (_isJWTToken(token)) {
-        // Check if token is expired
+        // Check if JWT token is expired
         if (await isTokenExpired()) {
-          print('❌ JWT_MANAGER: JWT token is expired, clearing tokens');
+          // JWT token is expired, clearing tokens
           await clearTokens();
           return null;
         }
-        print('✅ JWT_MANAGER: JWT token is valid (not expired)');
+        // JWT token is valid (not expired)
       } else {
-        print('✅ JWT_MANAGER: Django token - no expiry check needed');
+        // Django token - no expiry check needed
       }
 
       return token;
     } catch (e) {
-      print('❌ JWT_MANAGER: Token retrieval error: $e');
+      if (kDebugMode) {
+        print('JWT_MANAGER: Token retrieval error: $e');
+      }
       SecurityConfig.logSecurityEvent('TOKEN_RETRIEVAL_ERROR', {
         'error': e.toString(),
       });
@@ -260,26 +257,28 @@ class JWTManager {
   /// Get JWT access token specifically (for endpoints that require JWT Bearer format)
   static Future<String?> getJWTAccessToken() async {
     try {
-      print('🔍 JWT_MANAGER: Attempting to retrieve JWT access token...');
+      // Attempting to retrieve JWT access token specifically
       
       // First try the regular access token - it might be JWT
       String? token = await _safeRead(_accessTokenKey);
       if (token != null && _isJWTToken(token)) {
-        print('✅ JWT_MANAGER: Found JWT token in primary storage');
+        // Found JWT token in primary storage
         return token;
       }
       
       // If not, try to find stored JWT tokens from login response
       String? jwtToken = await _safeRead('jwt_access_token');
       if (jwtToken != null && _isJWTToken(jwtToken)) {
-        print('✅ JWT_MANAGER: Found JWT token in separate storage');
+        // Found JWT token in separate storage
         return jwtToken;
       }
       
-      print('❌ JWT_MANAGER: No JWT access token found');
+      // No JWT access token found
       return null;
     } catch (e) {
-      print('💥 JWT_MANAGER: Error retrieving JWT access token: $e');
+      if (kDebugMode) {
+        print('JWT_MANAGER: Error retrieving JWT access token: $e');
+      }
       return null;
     }
   }

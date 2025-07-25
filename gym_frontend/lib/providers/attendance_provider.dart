@@ -40,8 +40,6 @@ class AttendanceProvider with ChangeNotifier {
     _setLoading(true);
     try {
       final dateForDisplay = date != null ? TimezoneUtils.formatISTDate(date) : 'today';
-      print('📋 ATTENDANCE: Fetching attendances for $dateForDisplay...');
-      
       // Clear previous data to avoid confusion
       _attendances.clear();
       
@@ -57,23 +55,18 @@ class AttendanceProvider with ChangeNotifier {
         if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
           // Paginated response format
           data = responseData['results'] as List<dynamic>;
-          print('📋 ATTENDANCE: Using paginated format with ${data.length} results');
+          // Using paginated response format
         } else if (responseData is List<dynamic>) {
           // Direct array format
           data = responseData;
-          print('📋 ATTENDANCE: Using direct array format with ${data.length} items');
+          // Using direct array response format
         } else {
           throw Exception('Unexpected response format: expected array or paginated object');
         }
         
         _attendances = data.map((item) => Attendance.fromJson(item)).toList();
         
-        // Debug: Check member names after parsing
-        print('📋 ATTENDANCE: Fetched ${_attendances.length} attendances for $dateForDisplay');
-        for (final attendance in _attendances) {
-          final attendanceDate = TimezoneUtils.formatISTDate(attendance.checkInTime);
-          print('📋 ATTENDANCE: Member ID: ${attendance.memberId}, Name: "${attendance.memberName}", Date: $attendanceDate');
-        }
+        // Fetched attendance data successfully
         
         // Only fetch today's attendance if no specific date was requested
         if (date == null) {
@@ -86,23 +79,18 @@ class AttendanceProvider with ChangeNotifier {
             if (todayResponseData is Map<String, dynamic> && todayResponseData.containsKey('results')) {
               // Paginated response format
               todayData = todayResponseData['results'] as List<dynamic>;
-              print('📋 TODAY ATTENDANCE: Using paginated format with ${todayData.length} results');
+              // Using paginated format for today's data
             } else if (todayResponseData is List<dynamic>) {
               // Direct array format
               todayData = todayResponseData;
-              print('📋 TODAY ATTENDANCE: Using direct array format with ${todayData.length} items');
+              // Using direct array format for today's data
             } else {
               throw Exception('Unexpected today attendance response format: expected array or paginated object');
             }
             
             _todayAttendances = todayData.map((item) => Attendance.fromJson(item)).toList();
             
-            // Debug: Check today's member names after parsing
-            for (final attendance in _todayAttendances) {
-              print('📋 TODAY ATTENDANCE: Parsed attendance - Member ID: ${attendance.memberId}, Name: "${attendance.memberName}"');
-            }
-            
-            print('✅ ATTENDANCE: Loaded ${_todayAttendances.length} today\'s attendances (${_todayAttendances.where((a) => a.isCheckedIn).length} checked in, ${_todayAttendances.where((a) => a.isCheckedOut).length} checked out)');
+            // Today's attendance data loaded successfully
           } else {
             // Only fallback to filtering if we're actually fetching today's data
             final today = DateTime.now();
@@ -115,11 +103,11 @@ class AttendanceProvider with ChangeNotifier {
               if (fallbackResponseData is Map<String, dynamic> && fallbackResponseData.containsKey('results')) {
                 // Paginated response format
                 fallbackData = fallbackResponseData['results'] as List<dynamic>;
-                print('📋 FALLBACK ATTENDANCE: Using paginated format with ${fallbackData.length} results');
+                // Using paginated format for fallback data
               } else if (fallbackResponseData is List<dynamic>) {
                 // Direct array format
                 fallbackData = fallbackResponseData;
-                print('📋 FALLBACK ATTENDANCE: Using direct array format with ${fallbackData.length} items');
+                // Using direct array format for fallback data
               } else {
                 throw Exception('Unexpected fallback attendance response format: expected array or paginated object');
               }
@@ -131,25 +119,31 @@ class AttendanceProvider with ChangeNotifier {
           }
         } else {
           // When fetching a specific historical date, don't mix with today's data
-          print('📋 ATTENDANCE: Fetching historical date (${TimezoneUtils.formatISTDate(date!)}), today\'s attendance not affected');
+          // Fetching historical date, today's attendance not affected
         }
         
         _errorMessage = '';
-        print('✅ ATTENDANCE: Loaded ${_attendances.length} total attendances for ${date != null ? TimezoneUtils.formatISTDate(date) : 'today'}');
+        // Attendance data loaded successfully
       } else {
         _errorMessage = response['message'] ?? 'Failed to fetch attendances';
-        print('❌ ATTENDANCE ERROR: $_errorMessage');
+        if (kDebugMode) {
+          print('ATTENDANCE ERROR: $_errorMessage');
+        }
       }
     } catch (e) {
-      print('💥 ATTENDANCE ERROR: $e');
-      print('💥 ATTENDANCE ERROR TYPE: ${e.runtimeType}');
+      if (kDebugMode) {
+        print('ATTENDANCE ERROR: $e');
+        print('ATTENDANCE ERROR TYPE: ${e.runtimeType}');
+      }
       
       // Handle JSON parsing errors specifically
       if (e.toString().contains('FormatException') || 
           e.toString().contains('type') ||
           e.toString().contains('Unexpected response format')) {
         _errorMessage = 'Server returned invalid data format. Please try again.';
-        print('❌ ATTENDANCE: JSON parsing error detected');
+        if (kDebugMode) {
+          print('ATTENDANCE: JSON parsing error detected');
+        }
       } else {
         _errorMessage = 'Error fetching attendances: $e';
       }
@@ -158,10 +152,14 @@ class AttendanceProvider with ChangeNotifier {
       if (e.toString().contains('SocketException') || 
           e.toString().contains('Connection refused') ||
           e.toString().contains('Connection failed')) {
-        print('🔌 ATTENDANCE: Backend unreachable, using minimal mock data');
+        if (kDebugMode) {
+          print('ATTENDANCE: Backend unreachable, using minimal mock data');
+        }
         _createMockAttendances();
       } else {
-        print('🔌 ATTENDANCE: Backend reachable but returned error - no mock data');
+        if (kDebugMode) {
+          print('ATTENDANCE: Backend reachable but returned error - no mock data');
+        }
         // Set empty data instead of mock data when backend is reachable
         _attendances = [];
         _todayAttendances = [];
@@ -174,7 +172,7 @@ class AttendanceProvider with ChangeNotifier {
   /// Fetch today's attendance specifically
   Future<void> fetchTodaysAttendance() async {
     try {
-      print('📋 ATTENDANCE: Fetching today\'s attendance...');
+      // Fetching today's attendance
       
       final todayResponse = await _apiService.getTodayAttendances();
       if (todayResponse['success'] == true) {
@@ -185,11 +183,11 @@ class AttendanceProvider with ChangeNotifier {
         if (todayResponseData is Map<String, dynamic> && todayResponseData.containsKey('results')) {
           // Paginated response format
           todayData = todayResponseData['results'] as List<dynamic>;
-          print('📋 FETCH TODAY: Using paginated format with ${todayData.length} results');
+          // Using paginated format
         } else if (todayResponseData is List<dynamic>) {
           // Direct array format
           todayData = todayResponseData;
-          print('📋 FETCH TODAY: Using direct array format with ${todayData.length} items');
+          // Using direct array format
         } else {
           throw Exception('Unexpected fetch today response format: expected array or paginated object');
         }
@@ -199,12 +197,7 @@ class AttendanceProvider with ChangeNotifier {
         // Fix member names using cache
         _fixTodayAttendanceNames();
         
-        // Debug: Check today's member names after parsing
-        for (final attendance in _todayAttendances) {
-          print('📋 TODAY ATTENDANCE: Parsed attendance - Member ID: ${attendance.memberId}, Name: "${attendance.memberName}"');
-        }
-        
-        print('✅ ATTENDANCE: Loaded ${_todayAttendances.length} today\'s attendances (${_todayAttendances.where((a) => a.isCheckedIn).length} checked in, ${_todayAttendances.where((a) => a.isCheckedOut).length} checked out)');
+        // Today's attendance data loaded
         notifyListeners();
       } else {
         // Fallback to API call with today's date in IST
@@ -218,11 +211,11 @@ class AttendanceProvider with ChangeNotifier {
           if (fallbackTodayResponseData is Map<String, dynamic> && fallbackTodayResponseData.containsKey('results')) {
             // Paginated response format
             fallbackTodayData = fallbackTodayResponseData['results'] as List<dynamic>;
-            print('📋 FALLBACK TODAY: Using paginated format with ${fallbackTodayData.length} results');
+            // Using paginated format for fallback
           } else if (fallbackTodayResponseData is List<dynamic>) {
             // Direct array format
             fallbackTodayData = fallbackTodayResponseData;
-            print('📋 FALLBACK TODAY: Using direct array format with ${fallbackTodayData.length} items');
+            // Using direct array format for fallback
           } else {
             throw Exception('Unexpected fallback today response format: expected array or paginated object');
           }
@@ -231,13 +224,17 @@ class AttendanceProvider with ChangeNotifier {
           _fixTodayAttendanceNames();
           notifyListeners();
         } else {
-          print('❌ ATTENDANCE: Failed to fetch today\'s attendance');
+          if (kDebugMode) {
+            print('ATTENDANCE: Failed to fetch today\'s attendance');
+          }
           _todayAttendances = [];
           notifyListeners();
         }
       }
     } catch (e) {
-      print('💥 ATTENDANCE: Error fetching today\'s attendance: $e');
+      if (kDebugMode) {
+        print('ATTENDANCE: Error fetching today\'s attendance: $e');
+      }
       _todayAttendances = [];
       notifyListeners();
     }
@@ -245,7 +242,7 @@ class AttendanceProvider with ChangeNotifier {
 
   Future<void> fetchStats() async {
     try {
-      print('📊 ATTENDANCE: Fetching real attendance analytics from Django backend...');
+      // Fetching attendance analytics
       
       final response = await _apiService.getAttendanceAnalytics();
       
@@ -260,9 +257,11 @@ class AttendanceProvider with ChangeNotifier {
           peakHourCheckIns: data['today']['still_in_gym'] ?? 0,
           peakHour: '18:00', // This would need peak hour analysis in Django
         );
-        print('✅ ATTENDANCE: Loaded real analytics - Present: ${_stats!.presentToday}, Absent: ${_stats!.absentToday}');
+        // Analytics loaded successfully
       } else {
-        print('❌ ATTENDANCE ANALYTICS ERROR: ${response['message']}');
+        if (kDebugMode) {
+          print('ATTENDANCE ANALYTICS ERROR: ${response['message']}');
+        }
         // Set empty stats instead of mock data
         _stats = AttendanceStats(
           totalMembers: 0,
@@ -275,7 +274,9 @@ class AttendanceProvider with ChangeNotifier {
         );
       }
     } catch (e) {
-      print('💥 ATTENDANCE ANALYTICS ERROR: $e');
+      if (kDebugMode) {
+        print('ATTENDANCE ANALYTICS ERROR: $e');
+      }
       // Set empty stats on error instead of mock data
       _stats = AttendanceStats(
         totalMembers: 0,
@@ -292,7 +293,7 @@ class AttendanceProvider with ChangeNotifier {
 
   Future<bool> checkIn(int memberId, String memberName, {String? notes}) async {
     try {
-      print('🔑 ATTENDANCE: Checking in member $memberId ($memberName)...');
+      // Checking in member
       
       // Check if this is the first check-in of the day for attendance record
       final hasFirstCheckInToday = _todayAttendances.any((a) => 
@@ -320,7 +321,7 @@ class AttendanceProvider with ChangeNotifier {
           
           _todayAttendances.add(newAttendance);
           _attendances.add(newAttendance);
-          print('📝 ATTENDANCE: First check-in of day recorded for member $memberId ($resolvedName)');
+          // First check-in of day recorded
         } else {
           // Update existing record to show member is currently checked in
           final existingIndex = _todayAttendances.indexWhere((a) => 
@@ -348,26 +349,29 @@ class AttendanceProvider with ChangeNotifier {
               _attendances[mainIndex] = updatedAttendance;
             }
           }
-          print('🔄 ATTENDANCE: Subsequent check-in for member $memberId (attendance record preserved)');
+          // Subsequent check-in processed
         }
         
         await fetchStats();
         notifyListeners();
         
-        print('✅ ATTENDANCE: Member checked in successfully');
+        // Member checked in successfully
         return true;
       } else {
         // Handle API errors - but still allow multiple check-ins
         String errorMsg = response['message'] ?? 'Check-in failed';
         _errorMessage = errorMsg;
-        print('❌ ATTENDANCE CHECK-IN ERROR: $_errorMessage');
+        if (kDebugMode) {
+          print('ATTENDANCE CHECK-IN ERROR: $_errorMessage');
+        }
         return false;
       }
     } catch (e) {
-      print('💥 ATTENDANCE CHECK-IN ERROR: $e');
+      if (kDebugMode) {
+        print('ATTENDANCE CHECK-IN ERROR: $e');
+      }
       
       // Network error - allow check-in with local handling
-      print('🔧 ATTENDANCE: API unavailable, handling locally for member $memberId...');
       
       // Check if this is the first check-in of the day
       final hasFirstCheckInToday = _todayAttendances.any((a) => 
@@ -389,7 +393,7 @@ class AttendanceProvider with ChangeNotifier {
         
         _todayAttendances.add(newAttendance);
         _attendances.add(newAttendance);
-        print('📝 ATTENDANCE: First check-in of day recorded (offline) for $resolvedName');
+        // First check-in of day recorded (offline)
       } else {
         // Just update status for subsequent check-ins
         final existingIndex = _todayAttendances.indexWhere((a) => 
@@ -411,7 +415,7 @@ class AttendanceProvider with ChangeNotifier {
           
           _todayAttendances[existingIndex] = updatedAttendance;
         }
-        print('🔄 ATTENDANCE: Subsequent check-in handled (offline)');
+        // Subsequent check-in handled (offline)
       }
       
       notifyListeners();
@@ -421,7 +425,7 @@ class AttendanceProvider with ChangeNotifier {
 
   Future<bool> checkOut(int memberId, {String? notes}) async {
     try {
-      print('🚪 ATTENDANCE: Checking out member $memberId...');
+      // Checking out member
       
       // Find today's attendance record for this member
       final todayAttendanceIndex = _todayAttendances.indexWhere((a) => 
@@ -432,14 +436,18 @@ class AttendanceProvider with ChangeNotifier {
       // If no attendance record for today, but member is trying to check out,
       // we should still allow it (maybe they checked in earlier but record wasn't synced)
       if (todayAttendanceIndex == -1) {
-        print('⚠️ ATTENDANCE: No attendance record found, but allowing checkout...');
+        if (kDebugMode) {
+          print('ATTENDANCE: No attendance record found, but allowing checkout');
+        }
         // We'll handle this case below in the API call
       } else {
         // Check if member is currently checked in
         final currentAttendance = _todayAttendances[todayAttendanceIndex];
         if (!currentAttendance.isCheckedIn) {
           _errorMessage = 'Member is not currently checked in';
-          print('⚠️ ATTENDANCE: Member $memberId is not currently checked in');
+          if (kDebugMode) {
+            print('ATTENDANCE: Member $memberId is not currently checked in');
+          }
           return false;
         }
       }
@@ -476,20 +484,23 @@ class AttendanceProvider with ChangeNotifier {
         await fetchStats();
         notifyListeners();
         
-        print('✅ ATTENDANCE: Member checked out successfully');
+        // Member checked out successfully
         return true;
       } else {
         // Handle API errors - but be more lenient
         String errorMsg = response['message'] ?? 'Check-out failed';
         _errorMessage = errorMsg;
-        print('❌ ATTENDANCE CHECK-OUT ERROR: $_errorMessage');
+        if (kDebugMode) {
+          print('ATTENDANCE CHECK-OUT ERROR: $_errorMessage');
+        }
         return false;
       }
     } catch (e) {
-      print('💥 ATTENDANCE CHECK-OUT ERROR: $e');
+      if (kDebugMode) {
+        print('ATTENDANCE CHECK-OUT ERROR: $e');
+      }
       
       // Network error - handle locally if possible
-      print('🔧 ATTENDANCE: API unavailable, handling checkout locally for member $memberId...');
       
       final attendanceIndex = _todayAttendances.indexWhere(
         (a) => a.memberId == memberId && a.isCheckedIn,
@@ -510,10 +521,12 @@ class AttendanceProvider with ChangeNotifier {
         _todayAttendances[attendanceIndex] = updatedAttendance;
         notifyListeners();
         
-        print('✅ ATTENDANCE: Member checked out successfully (offline)');
+        // Member checked out successfully (offline)
         return true;
       } else {
-        print('⚠️ ATTENDANCE: No local record to update, but allowing checkout operation');
+        if (kDebugMode) {
+          print('ATTENDANCE: No local record to update, but allowing checkout operation');
+        }
         return true; // Still return success for user experience
       }
     }
@@ -539,7 +552,7 @@ class AttendanceProvider with ChangeNotifier {
     // Convert to IST date (date only, no time)
     final istDate = TimezoneUtils.toIST(date);
     _selectedDate = DateTime(istDate.year, istDate.month, istDate.day);
-    print('📅 ATTENDANCE: Selected date set to: ${TimezoneUtils.formatISTDate(_selectedDate)} (IST)');
+    // Selected date updated
     fetchAttendances(date: _selectedDate);
   }
 
@@ -549,7 +562,9 @@ class AttendanceProvider with ChangeNotifier {
   }
 
   void _createMockAttendances() {
-    print('🔧 ATTENDANCE: Creating minimal mock attendance data (backend unreachable)');
+    if (kDebugMode) {
+      print('ATTENDANCE: Creating minimal mock attendance data (backend unreachable)');
+    }
     
     // Only create minimal mock data when backend is completely unreachable
     final now = DateTime.now();
@@ -567,7 +582,9 @@ class AttendanceProvider with ChangeNotifier {
     _attendances = minimalMockAttendances;
     _todayAttendances = minimalMockAttendances;
     
-    print('🚫 ATTENDANCE: Using minimal offline data - connect to Django backend for real data');
+    if (kDebugMode) {
+      print('ATTENDANCE: Using minimal offline data - connect to Django backend for real data');
+    }
   }
 
   void _createMockStats() {
@@ -581,7 +598,9 @@ class AttendanceProvider with ChangeNotifier {
       peakHourCheckIns: 0,
       peakHour: '00:00',
     );
-    print('🚫 ATTENDANCE: Mock stats replaced with empty data - use real Django backend analytics');
+    if (kDebugMode) {
+      print('ATTENDANCE: Mock stats replaced with empty data - use real Django backend analytics');
+    }
   }
 
   void clearError() {
@@ -591,7 +610,7 @@ class AttendanceProvider with ChangeNotifier {
   
   /// Clear all attendance data and reset for new gym context
   void clearAllData() {
-    print('🧹 ATTENDANCE: Clearing all attendance data for new gym context');
+    // Clearing all attendance data for new gym context
     _attendances.clear();
     _todayAttendances.clear();
     _stats = null;
@@ -603,7 +622,7 @@ class AttendanceProvider with ChangeNotifier {
   
   /// Force refresh attendance data for current gym
   Future<void> forceRefresh() async {
-    print('🔄 ATTENDANCE: Force refreshing attendance data');
+    // Force refreshing attendance data
     clearAllData();
     await Future.wait([
       fetchAttendances(),
@@ -615,7 +634,7 @@ class AttendanceProvider with ChangeNotifier {
   // Update members cache for name resolution
   void updateMembersCache(List<Member> members) {
     _members = members;
-    print('📇 ATTENDANCE: Updated members cache with ${members.length} members');
+    // Updated members cache
     
     // Fix existing attendance records with proper member names
     _fixAttendanceRecordNames();
@@ -660,7 +679,9 @@ class AttendanceProvider with ChangeNotifier {
               status: attendance.status,
               notes: attendance.notes,
             );
-            print('🔧 ATTENDANCE: Fixed today\'s attendance name for member ${attendance.memberId}: ${member.fullName}');
+            if (kDebugMode) {
+              print('ATTENDANCE: Fixed today\'s attendance name for member ${attendance.memberId}: ${member.fullName}');
+            }
           }
         }
       }
@@ -673,7 +694,9 @@ class AttendanceProvider with ChangeNotifier {
     
     // Only fix attendances if we have members cache available
     if (_members.isEmpty) {
-      print('📇 ATTENDANCE: No members cache available, skipping name fixes');
+      if (kDebugMode) {
+        print('ATTENDANCE: No members cache available, skipping name fixes');
+      }
       return;
     }
     
@@ -694,7 +717,9 @@ class AttendanceProvider with ChangeNotifier {
             notes: attendance.notes,
           );
           updated = true;
-          print('🔧 ATTENDANCE: Fixed name for member ${attendance.memberId}: ${attendance.memberName} → $correctName');
+          if (kDebugMode) {
+            print('ATTENDANCE: Fixed name for member ${attendance.memberId}: ${attendance.memberName} → $correctName');
+          }
         }
       }
     }
@@ -722,7 +747,9 @@ class AttendanceProvider with ChangeNotifier {
     
     if (updated) {
       notifyListeners();
-      print('✅ ATTENDANCE: Fixed member names in existing attendance records');
+      if (kDebugMode) {
+        print('ATTENDANCE: Fixed member names in existing attendance records');
+      }
     }
   }
 
@@ -745,7 +772,7 @@ class AttendanceProvider with ChangeNotifier {
     _todayAttendances.removeWhere((a) => a.memberId == memberId);
     _attendances.removeWhere((a) => a.memberId == memberId && a.checkInTime.day == DateTime.now().day);
     notifyListeners();
-    print('🧹 ATTENDANCE: Cleared mock data for member $memberId');
+    // Cleared mock data for member
   }
 
   // Helper method to clear all mock data
@@ -753,13 +780,15 @@ class AttendanceProvider with ChangeNotifier {
     _todayAttendances.clear();
     _attendances.removeWhere((a) => a.checkInTime.day == DateTime.now().day);
     notifyListeners();
-    print('🧹 ATTENDANCE: Cleared all mock data');
+    // Cleared all mock data
   }
 
   // Force update all attendance records with correct member names
   void forceUpdateMemberNames() {
     if (_members.isEmpty) {
-      print('⚠️ ATTENDANCE: No members cache available for name resolution');
+      if (kDebugMode) {
+        print('ATTENDANCE: No members cache available for name resolution');
+      }
       return;
     }
     
@@ -776,7 +805,9 @@ class AttendanceProvider with ChangeNotifier {
         status: attendance.status,
         notes: attendance.notes,
       );
-      print('🔄 ATTENDANCE: Updated member ${attendance.memberId} name to: $correctName');
+      if (kDebugMode) {
+        print('ATTENDANCE: Updated member ${attendance.memberId} name to: $correctName');
+      }
     }
     
     for (int i = 0; i < _attendances.length; i++) {
@@ -794,13 +825,15 @@ class AttendanceProvider with ChangeNotifier {
     }
     
     notifyListeners();
-    print('✅ ATTENDANCE: Force updated all member names');
+    if (kDebugMode) {
+      print('ATTENDANCE: Force updated all member names');
+    }
   }
 
   // Helper method to refresh today's attendance data from server
   Future<void> _refreshTodayAttendances() async {
     try {
-      print('🔄 ATTENDANCE: Refreshing today\'s attendance data...');
+      // Refreshing today's attendance data
       
       final todayResponse = await _apiService.getTodayAttendances();
       if (todayResponse['success'] == true) {
@@ -811,22 +844,26 @@ class AttendanceProvider with ChangeNotifier {
         if (refreshResponseData is Map<String, dynamic> && refreshResponseData.containsKey('results')) {
           // Paginated response format
           refreshData = refreshResponseData['results'] as List<dynamic>;
-          print('📋 REFRESH TODAY: Using paginated format with ${refreshData.length} results');
+          // Using paginated format for refresh
         } else if (refreshResponseData is List<dynamic>) {
           // Direct array format
           refreshData = refreshResponseData;
-          print('📋 REFRESH TODAY: Using direct array format with ${refreshData.length} items');
+          // Using direct array format for refresh
         } else {
           throw Exception('Unexpected refresh today response format: expected array or paginated object');
         }
         
         _todayAttendances = refreshData.map((item) => Attendance.fromJson(item)).toList();
-        print('✅ ATTENDANCE: Refreshed ${_todayAttendances.length} today\'s attendances (${_todayAttendances.where((a) => a.isCheckedIn).length} checked in, ${_todayAttendances.where((a) => a.isCheckedOut).length} checked out)');
+        // Today's attendance data refreshed
       } else {
-        print('⚠️ ATTENDANCE: Failed to refresh today\'s data: ${todayResponse['message']}');
+        if (kDebugMode) {
+          print('ATTENDANCE: Failed to refresh today\'s data: ${todayResponse['message']}');
+        }
       }
     } catch (e) {
-      print('💥 ATTENDANCE: Error refreshing today\'s data: $e');
+      if (kDebugMode) {
+        print('ATTENDANCE: Error refreshing today\'s data: $e');
+      }
     }
   }
 
@@ -845,14 +882,16 @@ class AttendanceProvider with ChangeNotifier {
       _historyDate = null;
       _isLoadingHistory = false;
 
-      print('🗑️ ATTENDANCE: All attendance data has been reset locally');
+      // All attendance data has been reset locally
       
       // You could also call an API endpoint here to clear server data
       // await _apiService.resetAllAttendance();
       
       notifyListeners();
     } catch (e) {
-      print('💥 ATTENDANCE: Error resetting data: $e');
+      if (kDebugMode) {
+        print('ATTENDANCE: Error resetting data: $e');
+      }
       _errorMessage = 'Failed to reset attendance data: $e';
     } finally {
       _isLoading = false;
@@ -868,8 +907,7 @@ class AttendanceProvider with ChangeNotifier {
 
     try {
       final dateStr = TimezoneUtils.formatISTDate(date);
-      print('📋 HISTORY: Fetching attendance history for $dateStr...');
-      print('📋 HISTORY: Clear previous history data before fetching new date');
+      // Fetching attendance history and clearing previous data
       
       // Clear previous history data to avoid confusion
       _historyAttendances.clear();
@@ -884,44 +922,40 @@ class AttendanceProvider with ChangeNotifier {
         if (responseData is Map<String, dynamic> && responseData.containsKey('results')) {
           // Paginated response format
           data = responseData['results'] as List<dynamic>;
-          print('📋 HISTORY: Using paginated format with ${data.length} results');
+          // Using paginated format for history
         } else if (responseData is List<dynamic>) {
           // Direct array format
           data = responseData;
-          print('📋 HISTORY: Using direct array format with ${data.length} items');
+          // Using direct array format for history
         } else {
           throw Exception('Unexpected history response format: expected array or paginated object');
         }
         
         _historyAttendances = data.map((item) => Attendance.fromJson(item)).toList();
         
-        print('✅ HISTORY: Loaded ${_historyAttendances.length} attendance records for $dateStr');
-        print('📋 HISTORY: API Response Data Count: ${data.length}');
-        
-        if (_historyAttendances.isEmpty) {
-          print('📋 HISTORY: No attendance records found for $dateStr - this is correct if no one attended that day');
-        } else {
-          for (final attendance in _historyAttendances) {
-            final attendanceDate = TimezoneUtils.formatISTDate(attendance.checkInTime);
-            print('📋 HISTORY: Member ID: ${attendance.memberId}, Name: "${attendance.memberName}", Date: $attendanceDate, Check-in: ${TimezoneUtils.formatISTTime(attendance.checkInTime)}');
-          }
-        }
+        // History attendance data loaded successfully
         
         _errorMessage = '';
       } else {
         _errorMessage = response['message'] ?? 'Failed to fetch history attendance';
         _historyAttendances = [];
-        print('❌ HISTORY ERROR: $_errorMessage');
+        if (kDebugMode) {
+          print('HISTORY ERROR: $_errorMessage');
+        }
       }
     } catch (e) {
-      print('💥 HISTORY ERROR: $e');
+      if (kDebugMode) {
+        print('HISTORY ERROR: $e');
+      }
       
       // Handle JSON parsing errors specifically
       if (e.toString().contains('FormatException') || 
           e.toString().contains('type') ||
           e.toString().contains('Unexpected response format')) {
         _errorMessage = 'Server returned invalid data format. Please try again.';
-        print('❌ HISTORY: JSON parsing error detected');
+        if (kDebugMode) {
+          print('HISTORY: JSON parsing error detected');
+        }
       } else {
         _errorMessage = 'Error fetching history: $e';
       }
@@ -938,7 +972,7 @@ class AttendanceProvider with ChangeNotifier {
     final istDate = TimezoneUtils.toIST(date);
     final selectedDate = DateTime(istDate.year, istDate.month, istDate.day);
     
-    print('📅 HISTORY: Selected history date set to: ${TimezoneUtils.formatISTDate(selectedDate)} (IST)');
+    // History date selected
     
     // Only fetch if it's a different date
     if (_historyDate == null || 
@@ -954,7 +988,7 @@ class AttendanceProvider with ChangeNotifier {
     _historyAttendances.clear();
     _historyDate = null;
     _isLoadingHistory = false;
-    print('🗑️ HISTORY: Cleared history attendance data');
+    // History attendance data cleared
     notifyListeners();
   }
 
