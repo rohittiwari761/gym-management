@@ -225,6 +225,25 @@ class AuthService {
 
           print('✅ AUTH: Django authentication successful for ${user['email']}');
           
+          // Store JWT tokens if available
+          if (data.containsKey('jwt')) {
+            final jwtData = data['jwt'] as Map<String, dynamic>;
+            final accessToken = jwtData['access'] as String?;
+            final refreshToken = jwtData['refresh'] as String?;
+            
+            if (accessToken != null) {
+              print('💾 AUTH: Storing JWT access token (${accessToken.length} chars)');
+              await JWTManager.storeTokens(
+                accessToken: accessToken,
+                refreshToken: refreshToken ?? '',
+                userId: user['id'].toString(),
+                userRole: 'admin',
+                sessionId: JWTManager.generateSessionId(),
+                persistent: true,
+              );
+            }
+          }
+          
           return {
             'success': true,
             'userData': {
@@ -241,6 +260,7 @@ class AuthService {
             },
             'role': 'admin',
             'token': token,
+            'jwtTokens': data.containsKey('jwt') ? data['jwt'] : null,
           };
         } else {
           print('❌ AUTH: Django backend returned unsuccessful response');

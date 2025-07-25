@@ -83,7 +83,7 @@ class _MembersScreenState extends State<MembersScreen> with SingleTickerProvider
         ) : null,
         body: Column(
           children: [
-            if (!kIsWeb || context.isWebMobile) ..[
+            if (!kIsWeb || context.isWebMobile) ...[
               _buildMemberStats(context),
               _buildSearchBar(context),
               _buildTabBar(context),
@@ -616,7 +616,7 @@ class _MembersScreenState extends State<MembersScreen> with SingleTickerProvider
             Expanded(
               child: _buildWebStatCard(
                 'This Month',
-                '${provider.members.where((m) => _isThisMonth(m.createdAt)).length}',
+                '${provider.members.where((m) => _isThisMonth(DateTime.now())).length}',
                 Icons.calendar_month,
                 AppTheme.primaryBlue.withOpacity(0.8),
                 context,

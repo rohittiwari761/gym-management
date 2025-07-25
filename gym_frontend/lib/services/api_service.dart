@@ -103,11 +103,11 @@ class ApiService {
         'method': 'GET',
       });
 
-      // Build query parameters to optimize response size
+      // Build query parameters to get complete member data
       final queryParams = <String, dynamic>{
         'page': page.toString(),
         'page_size': limit.toString(),  // Changed from 'limit' to 'page_size' for backend compatibility
-        'minimal': 'true',  // Request optimized serializer
+        // Removed 'minimal': 'true' to get complete member data including address and emergency contact
       };
       
       // Exclude heavy fields that aren't needed for list view (for backward compatibility)
@@ -115,7 +115,7 @@ class ApiService {
         queryParams['exclude'] = excludeFields.join(',');
       }
       
-      print('👥 MEMBERS: Requesting page $page with page_size $limit (minimal=true)');
+      print('👥 MEMBERS: Requesting page $page with page_size $limit (complete data)');
 
       final response = await _httpClient.get(
         'members/', 

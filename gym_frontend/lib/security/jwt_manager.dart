@@ -257,6 +257,33 @@ class JWTManager {
     }
   }
 
+  /// Get JWT access token specifically (for endpoints that require JWT Bearer format)
+  static Future<String?> getJWTAccessToken() async {
+    try {
+      print('🔍 JWT_MANAGER: Attempting to retrieve JWT access token...');
+      
+      // First try the regular access token - it might be JWT
+      String? token = await _safeRead(_accessTokenKey);
+      if (token != null && _isJWTToken(token)) {
+        print('✅ JWT_MANAGER: Found JWT token in primary storage');
+        return token;
+      }
+      
+      // If not, try to find stored JWT tokens from login response
+      String? jwtToken = await _safeRead('jwt_access_token');
+      if (jwtToken != null && _isJWTToken(jwtToken)) {
+        print('✅ JWT_MANAGER: Found JWT token in separate storage');
+        return jwtToken;
+      }
+      
+      print('❌ JWT_MANAGER: No JWT access token found');
+      return null;
+    } catch (e) {
+      print('💥 JWT_MANAGER: Error retrieving JWT access token: $e');
+      return null;
+    }
+  }
+
   /// Retrieve refresh token
   static Future<String?> getRefreshToken() async {
     try {

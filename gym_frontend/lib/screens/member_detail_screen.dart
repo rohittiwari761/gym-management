@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/member.dart';
@@ -44,368 +45,414 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      appBar: AppBar(
-        title: Text(_currentMember.fullName),
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Theme.of(context).colorScheme.onPrimary,
-        elevation: 0,
-        actions: [
-          IconButton(
-            onPressed: () => _toggleMemberStatus(),
-            icon: Icon(
-              _currentMember.isActive ? Icons.pause : Icons.play_arrow,
-              size: 20,
-            ),
-            tooltip: _currentMember.isActive ? 'Deactivate Member' : 'Activate Member',
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: context.screenPadding,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Member Header Card
-            _buildMemberHeaderCard(context),
-            SizedBox(height: AppSpacing.lg),
-            
-            // Personal Information Card
-            _buildPersonalInfoCard(context),
-            SizedBox(height: AppSpacing.lg),
-            
-            // Contact Information Card
-            _buildContactInfoCard(context),
-            SizedBox(height: AppSpacing.lg),
-            
-            // Emergency Contact Card
-            _buildEmergencyContactCard(context),
-            SizedBox(height: AppSpacing.lg),
-            
-            // Physical Attributes Card (if available)
-            if (_currentMember.hasPhysicalData) ...[
-              _buildPhysicalAttributesCard(context),
-              SizedBox(height: AppSpacing.lg),
-            ],
-            
-            // Membership Details Card
-            _buildMembershipDetailsCard(context),
-            SizedBox(height: AppSpacing.lg),
-            
-            // Action Buttons
-            _buildActionButtons(context),
-            SizedBox(height: AppSpacing.xl),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMemberHeaderCard(BuildContext context) {
-    final isExpiringSoon = _currentMember.daysUntilExpiry != null && _currentMember.daysUntilExpiry! <= 7;
-    
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: _currentMember.isActive 
-            ? [Theme.of(context).colorScheme.primaryContainer, Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)]
-            : [Colors.grey.shade200, Colors.grey.shade100],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      padding: EdgeInsets.all(AppSpacing.lg),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              // Enhanced Avatar with Border
-              Container(
-                width: 90,
-                height: 90,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: _currentMember.isActive 
-                    ? LinearGradient(
-                        colors: [
-                          Theme.of(context).colorScheme.primary,
-                          Theme.of(context).colorScheme.secondary,
-                        ],
-                      )
-                    : LinearGradient(
-                        colors: [Colors.grey.shade400, Colors.grey.shade600],
-                      ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Container(
-                  margin: const EdgeInsets.all(3),
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white,
-                  ),
-                  child: _currentMember.profilePictureUrl != null
-                    ? ClipOval(
-                        child: Image.network(
-                          _currentMember.profilePictureUrl!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => Center(
-                            child: Text(
-                              _currentMember.fullName.isNotEmpty ? _currentMember.fullName[0].toUpperCase() : 'M',
-                              style: AppTextStyles.heading2(context).copyWith(
-                                color: Theme.of(context).colorScheme.primary,
-                                fontSize: 32,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                      )
-                    : Center(
-                        child: Text(
-                          _currentMember.fullName.isNotEmpty ? _currentMember.fullName[0].toUpperCase() : 'M',
-                          style: AppTextStyles.heading2(context).copyWith(
-                            color: Theme.of(context).colorScheme.primary,
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                ),
-              ),
-              SizedBox(width: AppSpacing.lg),
-              
-              // Enhanced Member Info
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _currentMember.fullName,
-                      style: AppTextStyles.heading2(context).copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                    ),
-                    SizedBox(height: AppSpacing.xs),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.badge,
-                          size: 16,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                        SizedBox(width: AppSpacing.xs),
-                        Text(
-                          _currentMember.memberId ?? 'N/A',
-                          style: AppTextStyles.body1(context).copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: AppSpacing.sm),
-                    Row(
-                      children: [
-                        common_widgets.StatusBadge(
-                          status: _currentMember.isActive ? 'active' : 'inactive',
-                        ),
-                        if (isExpiringSoon) ...[
-                          SizedBox(width: AppSpacing.sm),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.orange.shade100,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.orange.shade300),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
+      backgroundColor: Colors.grey.shade50,
+      body: CustomScrollView(
+        slivers: [
+          _buildSliverAppBar(context),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Quick Actions Row
+                  _buildQuickActionsRow(context),
+                  const SizedBox(height: 20),
+                  
+                  // Main Content
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      // Use single column layout for mobile/narrow screens and web
+                      if (kIsWeb || constraints.maxWidth < 800) {
+                        return Column(
+                          children: [
+                            _buildPersonalInfoCard(context),
+                            const SizedBox(height: 16),
+                            _buildContactInfoCard(context),
+                            const SizedBox(height: 16),
+                            _buildEmergencyContactCard(context),
+                            const SizedBox(height: 16),
+                            _buildMembershipCard(context),
+                            if (_currentMember.hasPhysicalData) ...[
+                              const SizedBox(height: 16),
+                              _buildPhysicalAttributesCard(context),
+                            ],
+                          ],
+                        );
+                      }
+                      
+                      // Two column layout for wider screens
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Left Column
+                          Expanded(
+                            flex: 2,
+                            child: Column(
                               children: [
-                                Icon(Icons.warning, size: 12, color: Colors.orange.shade700),
-                                SizedBox(width: AppSpacing.xs),
-                                Text(
-                                  '${_currentMember.daysUntilExpiry} days left',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.orange.shade700,
-                                  ),
-                                ),
+                                _buildPersonalInfoCard(context),
+                                const SizedBox(height: 16),
+                                _buildContactInfoCard(context),
+                                const SizedBox(height: 16),
+                                _buildEmergencyContactCard(context),
+                              ],
+                            ),
+                          ),
+                          
+                          const SizedBox(width: 16),
+                          
+                          // Right Column
+                          Expanded(
+                            flex: 1,
+                            child: Column(
+                              children: [
+                                _buildMembershipCard(context),
+                                if (_currentMember.hasPhysicalData) ...[
+                                  const SizedBox(height: 16),
+                                  _buildPhysicalAttributesCard(context),
+                                ],
                               ],
                             ),
                           ),
                         ],
-                      ],
-                    ),
-                  ],
-                ),
+                      );
+                    },
+                  ),
+                  
+                  const SizedBox(height: 24),
+                  _buildActionButtons(context),
+                ],
               ),
-            ],
-          ),
-          
-          // Quick Action Buttons Row
-          SizedBox(height: AppSpacing.lg),
-          Row(
-            children: [
-              Expanded(
-                child: _buildQuickActionButton(
-                  context,
-                  icon: Icons.phone,
-                  label: 'Call',
-                  color: Colors.green,
-                  onTap: () => _makePhoneCall(_currentMember.phone),
-                ),
-              ),
-              SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: _buildQuickActionButton(
-                  context,
-                  icon: Icons.message,
-                  label: 'WhatsApp',
-                  color: const Color(0xFF25D366),
-                  onTap: () => _openWhatsApp(_currentMember.phone),
-                ),
-              ),
-              SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: _buildQuickActionButton(
-                  context,
-                  icon: Icons.email,
-                  label: 'Email',
-                  color: Colors.blue,
-                  onTap: () => _sendEmail(_currentMember.user?.email),
-                ),
-              ),
-            ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildQuickActionButton(
+  Widget _buildSliverAppBar(BuildContext context) {
+    final isExpiringSoon = _currentMember.daysUntilExpiry != null && _currentMember.daysUntilExpiry! <= 7;
+    
+    return SliverAppBar(
+      expandedHeight: 280,
+      floating: false,
+      pinned: true,
+      elevation: 0,
+      backgroundColor: Colors.white,
+      foregroundColor: Colors.black87,
+      flexibleSpace: FlexibleSpaceBar(
+        background: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: _currentMember.isActive 
+                ? [Colors.blue.shade50, Colors.blue.shade100]
+                : [Colors.grey.shade100, Colors.grey.shade200],
+            ),
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Avatar
+                  Hero(
+                    tag: 'member-${_currentMember.id}',
+                    child: Container(
+                      width: 120,
+                      height: 120,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 20,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Container(
+                        margin: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: _currentMember.isActive 
+                            ? LinearGradient(
+                                colors: [Colors.blue.shade400, Colors.blue.shade600],
+                              )
+                            : LinearGradient(
+                                colors: [Colors.grey.shade400, Colors.grey.shade600],
+                              ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            _currentMember.fullName.isNotEmpty ? _currentMember.fullName[0].toUpperCase() : 'M',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 36,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 16),
+                  
+                  // Name and Status
+                  Text(
+                    _currentMember.fullName,
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  
+                  const SizedBox(height: 8),
+                  
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: _currentMember.isActive ? Colors.green : Colors.orange,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          _currentMember.isActive ? 'Active' : 'Inactive',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      if (isExpiringSoon) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade100,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.red.shade300),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.warning, size: 14, color: Colors.red.shade700),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${_currentMember.daysUntilExpiry} days left',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.red.shade700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 12),
+                  
+                  Text(
+                    _currentMember.membershipType.toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        IconButton(
+          onPressed: () => _toggleMemberStatus(),
+          icon: Icon(
+            _currentMember.isActive ? Icons.pause : Icons.play_arrow,
+            color: _currentMember.isActive ? Colors.orange : Colors.green,
+          ),
+          tooltip: _currentMember.isActive ? 'Deactivate Member' : 'Activate Member',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQuickActionsRow(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildQuickActionCard(
+            context,
+            icon: Icons.phone,
+            label: 'Call',
+            color: Colors.green,
+            onTap: () => _makePhoneCall(_currentMember.phone),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildQuickActionCard(
+            context,
+            icon: Icons.message,
+            label: 'WhatsApp',
+            color: const Color(0xFF25D366),
+            onTap: () => _openWhatsApp(_currentMember.phone),
+            isHighlighted: true,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildQuickActionCard(
+            context,
+            icon: Icons.email,
+            label: 'Email',
+            color: Colors.blue,
+            onTap: () => _sendEmail(_currentMember.user?.email),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQuickActionCard(
     BuildContext context, {
     required IconData icon,
     required String label,
     required Color color,
     required VoidCallback onTap,
+    bool isHighlighted = false,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: EdgeInsets.symmetric(vertical: AppSpacing.sm, horizontal: AppSpacing.xs),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 20),
-            SizedBox(height: AppSpacing.xs),
-            Text(
-              label,
-              style: AppTextStyles.caption(context).copyWith(
-                color: color,
-                fontWeight: FontWeight.w600,
-              ),
+    return Flexible(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isHighlighted ? color : Colors.grey.shade200,
+              width: isHighlighted ? 2 : 1,
             ),
-          ],
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  icon, 
+                  color: color, 
+                  size: 18,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: Colors.grey.shade700,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 11,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildPersonalInfoCard(BuildContext context) {
-    return common_widgets.ResponsiveCard(
+    return _buildModernCard(
+      title: 'Personal Information',
+      icon: Icons.person_outline,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(Icons.person, color: Theme.of(context).colorScheme.primary),
-              SizedBox(width: AppSpacing.sm),
-              Text(
-                'Personal Information',
-                style: AppTextStyles.heading3(context),
-              ),
-            ],
+          _buildModernDetailRow(
+            icon: Icons.email_outlined,
+            label: 'Email Address',
+            value: _currentMember.user?.email ?? 'Not provided',
+            actionIcon: Icons.email,
+            onAction: () => _sendEmail(_currentMember.user?.email),
           ),
-          SizedBox(height: AppSpacing.md),
-          
-          _buildDetailRow(
-            context,
-            Icons.email,
-            'Email',
-            _currentMember.user?.email ?? 'Not provided',
+          const SizedBox(height: 16),
+          _buildModernDetailRow(
+            icon: Icons.phone_outlined,
+            label: 'Phone Number',
+            value: _currentMember.phone,
+            actionIcon: Icons.call,
+            onAction: () => _makePhoneCall(_currentMember.phone),
           ),
-          
-          _buildDetailRow(
-            context,
-            Icons.phone,
-            'Phone',
-            _currentMember.phone,
-          ),
-          
-          if (_currentMember.dateOfBirth != null)
-            _buildDetailRow(
-              context,
-              Icons.cake,
-              'Date of Birth',
-              _formatDate(_currentMember.dateOfBirth!),
+          if (_currentMember.dateOfBirth != null) ...[
+            const SizedBox(height: 16),
+            _buildModernDetailRow(
+              icon: Icons.cake_outlined,
+              label: 'Date of Birth',
+              value: _formatDate(_currentMember.dateOfBirth!),
             ),
-          
-          if (_currentMember.age != null)
-            _buildDetailRow(
-              context,
-              Icons.calendar_today,
-              'Age',
-              _currentMember.ageDisplay,
+          ],
+          if (_currentMember.age != null) ...[
+            const SizedBox(height: 16),
+            _buildModernDetailRow(
+              icon: Icons.calendar_today_outlined,
+              label: 'Age',
+              value: _currentMember.ageDisplay,
             ),
+          ],
         ],
       ),
     );
   }
 
   Widget _buildContactInfoCard(BuildContext context) {
-    return common_widgets.ResponsiveCard(
+    return _buildModernCard(
+      title: 'Contact Information',
+      icon: Icons.location_on_outlined,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(Icons.location_on, color: Theme.of(context).colorScheme.primary),
-              SizedBox(width: AppSpacing.sm),
-              Text(
-                'Contact Information',
-                style: AppTextStyles.heading3(context),
-              ),
-            ],
-          ),
-          SizedBox(height: AppSpacing.md),
-          
-          _buildDetailRow(
-            context,
-            Icons.home,
-            'Address',
-            'Not provided', // TODO: Add address field to member model when available
+          _buildModernDetailRow(
+            icon: Icons.home_outlined,
+            label: 'Home Address',
+            value: _currentMember.address?.isNotEmpty == true 
+                ? _currentMember.address! 
+                : 'Not provided',
             isMultiline: true,
+          ),
+          const SizedBox(height: 16),
+          _buildModernDetailRow(
+            icon: Icons.badge_outlined,
+            label: 'Member ID',
+            value: _currentMember.memberId ?? 'N/A',
           ),
         ],
       ),
@@ -416,172 +463,205 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
     final hasEmergencyContact = _currentMember.emergencyContactName != null && 
                                _currentMember.emergencyContactName!.isNotEmpty;
     
-    return common_widgets.ResponsiveCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return _buildModernCard(
+      title: 'Emergency Contact',
+      icon: Icons.emergency_outlined,
+      iconColor: Colors.red.shade600,
+      child: hasEmergencyContact
+        ? Column(
             children: [
-              Icon(Icons.emergency, color: Colors.red.shade600),
-              SizedBox(width: AppSpacing.sm),
-              Text(
-                'Emergency Contact',
-                style: AppTextStyles.heading3(context),
+              _buildModernDetailRow(
+                icon: Icons.person_outline,
+                label: 'Contact Name',
+                value: _currentMember.emergencyContactName!,
               ),
-              const Spacer(),
-              if (hasEmergencyContact && _currentMember.emergencyContactPhone != null)
-                InkWell(
-                  onTap: () => _openWhatsApp(_currentMember.emergencyContactPhone!),
-                  borderRadius: BorderRadius.circular(20),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF25D366).withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: const Color(0xFF25D366).withValues(alpha: 0.3)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.message, size: 14, color: const Color(0xFF25D366)),
-                        SizedBox(width: AppSpacing.xs),
-                        Text(
-                          'WhatsApp',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF25D366),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+              if (_currentMember.emergencyContactRelation != null && _currentMember.emergencyContactRelation!.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                _buildModernDetailRow(
+                  icon: Icons.family_restroom_outlined,
+                  label: 'Relationship',
+                  value: _currentMember.emergencyContactRelation!,
                 ),
-            ],
-          ),
-          SizedBox(height: AppSpacing.md),
-          
-          if (hasEmergencyContact) ...[
-            _buildDetailRow(
-              context,
-              Icons.person,
-              'Contact Name',
-              _currentMember.emergencyContactName!,
-            ),
-            
-            if (_currentMember.emergencyContactPhone != null && _currentMember.emergencyContactPhone!.isNotEmpty)
-              _buildDetailRow(
-                context,
-                Icons.phone,
-                'Phone Number',
-                _currentMember.emergencyContactPhone!,
-                actionIcon: Icons.phone,
-                onAction: () => _makePhoneCall(_currentMember.emergencyContactPhone!),
-              ),
-          ] else ...[
-            Container(
-              padding: EdgeInsets.all(AppSpacing.md),
-              decoration: BoxDecoration(
-                color: Colors.orange.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.orange.shade200),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.warning, color: Colors.orange.shade700, size: 20),
-                  SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: Text(
-                      'No emergency contact information provided',
-                      style: AppTextStyles.body2(context).copyWith(
-                        color: Colors.orange.shade700,
-                        fontWeight: FontWeight.w500,
+              ],
+              if (_currentMember.emergencyContactPhone != null && _currentMember.emergencyContactPhone!.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                _buildModernDetailRow(
+                  icon: Icons.phone_outlined,
+                  label: 'Phone Number',
+                  value: _currentMember.emergencyContactPhone!,
+                  actionIcon: Icons.call,
+                  onAction: () => _makePhoneCall(_currentMember.emergencyContactPhone!),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _openWhatsApp(_currentMember.emergencyContactPhone!),
+                    icon: const Icon(Icons.message, size: 16),
+                    label: const Text('WhatsApp Contact'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF25D366),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                      textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
+            ],
+          )
+        : Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.orange.shade200),
             ),
-          ],
-        ],
-      ),
+            child: Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: Colors.orange.shade700, size: 24),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'No emergency contact information provided',
+                    style: TextStyle(
+                      color: Colors.orange.shade700,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
     );
   }
 
   Widget _buildPhysicalAttributesCard(BuildContext context) {
-    return common_widgets.ResponsiveCard(
+    return _buildModernCard(
+      title: 'Physical Attributes',
+      icon: Icons.fitness_center_outlined,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.fitness_center, color: Theme.of(context).colorScheme.primary),
-              SizedBox(width: AppSpacing.sm),
-              Text(
-                'Physical Attributes',
-                style: AppTextStyles.heading3(context),
-              ),
-            ],
-          ),
-          SizedBox(height: AppSpacing.md),
-          
-          Row(
-            children: [
               Expanded(
-                child: _buildDetailRow(
-                  context,
-                  Icons.height,
-                  'Height',
-                  _currentMember.heightDisplay,
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.height, color: Colors.blue.shade600, size: 20),
+                      const SizedBox(height: 6),
+                      Text(
+                        _currentMember.heightDisplay,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        'Height',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              SizedBox(width: AppSpacing.md),
+              const SizedBox(width: 12),
               Expanded(
-                child: _buildDetailRow(
-                  context,
-                  Icons.monitor_weight,
-                  'Weight',
-                  _currentMember.weightDisplay,
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.monitor_weight, color: Colors.green.shade600, size: 20),
+                      const SizedBox(height: 6),
+                      Text(
+                        _currentMember.weightDisplay,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        'Weight',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
           ),
           
           if (_currentMember.hasBmi) ...[
-            SizedBox(height: AppSpacing.md),
+            const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: _getBMIColor(_currentMember.bmiCategory).withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
+                color: _getBMIColor(_currentMember.bmiCategory).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: _getBMIColor(_currentMember.bmiCategory).withValues(alpha: 0.3),
+                  color: _getBMIColor(_currentMember.bmiCategory).withOpacity(0.3),
                 ),
               ),
               child: Row(
                 children: [
-                  Icon(
-                    Icons.calculate,
-                    color: _getBMIColor(_currentMember.bmiCategory),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: _getBMIColor(_currentMember.bmiCategory).withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      Icons.calculate,
+                      color: _getBMIColor(_currentMember.bmiCategory),
+                      size: 20,
+                    ),
                   ),
-                  SizedBox(width: AppSpacing.sm),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'BMI: ${_currentMember.bmiDisplay}',
-                        style: AppTextStyles.subtitle1(context).copyWith(
-                          fontWeight: FontWeight.bold,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'BMI: ${_currentMember.bmiDisplay}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
                         ),
-                      ),
-                      Text(
-                        _currentMember.bmiCategory ?? 'Unknown',
-                        style: AppTextStyles.body2(context).copyWith(
-                          color: _getBMIColor(_currentMember.bmiCategory),
-                          fontWeight: FontWeight.w500,
+                        Text(
+                          _currentMember.bmiCategory ?? 'Unknown',
+                          style: TextStyle(
+                            color: _getBMIColor(_currentMember.bmiCategory),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -592,53 +672,94 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
     );
   }
 
-  Widget _buildMembershipDetailsCard(BuildContext context) {
-    return common_widgets.ResponsiveCard(
+  Widget _buildMembershipCard(BuildContext context) {
+    final isExpiringSoon = _currentMember.daysUntilExpiry != null && _currentMember.daysUntilExpiry! <= 7;
+    
+    return _buildModernCard(
+      title: 'Membership',
+      icon: Icons.card_membership_outlined,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(Icons.card_membership, color: Theme.of(context).colorScheme.primary),
-              SizedBox(width: AppSpacing.sm),
-              Text(
-                'Membership Details',
-                style: AppTextStyles.heading3(context),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.blue.shade50, Colors.blue.shade100],
               ),
-            ],
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: [
+                Text(
+                  _currentMember.membershipType.toUpperCase(),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Membership Plan',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
           ),
-          SizedBox(height: AppSpacing.md),
           
-          _buildDetailRow(
-            context,
-            Icons.stars,
-            'Membership Type',
-            _currentMember.membershipType.toUpperCase(),
-          ),
+          const SizedBox(height: 16),
           
           if (_currentMember.joinDate != null)
-            _buildDetailRow(
-              context,
-              Icons.login,
-              'Join Date',
-              _formatDate(_currentMember.joinDate!),
+            _buildModernDetailRow(
+              icon: Icons.login_outlined,
+              label: 'Join Date',
+              value: _formatDate(_currentMember.joinDate!),
             ),
           
-          _buildDetailRow(
-            context,
-            Icons.schedule,
-            'Membership Expiry',
-            _formatDate(_currentMember.membershipExpiry),
+          const SizedBox(height: 16),
+          
+          _buildModernDetailRow(
+            icon: Icons.schedule_outlined,
+            label: 'Expiry Date',
+            value: _formatDate(_currentMember.membershipExpiry),
           ),
           
-          if (_currentMember.daysUntilExpiry != null)
-            _buildDetailRow(
-              context,
-              Icons.timer,
-              'Days Until Expiry',
-              '${_currentMember.daysUntilExpiry} days',
-              textColor: _currentMember.daysUntilExpiry! <= 7 ? Colors.red : null,
+          if (_currentMember.daysUntilExpiry != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isExpiringSoon ? Colors.red.shade50 : Colors.green.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isExpiringSoon ? Colors.red.shade200 : Colors.green.shade200,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    isExpiringSoon ? Icons.warning_amber_rounded : Icons.check_circle_outline,
+                    color: isExpiringSoon ? Colors.red.shade700 : Colors.green.shade700,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${_currentMember.daysUntilExpiry} days until expiry',
+                      style: TextStyle(
+                        color: isExpiringSoon ? Colors.red.shade700 : Colors.green.shade700,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
+          ],
         ],
       ),
     );
@@ -653,72 +774,114 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
         Row(
           children: [
             Expanded(
-              child: common_widgets.ResponsiveButton(
-                text: 'Edit Member',
-                icon: Icons.edit,
-                type: common_widgets.ButtonType.outlined,
+              child: ElevatedButton.icon(
                 onPressed: () => _editMember(context),
+                icon: const Icon(Icons.edit_outlined, size: 16),
+                label: const Text('Edit'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.blue,
+                  side: const BorderSide(color: Colors.blue),
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
               ),
             ),
-            SizedBox(width: AppSpacing.md),
+            const SizedBox(width: 12),
             Expanded(
-              child: common_widgets.ResponsiveButton(
-                text: 'View Payments',
-                icon: Icons.payment,
-                type: common_widgets.ButtonType.filled,
+              child: ElevatedButton.icon(
                 onPressed: () => _viewPayments(context),
+                icon: const Icon(Icons.payment, size: 16),
+                label: const Text('Payments'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
               ),
             ),
           ],
         ),
         
-        // WhatsApp Reminder Buttons (if expiring soon)
+        // WhatsApp Reminder Section (if expiring soon)
         if (isExpiringSoon) ...[
-          SizedBox(height: AppSpacing.md),
+          const SizedBox(height: 20),
           Container(
-            padding: EdgeInsets.all(AppSpacing.sm),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.orange.shade50,
-              borderRadius: BorderRadius.circular(12),
+              gradient: LinearGradient(
+                colors: [Colors.orange.shade50, Colors.orange.shade100],
+              ),
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(color: Colors.orange.shade200),
             ),
             child: Column(
               children: [
                 Row(
                   children: [
-                    Icon(Icons.warning, color: Colors.orange.shade700, size: 20),
-                    SizedBox(width: AppSpacing.sm),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade200,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(Icons.warning_amber_rounded, color: Colors.orange.shade700, size: 20),
+                    ),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         'Membership expires in ${_currentMember.daysUntilExpiry} days',
-                        style: AppTextStyles.body2(context).copyWith(
+                        style: TextStyle(
                           color: Colors.orange.shade700,
                           fontWeight: FontWeight.w600,
+                          fontSize: 16,
                         ),
                       ),
                     ),
                   ],
                 ),
-                SizedBox(height: AppSpacing.sm),
+                const SizedBox(height: 16),
                 Row(
                   children: [
                     Expanded(
-                      child: common_widgets.ResponsiveButton(
-                        text: 'Send Reminder',
-                        icon: Icons.message,
-                        type: common_widgets.ButtonType.outlined,
-                        color: const Color(0xFF25D366),
+                      child: ElevatedButton.icon(
                         onPressed: () => _sendReminderWhatsApp('expiry'),
+                        icon: const Icon(Icons.message, size: 16),
+                        label: const Text('Reminder'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF25D366),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                          textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
                       ),
                     ),
-                    SizedBox(width: AppSpacing.sm),
+                    const SizedBox(width: 10),
                     Expanded(
-                      child: common_widgets.ResponsiveButton(
-                        text: 'Payment Reminder',
-                        icon: Icons.payment,
-                        type: common_widgets.ButtonType.outlined,
-                        color: const Color(0xFF25D366),
+                      child: ElevatedButton.icon(
                         onPressed: () => _sendReminderWhatsApp('payment'),
+                        icon: const Icon(Icons.payment, size: 16),
+                        label: const Text('Payment'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: const Color(0xFF25D366),
+                          side: const BorderSide(color: Color(0xFF25D366)),
+                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                          textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -731,70 +894,140 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
     );
   }
 
-  Widget _buildDetailRow(
-    BuildContext context,
-    IconData icon,
-    String label,
-    String value, {
+  Widget _buildModernCard({
+    required String title,
+    required IconData icon,
+    required Widget child,
+    Color? iconColor,
+  }) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: (iconColor ?? Colors.blue).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: iconColor ?? Colors.blue,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: child,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModernDetailRow({
+    required IconData icon,
+    required String label,
+    required String value,
     bool isMultiline = false,
     Color? textColor,
     IconData? actionIcon,
     VoidCallback? onAction,
   }) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: AppSpacing.sm),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(8),
+      ),
       child: Row(
-        crossAxisAlignment: isMultiline ? CrossAxisAlignment.start : CrossAxisAlignment.center,
         children: [
-          Icon(icon, size: 20, color: AppTheme.textSecondary(context)),
-          SizedBox(width: AppSpacing.sm),
-          Expanded(
-            flex: 2,
-            child: Text(
-              label,
-              style: AppTextStyles.body1(context).copyWith(
-                fontWeight: FontWeight.w500,
-                color: AppTheme.textSecondary(context),
-              ),
-            ),
+          Icon(
+            icon,
+            size: 16,
+            color: Colors.grey.shade600,
           ),
+          const SizedBox(width: 8),
           Expanded(
-            flex: 3,
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
-                  child: Text(
-                    value,
-                    style: AppTextStyles.body1(context).copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: textColor,
-                    ),
-                    maxLines: isMultiline ? null : 1,
-                    overflow: isMultiline ? null : TextOverflow.ellipsis,
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.w500,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                if (actionIcon != null && onAction != null) ...[
-                  SizedBox(width: AppSpacing.sm),
-                  InkWell(
-                    onTap: onAction,
-                    borderRadius: BorderRadius.circular(16),
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Icon(
-                        actionIcon,
-                        size: 16,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: textColor ?? Colors.black87,
                   ),
-                ],
+                  maxLines: isMultiline ? 2 : 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ],
             ),
           ),
+          if (actionIcon != null && onAction != null)
+            InkWell(
+              onTap: onAction,
+              borderRadius: BorderRadius.circular(6),
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Icon(
+                  actionIcon,
+                  size: 16,
+                  color: Colors.blue,
+                ),
+              ),
+            ),
         ],
       ),
     );

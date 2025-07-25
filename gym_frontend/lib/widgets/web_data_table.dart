@@ -318,7 +318,7 @@ class _WebMemberDataTableState extends State<WebMemberDataTable> {
         onSelectChanged: (selected) {
           setState(() {
             if (selected == true) {
-              _selectedMembers.add(member.id ?? '');
+              _selectedMembers.add(member.id?.toString() ?? '');
             } else {
               _selectedMembers.remove(member.id);
             }

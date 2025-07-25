@@ -10,6 +10,7 @@ import 'services/offline_handler.dart';
 import 'services/auth_service.dart';
 import 'services/google_auth_service.dart';
 import 'services/health_service.dart';
+import 'services/keep_alive_service.dart';
 import 'providers/member_provider.dart';
 import 'providers/trainer_provider.dart';
 import 'providers/equipment_provider.dart';
@@ -54,11 +55,17 @@ void main() async {
   final googleAuthService = GoogleAuthService();
   googleAuthService.initialize();
 
+  // Initialize Keep-Alive service to prevent Railway server sleep
+  final keepAliveService = KeepAliveService();
+  keepAliveService.initialize();
+
   // Run health check on startup (async, don't block startup)
   HealthService.runFullHealthCheck().then((results) {
     // Health check completed
+    print('✅ HEALTH_CHECK: Initial health check completed');
   }).catchError((error) {
     // Health check failed
+    print('❌ HEALTH_CHECK: Initial health check failed: $error');
   });
 
   runApp(const MyApp());
@@ -119,8 +126,52 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class AuthWrapper extends StatelessWidget {
+class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
+
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
+  final KeepAliveService _keepAliveService = KeepAliveService();
+
+  @override
+  void initState() {
+    super.initState();
+    // Listen to app lifecycle changes
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    switch (state) {
+      case AppLifecycleState.resumed:
+        // App is in foreground - restart keep-alive service
+        print('📱 APP_LIFECYCLE: App resumed - restarting keep-alive service');
+        _keepAliveService.initialize();
+        break;
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.detached:
+        // App is in background - stop keep-alive service to save battery
+        print('📱 APP_LIFECYCLE: App paused/inactive - stopping keep-alive service');
+        _keepAliveService.stop();
+        break;
+      case AppLifecycleState.hidden:
+        // App is hidden but still running
+        print('📱 APP_LIFECYCLE: App hidden');
+        break;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

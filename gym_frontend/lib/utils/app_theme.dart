@@ -21,6 +21,9 @@ class AppTheme {
   static const Color errorRed = Color(0xFFD32F2F);
   static const Color infoBlue = Color(0xFF0288D1);
   
+  // Add backward compatibility getters
+  static Color get primaryBlueStatic => _gymPrimary;
+  
   // Surface Colors (Material 3)
   static Color get primaryContainer => _lightColorScheme.primaryContainer;
   static Color get secondaryContainer => _lightColorScheme.secondaryContainer;
@@ -36,7 +39,7 @@ class AppTheme {
   static Color get outlineVariant => _lightColorScheme.outlineVariant;
   
   // Theme-aware color getters (work with both light and dark themes)
-  static Color primaryBlue(BuildContext context) => Theme.of(context).colorScheme.primary;
+  static Color primaryBlueContext(BuildContext context) => Theme.of(context).colorScheme.primary;
   static Color backgroundGrey(BuildContext context) => Theme.of(context).colorScheme.surface;
   static Color surfaceWhite(BuildContext context) => Theme.of(context).colorScheme.surface;
   static Color cardWhite(BuildContext context) => Theme.of(context).colorScheme.surfaceContainer;
@@ -47,6 +50,7 @@ class AppTheme {
   static Color shadowLight(BuildContext context) => Theme.of(context).colorScheme.shadow.withValues(alpha: 0.08);
   
   // Backward compatibility colors (deprecated - use theme-aware versions above)
+  static Color get primaryBlue => _lightColorScheme.primary;
   static Color get primaryBlueOld => _lightColorScheme.primary;
   static Color get backgroundGreyOld => _lightColorScheme.surface;
   static Color get surfaceWhiteOld => _lightColorScheme.surface;

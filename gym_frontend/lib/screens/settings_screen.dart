@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/theme_provider.dart';
+import '../services/keep_alive_service.dart';
+import '../security/jwt_manager.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -155,6 +157,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const SizedBox(height: 20),
 
+          // Server Connection Section
+          _buildSectionHeader('Server Connection'),
+          _buildKeepAliveStatusCard(),
+          
+          // Temporary debug section
+          _buildSectionHeader('Debug Tools'),
+          _buildSettingsCard([
+            _buildActionTile(
+              'Extract Token for Testing',
+              'Copy auth token for Postman testing',
+              Icons.content_copy,
+              () => _extractTokenForTesting(),
+            ),
+          ]),
+
+          const SizedBox(height: 20),
+
           // About Section
           _buildSectionHeader('About'),
           _buildSettingsCard([
@@ -199,6 +218,153 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 40),
         ],
       ),
+    );
+  }
+
+  Widget _buildKeepAliveStatusCard() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.network_check, color: Colors.blue),
+                const SizedBox(width: 12),
+                Text(
+                  'Keep-Alive Service',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            FutureBuilder<Map<String, dynamic>>(
+              future: Future.value(KeepAliveService().getStatus()),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const CircularProgressIndicator();
+                }
+
+                final status = snapshot.data!;
+                final isRunning = status['isRunning'] as bool? ?? false;
+                final totalPings = status['totalPings'] as int? ?? 0;
+                final successRate = status['successRate'] as double? ?? 0.0;
+                final consecutiveFailures = status['consecutiveFailures'] as int? ?? 0;
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildStatusRow('Status', isRunning ? 'Running' : 'Stopped', 
+                        isRunning ? Colors.green : Colors.red),
+                    const SizedBox(height: 8),
+                    _buildStatusRow('Total Pings', totalPings.toString(), Colors.grey[600]!),
+                    const SizedBox(height: 8),
+                    _buildStatusRow('Success Rate', '${successRate.toStringAsFixed(1)}%', 
+                        successRate > 80 ? Colors.green : successRate > 50 ? Colors.orange : Colors.red),
+                    const SizedBox(height: 8),
+                    _buildStatusRow('Consecutive Failures', consecutiveFailures.toString(),
+                        consecutiveFailures > 3 ? Colors.red : Colors.grey[600]!),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () async {
+                              try {
+                                final success = await KeepAliveService().pingNow();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(success 
+                                        ? 'Ping successful!' 
+                                        : 'Ping failed. Server might be sleeping.'),
+                                    backgroundColor: success ? Colors.green : Colors.red,
+                                  ),
+                                );
+                                setState(() {}); // Refresh status
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Ping error: $e'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            },
+                            icon: Icon(Icons.network_ping),
+                            label: Text('Ping Now'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              if (isRunning) {
+                                KeepAliveService().stop();
+                              } else {
+                                KeepAliveService().initialize();
+                              }
+                              setState(() {}); // Refresh status
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(isRunning 
+                                      ? 'Keep-alive service stopped' 
+                                      : 'Keep-alive service started'),
+                                ),
+                              );
+                            },
+                            icon: Icon(isRunning ? Icons.stop : Icons.play_arrow),
+                            label: Text(isRunning ? 'Stop' : 'Start'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: isRunning ? Colors.red : Colors.green,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'This service pings the server every 15 minutes to prevent it from sleeping and reduce network failures.',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[600],
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusRow(String label, String value, Color valueColor) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: TextStyle(fontSize: 14)),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: valueColor,
+          ),
+        ),
+      ],
     );
   }
 
@@ -423,7 +589,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onPressed: () async {
               Navigator.pop(context);
               if (mounted && _authProvider != null) {
-                await _authProvider!.logout();
+                await _authProvider!.logoutWithDataClear(context);
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
@@ -468,5 +634,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Opening Feedback Form...')),
     );
+  }
+
+  Future<void> _extractTokenForTesting() async {
+    try {
+      final token = await JWTManager.getAccessToken();
+      if (token != null) {
+        print('🔑 CURRENT_TOKEN_FOR_POSTMAN: $token');
+        print('📋 COPY THIS FOR POSTMAN:');
+        print('Authorization: Token $token');
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Token logged to console. Check Flutter logs.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      } else {
+        print('❌ No token found - user might not be logged in');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No token found - please login first')),
+        );
+      }
+    } catch (e) {
+      print('💥 Error extracting token: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error extracting token: $e')),
+      );
+    }
   }
 }

@@ -13,6 +13,7 @@ import '../services/data_refresh_service.dart';
 import '../services/gym_data_service.dart';
 import '../utils/html_decoder.dart';
 import '../utils/responsive_utils.dart';
+import '../utils/app_theme.dart';
 import '../widgets/web_layout.dart';
 import 'members_screen.dart';
 import 'trainers_screen.dart';
@@ -1063,7 +1064,275 @@ class DashboardScreen extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {\n    return RefreshIndicator(\n      onRefresh: () => _refreshData(context),\n      color: Colors.blue,\n      backgroundColor: Colors.white,\n      strokeWidth: 2.0,\n      child: SingleChildScrollView(\n        physics: const AlwaysScrollableScrollPhysics(), // Ensures pull-to-refresh works even when content is short\n        padding: context.isWebDesktop ? EdgeInsets.zero : const EdgeInsets.all(16.0),\n        child: context.isWebDesktop \n            ? _buildWebDashboard(context)\n            : _buildMobileDashboard(context),\n      ),\n    );\n  }\n\n  Widget _buildWebDashboard(BuildContext context) {\n    return Column(\n      crossAxisAlignment: CrossAxisAlignment.start,\n      children: [\n        // Welcome Section for Web\n        _buildWebWelcomeSection(context),\n        const SizedBox(height: 32),\n        \n        // Stats Grid for Web\n        _buildWebStatsGrid(context),\n        const SizedBox(height: 32),\n        \n        // Revenue and Quick Actions Row\n        Row(\n          crossAxisAlignment: CrossAxisAlignment.start,\n          children: [\n            Expanded(\n              flex: 2,\n              child: _buildWebRevenueSection(context),\n            ),\n            const SizedBox(width: 24),\n            Expanded(\n              flex: 1,\n              child: _buildWebQuickActions(context),\n            ),\n          ],\n        ),\n      ],\n    );\n  }\n\n  Widget _buildMobileDashboard(BuildContext context) {\n    return Column(\n      crossAxisAlignment: CrossAxisAlignment.start,\n      children: [\n        // Welcome Section\n        Consumer<AuthProvider>(\n          builder: (context, authProvider, child) {\n            final user = authProvider.currentUser;\n            return Card(\n              color: Colors.blue.withOpacity(0.1),\n              child: Padding(\n                padding: const EdgeInsets.all(16),\n                child: Row(\n                  children: [\n                    CircleAvatar(\n                      radius: 30,\n                      backgroundColor: Colors.blue,\n                      child: Text(\n                        user?.firstName != null && user?.firstName.isNotEmpty == true ? user!.firstName[0].toUpperCase() : 'G',\n                        style: const TextStyle(\n                          color: Colors.white,\n                          fontSize: 24,\n                          fontWeight: FontWeight.bold,\n                        ),\n                      ),\n                    ),\n                    const SizedBox(width: 16),\n                    Expanded(\n                      child: Column(\n                        crossAxisAlignment: CrossAxisAlignment.start,\n                        children: [\n                          Text(\n                            'Welcome back, ${user?.firstName ?? 'Gym Owner'}!',\n                            style: const TextStyle(\n                              fontSize: 18,\n                              fontWeight: FontWeight.bold,\n                            ),\n                          ),\n                          if (user?.gymName != null)\n                            Text(\n                              user!.decodedGymName,\n                              style: TextStyle(\n                                fontSize: 14,\n                                color: Colors.grey[600],\n                              ),\n                            ),\n                        ],\n                      ),\n                    ),\n                  ],\n                ),\n              ),\n            );\n          },\n        ),\n        const SizedBox(height: 20),\n        \n        // Quick Stats\n        const Text(\n          'Quick Overview',\n          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),\n        ),\n        const SizedBox(height: 12),\n        GridView.count(\n          crossAxisCount: 2,\n          crossAxisSpacing: 12,\n          mainAxisSpacing: 12,\n          shrinkWrap: true,\n          physics: const NeverScrollableScrollPhysics(),\n          childAspectRatio: 1.3,\n          children: [\n            Consumer<MemberProvider>(\n              builder: (context, memberProvider, child) {\n                return _buildStatCard(\n                  'Total Members',\n                  '${memberProvider.members.length}',\n                  Icons.people,\n                  Colors.blue,\n                );\n              },\n            ),\n            Consumer<MemberProvider>(\n              builder: (context, memberProvider, child) {\n                final activeMembers = memberProvider.members.where((m) => m.isActive).length;\n                return _buildStatCard(\n                  'Active Members',\n                  '$activeMembers',\n                  Icons.person_add,\n                  Colors.green,\n                );\n              },\n            ),\n            Consumer<TrainerProvider>(\n              builder: (context, trainerProvider, child) {\n                return _buildStatCard(\n                  'Trainers',\n                  '${trainerProvider.trainers.length}',\n                  Icons.fitness_center,\n                  Colors.orange,\n                );\n              },\n            ),\n            Consumer<EquipmentProvider>(\n              builder: (context, equipmentProvider, child) {\n                final workingEquipment = equipmentProvider.equipment.where((e) => e.isWorking).length;\n                return _buildStatCard(\n                  'Working Equipment',\n                  '$workingEquipment',\n                  Icons.sports_gymnastics,\n                  Colors.purple,\n                );\n              },\n            ),\n          ],\n        ),\n        const SizedBox(height: 24),\n        \n        // Revenue Section\n        Consumer<PaymentProvider>(\n          builder: (context, paymentProvider, child) {\n            return Column(\n              crossAxisAlignment: CrossAxisAlignment.start,\n              children: [\n                const Text(\n                  'Revenue Overview',\n                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),\n                ),\n                const SizedBox(height: 12),\n                GridView.count(\n                  crossAxisCount: 2,\n                  crossAxisSpacing: 12,\n                  mainAxisSpacing: 12,\n                  shrinkWrap: true,\n                  physics: const NeverScrollableScrollPhysics(),\n                  childAspectRatio: 1.3,\n                  children: [\n                    _buildRevenueCard(\n                      'Monthly Revenue',\n                      '₹${paymentProvider.monthlyRevenue.toStringAsFixed(0)}',\n                      Icons.calendar_month,\n                      Colors.green,\n                    ),\n                    _buildRevenueCard(\n                      'Today\\'s Revenue',\n                      '₹${paymentProvider.dailyRevenue.toStringAsFixed(0)}',\n                      Icons.today,\n                      Colors.blue,\n                    ),\n                  ],\n                ),\n              ],\n            );\n          },\n        ),\n        const SizedBox(height: 24),\n        \n        // Quick Actions\n        const Text(\n          'Quick Actions',\n          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),\n        ),\n        const SizedBox(height: 12),\n        GridView.count(\n          crossAxisCount: 2,\n          crossAxisSpacing: 12,\n          mainAxisSpacing: 12,\n          shrinkWrap: true,\n          physics: const NeverScrollableScrollPhysics(),\n          childAspectRatio: 2,\n          children: [\n            _buildActionCard(\n              context,\n              'Add Member',\n              Icons.person_add,\n              Colors.blue,\n              () {\n                Navigator.of(context).push(\n                  MaterialPageRoute(builder: (context) => const AddMemberScreen()),\n                );\n              },\n            ),\n            _buildActionCard(\n              context,\n              'Record Payment',\n              Icons.payment,\n              Colors.green,\n              () async {\n                final result = await Navigator.of(context).push(\n                  MaterialPageRoute(builder: (context) => const CreatePaymentScreen()),\n                );\n                \n                // Force refresh all data when returning from payment creation\n                _refreshData(context);\n              },\n            ),\n            _buildActionCard(\n              context,\n              'QR Scanner',\n              Icons.qr_code_scanner,\n              Colors.orange,\n              () {\n                Navigator.of(context).push(\n                  MaterialPageRoute(builder: (context) => const QRScannerScreen()),\n                );\n              },\n            ),\n            _buildActionCard(\n              context,\n              'Add Plan',\n              Icons.card_membership,\n              Colors.purple,\n              () {\n                Navigator.of(context).push(\n                  MaterialPageRoute(builder: (context) => const CreateSubscriptionPlanScreen()),\n                );\n              },\n            ),\n          ],\n        ),\n      ],\n    );\n  }
+  Widget build(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: () => _refreshData(context),
+      color: Colors.blue,
+      backgroundColor: Colors.white,
+      strokeWidth: 2.0,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(), // Ensures pull-to-refresh works even when content is short
+        padding: context.isWebDesktop ? EdgeInsets.zero : const EdgeInsets.all(16.0),
+        child: context.isWebDesktop 
+            ? _buildWebDashboard(context)
+            : _buildMobileDashboard(context),
+      ),
+    );
+  }
+
+  Widget _buildWebDashboard(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Welcome Section for Web
+        _buildWebWelcomeSection(context),
+        const SizedBox(height: 32),
+        
+        // Stats Grid for Web
+        _buildWebStatsGrid(context),
+        const SizedBox(height: 32),
+        
+        // Revenue and Quick Actions Row
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              flex: 2,
+              child: _buildWebRevenueSection(context),
+            ),
+            const SizedBox(width: 24),
+            Expanded(
+              flex: 1,
+              child: _buildWebQuickActions(context),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMobileDashboard(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Welcome Section
+        Consumer<AuthProvider>(
+          builder: (context, authProvider, child) {
+            final user = authProvider.currentUser;
+            return Card(
+              color: Colors.blue.withOpacity(0.1),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 30,
+                      backgroundColor: Colors.blue,
+                      child: Text(
+                        user?.firstName != null && user?.firstName.isNotEmpty == true ? user!.firstName[0].toUpperCase() : 'G',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Welcome back, ${user?.firstName ?? 'Gym Owner'}!',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          if (user?.gymName != null)
+                            Text(
+                              user!.decodedGymName,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 20),
+        
+        // Quick Stats
+        const Text(
+          'Quick Overview',
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        GridView.count(
+          crossAxisCount: 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          childAspectRatio: 1.3,
+          children: [
+            Consumer<MemberProvider>(
+              builder: (context, memberProvider, child) {
+                return _buildStatCard(
+                  'Total Members',
+                  '${memberProvider.members.length}',
+                  Icons.people,
+                  Colors.blue,
+                );
+              },
+            ),
+            Consumer<MemberProvider>(
+              builder: (context, memberProvider, child) {
+                final activeMembers = memberProvider.members.where((m) => m.isActive).length;
+                return _buildStatCard(
+                  'Active Members',
+                  '$activeMembers',
+                  Icons.person_add,
+                  Colors.green,
+                );
+              },
+            ),
+            Consumer<TrainerProvider>(
+              builder: (context, trainerProvider, child) {
+                return _buildStatCard(
+                  'Trainers',
+                  '${trainerProvider.trainers.length}',
+                  Icons.fitness_center,
+                  Colors.orange,
+                );
+              },
+            ),
+            Consumer<EquipmentProvider>(
+              builder: (context, equipmentProvider, child) {
+                final workingEquipment = equipmentProvider.equipment.where((e) => e.isWorking).length;
+                return _buildStatCard(
+                  'Working Equipment',
+                  '$workingEquipment',
+                  Icons.sports_gymnastics,
+                  Colors.purple,
+                );
+              },
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        
+        // Revenue Section
+        Consumer<PaymentProvider>(
+          builder: (context, paymentProvider, child) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Revenue Overview',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                GridView.count(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  childAspectRatio: 1.3,
+                  children: [
+                    _buildRevenueCard(
+                      'Monthly Revenue',
+                      '₹${paymentProvider.monthlyRevenue.toStringAsFixed(0)}',
+                      Icons.calendar_month,
+                      Colors.green,
+                    ),
+                    _buildRevenueCard(
+                      'Today\'s Revenue',
+                      '₹${paymentProvider.dailyRevenue.toStringAsFixed(0)}',
+                      Icons.today,
+                      Colors.blue,
+                    ),
+                  ],
+                ),
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: 24),
+        
+        // Quick Actions
+        const Text(
+          'Quick Actions',
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        GridView.count(
+          crossAxisCount: 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          childAspectRatio: 2,
+          children: [
+            _buildActionCard(
+              context,
+              'Add Member',
+              Icons.person_add,
+              Colors.blue,
+              () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (context) => const AddMemberScreen()),
+                );
+              },
+            ),
+            _buildActionCard(
+              context,
+              'Record Payment',
+              Icons.payment,
+              Colors.green,
+              () async {
+                final result = await Navigator.of(context).push(
+                  MaterialPageRoute(builder: (context) => const CreatePaymentScreen()),
+                );
+                
+                // Force refresh all data when returning from payment creation
+                _refreshData(context);
+              },
+            ),
+            _buildActionCard(
+              context,
+              'QR Scanner',
+              Icons.qr_code_scanner,
+              Colors.orange,
+              () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (context) => const QRScannerScreen()),
+                );
+              },
+            ),
+            _buildActionCard(
+              context,
+              'Add Plan',
+              Icons.card_membership,
+              Colors.purple,
+              () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (context) => const CreateSubscriptionPlanScreen()),
+                );
+              },
+            ),
+          ],
+        ),
+      ],
+    );
+  }
 
   Widget _buildWebWelcomeSection(BuildContext context) {
     return Consumer<AuthProvider>(
@@ -1172,7 +1441,7 @@ class DashboardScreen extends StatelessWidget {
                 '${memberProvider.members.length}',
                 Icons.people,
                 AppTheme.primaryBlue,
-                '+${memberProvider.members.where((m) => _isThisWeek(m.createdAt)).length} this week',
+                '+${memberProvider.members.where((m) => _isThisWeek(DateTime.now())).length} this week',
                 context,
               );
             },

@@ -264,12 +264,19 @@ class AuthProvider with ChangeNotifier {
     try {
       print('🚪 AUTH: Starting enhanced logout with complete data clear...');
       
+      // Prevent double logout calls
+      if (_isLoading) {
+        print('⚠️ AUTH: Logout already in progress, skipping...');
+        return;
+      }
+      
       _isLoading = true;
       notifyListeners();
 
-      // Check if this is a Google session and sign out from Google
+      // Check if this is a Google session and sign out from Google (only once)
       if (await JWTManager.isSessionPersistent()) {
         try {
+          print('🔍 AUTH: Detected persistent Google session, signing out...');
           final googleAuthService = GoogleAuthService();
           await googleAuthService.signOut();
           print('✅ AUTH: Signed out from Google successfully');

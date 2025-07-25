@@ -4,11 +4,14 @@ import 'package:intl/intl.dart';
 import '../providers/member_provider.dart';
 import '../providers/subscription_provider.dart';
 import '../models/subscription_plan.dart';
+import '../models/member.dart';
 import '../security/input_validator.dart';
 import '../security/security_config.dart';
 
 class AddMemberScreen extends StatefulWidget {
-  const AddMemberScreen({super.key});
+  final Member? memberToEdit;
+  
+  const AddMemberScreen({super.key, this.memberToEdit});
 
   @override
   State<AddMemberScreen> createState() => _AddMemberScreenState();

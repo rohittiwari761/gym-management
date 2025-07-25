@@ -47,6 +47,8 @@ class Member {
   final bool isActive;
   final String? emergencyContactName;  // Made optional for list serializer
   final String? emergencyContactPhone;  // Made optional for list serializer
+  final String? emergencyContactRelation;  // Emergency contact relationship
+  final String? address;  // Member's home address
   final String? memberId;  // Added for backend compatibility
   final int? daysUntilExpiry;  // Added for optimized response
   
@@ -69,6 +71,8 @@ class Member {
     this.isActive = true,
     this.emergencyContactName,  // Made optional
     this.emergencyContactPhone,  // Made optional
+    this.emergencyContactRelation,  // Made optional
+    this.address,  // Made optional
     this.memberId,
     this.daysUntilExpiry,
     // New fields
@@ -94,6 +98,8 @@ class Member {
       isActive: json['is_active'] ?? true,
       emergencyContactName: json['emergency_contact_name'],
       emergencyContactPhone: json['emergency_contact_phone'],
+      emergencyContactRelation: json['emergency_contact_relation'],
+      address: json['address'],
       memberId: json['member_id'],
       daysUntilExpiry: json['days_until_expiry'],
       // New fields
@@ -118,6 +124,8 @@ class Member {
       'is_active': isActive,
       'emergency_contact_name': emergencyContactName,
       'emergency_contact_phone': emergencyContactPhone,
+      'emergency_contact_relation': emergencyContactRelation,
+      'address': address,
       'member_id': memberId,
       'days_until_expiry': daysUntilExpiry,
       // New fields
