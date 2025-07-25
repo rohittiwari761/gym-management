@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
@@ -27,11 +28,11 @@ class UserProfileProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      print('🔄 FETCH PROFILE: Starting profile fetch...');
+      // Starting profile fetch
       final response = await _httpClient.get('auth/profile/', requireAuth: true);
 
-      print('🔄 FETCH PROFILE - Status: ${response.statusCode}');
-      print('🔄 FETCH PROFILE - Response: ${response.data}');
+      // Profile fetch status logged
+      // Profile response received
 
       if (response.isSuccess && response.data != null) {
         final data = response.data as Map<String, dynamic>;
@@ -78,7 +79,7 @@ class UserProfileProvider with ChangeNotifier {
           };
           
           _currentProfile = UserProfile.fromJson(profileData);
-          print('✅ Successfully fetched current profile: ${_currentProfile?.fullName}');
+          // Profile fetched successfully
         } else {
           throw Exception('Failed to fetch profile: ${data['error'] ?? 'Unknown error'}');
         }
@@ -86,8 +87,25 @@ class UserProfileProvider with ChangeNotifier {
         throw Exception('Failed to fetch profile: ${response.errorMessage ?? 'Unknown error'}');
       }
     } catch (e) {
-      _errorMessage = 'Network error: ${e.toString()}';
-      print('❌ FETCH PROFILE ERROR: $_errorMessage');
+      // Handle specific error types for better user experience
+      if (e.toString().contains('401') || e.toString().contains('Unauthorized')) {
+        _errorMessage = 'Authentication expired. Please login again.';
+      } else if (e.toString().contains('403') || e.toString().contains('Forbidden')) {
+        _errorMessage = 'Access denied. Please check your permissions.';
+      } else if (e.toString().contains('404') || e.toString().contains('Not Found')) {
+        _errorMessage = 'Profile not found. Please contact support.';
+      } else if (e.toString().contains('500') || e.toString().contains('Internal Server Error')) {
+        _errorMessage = 'Server error. Please try again later.';
+      } else if (e.toString().contains('SocketException') || 
+          e.toString().contains('Connection refused') ||
+          e.toString().contains('Connection failed') ||
+          e.toString().contains('TimeoutException')) {
+        _errorMessage = 'Network connection error. Please check your internet connection.';
+      } else {
+        _errorMessage = 'Failed to load profile. Please try again.';
+      }
+      
+      if (kDebugMode) print('Profile fetch error: $e');
     }
 
     _isLoading = false;

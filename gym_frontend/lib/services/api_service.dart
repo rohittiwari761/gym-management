@@ -524,7 +524,7 @@ class ApiService {
         queryParams['status'] = status.toLowerCase();
       }
       
-      print('🔧 EQUIPMENT: Requesting page $page with page_size $limit (minimal: ${excludeImages ? 'true' : 'false'})');
+      // Requesting equipment data
       
       final response = await _httpClient.get(
         'equipment/', 
@@ -546,14 +546,14 @@ class ApiService {
           final totalPages = responseData['total_pages'] ?? 1;
           final responseSizeKb = responseData['response_size_kb'];
           
-          print('✅ EQUIPMENT: Loaded ${jsonList.length} items (Page: $currentPage/$totalPages, Total: $totalCount)');
+          // Equipment data loaded successfully
           if (responseSizeKb != null) {
-            print('📊 EQUIPMENT: Response size: ${responseSizeKb}KB (target: <1MB per request)');
+            // Response size optimized
           }
         } else if (responseData is List<dynamic>) {
           // Direct list response (fallback for older API)
           jsonList = responseData;
-          print('✅ EQUIPMENT: Loaded ${jsonList.length} items (direct list)');
+          // Equipment list loaded
         } else {
           throw Exception('Unexpected response format');
         }
@@ -563,7 +563,7 @@ class ApiService {
         throw Exception(response.errorMessage ?? 'Failed to load equipment');
       }
     } catch (e) {
-      print('❌ EQUIPMENT: Load failed - ${e.toString()}');
+      if (kDebugMode) print('Equipment load failed: $e');
       throw Exception('Failed to load equipment. Please try again.');
     }
   }

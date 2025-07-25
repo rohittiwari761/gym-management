@@ -124,19 +124,33 @@ class EquipmentProvider with ChangeNotifier {
       // Update working equipment list
       _workingEquipment = _equipment.where((eq) => eq.isWorking).toList();
       
-      print('🔧 EQUIPMENT: Loaded ${_equipment.length} equipment items (${_workingEquipment.length} working)');
+      // Equipment loaded successfully
       
     } catch (e) {
       // Handle network errors with user-friendly messages
       final errorResult = OfflineHandler.handleNetworkError(e);
       _errorMessage = errorResult['message'];
       
-      // Only use mock data if backend is completely unreachable (network error)
-      if (e.toString().contains('SocketException') || 
+      // Specific error handling for different error types
+      if (e.toString().contains('401') || e.toString().contains('Unauthorized')) {
+        _errorMessage = 'Authentication expired. Please login again.';
+      } else if (e.toString().contains('403') || e.toString().contains('Forbidden')) {
+        _errorMessage = 'Access denied. Please check your permissions.';
+      } else if (e.toString().contains('404') || e.toString().contains('Not Found')) {
+        _errorMessage = 'Equipment endpoint not found. Please contact support.';
+      } else if (e.toString().contains('500') || e.toString().contains('Internal Server Error')) {
+        _errorMessage = 'Server error. Please try again later.';
+      } else if (e.toString().contains('SocketException') || 
           e.toString().contains('Connection refused') ||
-          e.toString().contains('Connection failed')) {
-        _createMockEquipment();
+          e.toString().contains('Connection failed') ||
+          e.toString().contains('TimeoutException')) {
+        _errorMessage = 'Network connection error. Please check your internet connection.';
+        _createMockEquipment(); // Only use mock data for network errors
+      } else {
+        _errorMessage = 'Failed to load equipment. Please try again.';
       }
+      
+      if (kDebugMode) print('Equipment fetch error: $e');
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -146,7 +160,7 @@ class EquipmentProvider with ChangeNotifier {
   /// Load equipment image separately when needed (for detail view)
   Future<String?> loadEquipmentImage(int equipmentId) async {
     try {
-      print('🖼️ EQUIPMENT: Loading image for equipment $equipmentId');
+      // Loading equipment image
       
       // Call equipment detail endpoint with images included
       final response = await _apiService.getEquipment(

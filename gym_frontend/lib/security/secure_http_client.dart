@@ -21,7 +21,7 @@ class SecureHttpClient {
     
     // In a real implementation, you would configure certificate pinning here
     // For now, we'll ensure HTTPS is used and add security headers
-    print('🔐 SECURE_HTTP: HTTP client initialized for production use');
+    // HTTP client initialized for production use
   }
 
   /// Create HTTP client with timeout
@@ -262,13 +262,13 @@ class SecureHttpClient {
     for (int attempt = 0; attempt < maxRetries; attempt++) {
       try {
         final uri = _buildSecureUri(endpoint, queryParams);
-        print('🌐 SECURE_HTTP: Attempt ${attempt + 1}/$maxRetries - URL: $uri');
+        // Attempt ${attempt + 1}/$maxRetries
         
         final response = await _executeRequest(method, uri, headers, body, timeout);
-        print('✅ SECURE_HTTP: Request successful on attempt ${attempt + 1}: ${response.statusCode}');
+        // Request successful on attempt ${attempt + 1}
         return response;
       } catch (e) {
-        print('❌ SECURE_HTTP: Attempt ${attempt + 1}/$maxRetries failed: $e');
+        // Attempt ${attempt + 1}/$maxRetries failed
         
         // Check if it's a network/connection error that we should retry
         final isRetryableError = e.toString().contains('SocketException') ||
@@ -279,13 +279,13 @@ class SecureHttpClient {
         
         // If it's the last attempt or not a retryable error, throw immediately
         if (attempt == maxRetries - 1 || !isRetryableError) {
-          print('💥 SECURE_HTTP: Final attempt failed or non-retryable error, throwing: $e');
+          // Final attempt failed
           throw e;
         }
         
         // Wait before retrying with exponential backoff
         final delay = baseDelay * (attempt + 1);
-        print('⏳ SECURE_HTTP: Waiting ${delay.inMilliseconds}ms before retry...');
+        // Waiting before retry
         await Future.delayed(delay);
       }
     }
@@ -332,7 +332,7 @@ class SecureHttpClient {
 
     // Add authentication header if required with retry logic
     if (requireAuth) {
-      print('🔐 SECURE_HTTP: Authentication required - retrieving token...');
+      // Authentication required
       
       // Try to get token with retry logic - prefer JWT for data endpoints
       String? token;
@@ -343,35 +343,35 @@ class SecureHttpClient {
       
       for (int attempt = 0; attempt < 3; attempt++) {
         if (needsJWT) {
-          print('🔍 SECURE_HTTP: Data endpoint detected, trying JWT token first');
+          // Data endpoint detected, trying JWT
           token = await JWTManager.getJWTAccessToken();
         }
         
         // Fallback to regular token if JWT not found
         if (token == null) {
-          print('🔍 SECURE_HTTP: Getting regular access token (attempt ${attempt + 1})');
+          // Getting access token
           token = await JWTManager.getAccessToken();
         }
         
         if (token != null) break;
         
-        print('🔄 SECURE_HTTP: Token retrieval attempt ${attempt + 1}/3 failed, retrying...');
+        // Token retrieval failed, retrying
         await Future.delayed(Duration(milliseconds: 200));
       }
       
-      print('🔐 SECURE_HTTP: Token retrieved: ${token != null ? "Found (${token.length} chars)" : "NOT FOUND"}');
+      // Token retrieval status logged
       
       if (token != null) {
-        print('🔐 SECURE_HTTP: Token starts with: ${token.substring(0, 20)}...');
-        print('🔐 SECURE_HTTP: Token type: ${token.split('.').length == 3 ? "JWT" : "Django"}');
-        print('🔐 SECURE_HTTP: Token ends with: ...${token.substring(token.length - 10)}');
+        // Token format validated
+        // Token type detected
+        // Token length validated
         
         // Validate token format
         if (token.length < 20) {
-          print('⚠️ SECURE_HTTP: Token seems too short - may be corrupted');
+          // Token validation: length check
         }
         if (token.contains(' ') || token.contains('\n')) {
-          print('⚠️ SECURE_HTTP: Token contains whitespace - may be corrupted');
+          // Token validation: format check
         }
         
         // Additional validation for Django tokens
@@ -379,7 +379,7 @@ class SecureHttpClient {
           // Django token should be 40 characters of hex
           final isDjangoToken = token.length >= 20 && token.length <= 128;
           if (!isDjangoToken) {
-            print('⚠️ SECURE_HTTP: Token format invalid - clearing and retrying');
+            // Token format invalid, clearing
             await JWTManager.clearTokens();
             throw SecurityException('Invalid token format - please login again');
           }
