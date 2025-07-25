@@ -12,6 +12,8 @@ import '../providers/attendance_provider.dart';
 import '../services/data_refresh_service.dart';
 import '../services/gym_data_service.dart';
 import '../utils/html_decoder.dart';
+import '../utils/responsive_utils.dart';
+import '../widgets/web_layout.dart';
 import 'members_screen.dart';
 import 'trainers_screen.dart';
 import 'equipment_screen.dart';
@@ -97,121 +99,223 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      // Add floating debug info
-      floatingActionButton: kDebugMode ? FloatingActionButton.extended(
-        onPressed: () {
-          _showDebugInfo(context);
-        },
-        label: const Text('Debug'),
-        icon: const Icon(Icons.bug_report),
-        backgroundColor: Colors.red,
-      ) : null,
-      drawer: _buildDrawer(),
-      appBar: AppBar(
-        title: const Text('Gym Management'),
-        backgroundColor: Theme.of(context).primaryColor,
-        foregroundColor: Colors.white,
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () => Scaffold.of(context).openDrawer(),
-          ),
+    return WebLayoutWrapper(
+      currentRoute: '/dashboard',
+      pageTitle: 'Dashboard',
+      actions: kDebugMode ? [
+        FloatingActionButton.extended(
+          onPressed: () {
+            _showDebugInfo(context);
+          },
+          label: const Text('Debug'),
+          icon: const Icon(Icons.bug_report),
+          backgroundColor: Colors.red,
         ),
-        actions: [
-          // Debug reset button for testing gym-specific data isolation
-          if (kDebugMode)
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.bug_report, color: Colors.white),
-              tooltip: 'Debug Tools',
-              onSelected: (value) async {
-                switch (value) {
-                  case 'reset_all':
-                    await _resetAllDataForCurrentGym();
-                    break;
-                  case 'force_clean':
-                    await _forceCompleteReset();
-                    break;
-                  case 'log_state':
-                    _logCurrentDataState();
-                    break;
-                  case 'test_isolation':
-                    _testDataIsolation();
-                    break;
-                  case 'disable_mock':
-                    _disableMockData();
-                    break;
-                  case 'enable_mock':
-                    _enableMockData();
-                    break;
-                }
-              },
-              itemBuilder: (context) => [
-                const PopupMenuItem(
-                  value: 'reset_all',
-                  child: Row(
-                    children: [
-                      Icon(Icons.refresh, size: 20),
-                      SizedBox(width: 8),
-                      Text('Reset Gym Data'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'force_clean',
-                  child: Row(
-                    children: [
-                      Icon(Icons.cleaning_services, size: 20, color: Colors.red),
-                      SizedBox(width: 8),
-                      Text('Force Clean State', style: TextStyle(color: Colors.red)),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'log_state',
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline, size: 20),
-                      SizedBox(width: 8),
-                      Text('Log Data State'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'test_isolation',
-                  child: Row(
-                    children: [
-                      Icon(Icons.security, size: 20, color: Colors.blue),
-                      SizedBox(width: 8),
-                      Text('Test Data Isolation'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'disable_mock',
-                  child: Row(
-                    children: [
-                      Icon(Icons.clear_all, size: 20, color: Colors.orange),
-                      SizedBox(width: 8),
-                      Text('Disable Mock Data'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'enable_mock',
-                  child: Row(
-                    children: [
-                      Icon(Icons.add_circle, size: 20, color: Colors.green),
-                      SizedBox(width: 8),
-                      Text('Enable Mock Data'),
-                    ],
-                  ),
-                ),
-              ],
+        PopupMenuButton<String>(
+          icon: const Icon(Icons.bug_report, color: Colors.grey),
+          tooltip: 'Debug Tools',
+          onSelected: (value) async {
+            switch (value) {
+              case 'reset_all':
+                await _resetAllDataForCurrentGym();
+                break;
+              case 'force_clean':
+                await _forceCompleteReset();
+                break;
+              case 'log_state':
+                _logCurrentDataState();
+                break;
+              case 'test_isolation':
+                _testDataIsolation();
+                break;
+              case 'disable_mock':
+                _disableMockData();
+                break;
+              case 'enable_mock':
+                _enableMockData();
+                break;
+            }
+          },
+          itemBuilder: (context) => [
+            const PopupMenuItem(
+              value: 'reset_all',
+              child: Row(
+                children: [
+                  Icon(Icons.refresh, size: 20),
+                  SizedBox(width: 8),
+                  Text('Reset Gym Data'),
+                ],
+              ),
             ),
-        ],
+            const PopupMenuItem(
+              value: 'force_clean',
+              child: Row(
+                children: [
+                  Icon(Icons.cleaning_services, size: 20, color: Colors.red),
+                  SizedBox(width: 8),
+                  Text('Force Clean State', style: TextStyle(color: Colors.red)),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'log_state',
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, size: 20),
+                  SizedBox(width: 8),
+                  Text('Log Data State'),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'test_isolation',
+              child: Row(
+                children: [
+                  Icon(Icons.security, size: 20, color: Colors.blue),
+                  SizedBox(width: 8),
+                  Text('Test Data Isolation'),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'disable_mock',
+              child: Row(
+                children: [
+                  Icon(Icons.clear_all, size: 20, color: Colors.orange),
+                  SizedBox(width: 8),
+                  Text('Disable Mock Data'),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'enable_mock',
+              child: Row(
+                children: [
+                  Icon(Icons.add_circle, size: 20, color: Colors.green),
+                  SizedBox(width: 8),
+                  Text('Enable Mock Data'),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ] : null,
+      child: Scaffold(
+        // Add floating debug info for mobile platforms
+        floatingActionButton: (!kIsWeb && kDebugMode) ? FloatingActionButton.extended(
+          onPressed: () {
+            _showDebugInfo(context);
+          },
+          label: const Text('Debug'),
+          icon: const Icon(Icons.bug_report),
+          backgroundColor: Colors.red,
+        ) : null,
+        drawer: (!kIsWeb || context.isWebMobile) ? _buildDrawer() : null,
+        appBar: (!kIsWeb || context.isWebMobile) ? AppBar(
+          title: const Text('Gym Management'),
+          backgroundColor: Theme.of(context).primaryColor,
+          foregroundColor: Colors.white,
+          leading: Builder(
+            builder: (context) => IconButton(
+              icon: const Icon(Icons.menu),
+              onPressed: () => Scaffold.of(context).openDrawer(),
+            ),
+          ),
+          actions: [
+            // Debug reset button for testing gym-specific data isolation
+            if (kDebugMode)
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.bug_report, color: Colors.white),
+                tooltip: 'Debug Tools',
+                onSelected: (value) async {
+                  switch (value) {
+                    case 'reset_all':
+                      await _resetAllDataForCurrentGym();
+                      break;
+                    case 'force_clean':
+                      await _forceCompleteReset();
+                      break;
+                    case 'log_state':
+                      _logCurrentDataState();
+                      break;
+                    case 'test_isolation':
+                      _testDataIsolation();
+                      break;
+                    case 'disable_mock':
+                      _disableMockData();
+                      break;
+                    case 'enable_mock':
+                      _enableMockData();
+                      break;
+                  }
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'reset_all',
+                    child: Row(
+                      children: [
+                        Icon(Icons.refresh, size: 20),
+                        SizedBox(width: 8),
+                        Text('Reset Gym Data'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'force_clean',
+                    child: Row(
+                      children: [
+                        Icon(Icons.cleaning_services, size: 20, color: Colors.red),
+                        SizedBox(width: 8),
+                        Text('Force Clean State', style: TextStyle(color: Colors.red)),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'log_state',
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline, size: 20),
+                        SizedBox(width: 8),
+                        Text('Log Data State'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'test_isolation',
+                    child: Row(
+                      children: [
+                        Icon(Icons.security, size: 20, color: Colors.blue),
+                        SizedBox(width: 8),
+                        Text('Test Data Isolation'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'disable_mock',
+                    child: Row(
+                      children: [
+                        Icon(Icons.clear_all, size: 20, color: Colors.orange),
+                        SizedBox(width: 8),
+                        Text('Disable Mock Data'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'enable_mock',
+                    child: Row(
+                      children: [
+                        Icon(Icons.add_circle, size: 20, color: Colors.green),
+                        SizedBox(width: 8),
+                        Text('Enable Mock Data'),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ) : null,
+        body: const DashboardScreen(),
       ),
-      body: const DashboardScreen(),
     );
   }
 
@@ -959,237 +1063,463 @@ class DashboardScreen extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return RefreshIndicator(
-      onRefresh: () => _refreshData(context),
-      color: Colors.blue,
-      backgroundColor: Colors.white,
-      strokeWidth: 2.0,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(), // Ensures pull-to-refresh works even when content is short
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Welcome Section
-          Consumer<AuthProvider>(
-            builder: (context, authProvider, child) {
-              final user = authProvider.currentUser;
-              return Card(
-                color: Colors.blue.withOpacity(0.1),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 30,
-                        backgroundColor: Colors.blue,
-                        child: Text(
-                          user?.firstName != null && user?.firstName.isNotEmpty == true ? user!.firstName[0].toUpperCase() : 'G',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Welcome back, ${user?.firstName ?? 'Gym Owner'}!',
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            if (user?.gymName != null)
-                              Text(
-                                user!.decodedGymName,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
+  Widget build(BuildContext context) {\n    return RefreshIndicator(\n      onRefresh: () => _refreshData(context),\n      color: Colors.blue,\n      backgroundColor: Colors.white,\n      strokeWidth: 2.0,\n      child: SingleChildScrollView(\n        physics: const AlwaysScrollableScrollPhysics(), // Ensures pull-to-refresh works even when content is short\n        padding: context.isWebDesktop ? EdgeInsets.zero : const EdgeInsets.all(16.0),\n        child: context.isWebDesktop \n            ? _buildWebDashboard(context)\n            : _buildMobileDashboard(context),\n      ),\n    );\n  }\n\n  Widget _buildWebDashboard(BuildContext context) {\n    return Column(\n      crossAxisAlignment: CrossAxisAlignment.start,\n      children: [\n        // Welcome Section for Web\n        _buildWebWelcomeSection(context),\n        const SizedBox(height: 32),\n        \n        // Stats Grid for Web\n        _buildWebStatsGrid(context),\n        const SizedBox(height: 32),\n        \n        // Revenue and Quick Actions Row\n        Row(\n          crossAxisAlignment: CrossAxisAlignment.start,\n          children: [\n            Expanded(\n              flex: 2,\n              child: _buildWebRevenueSection(context),\n            ),\n            const SizedBox(width: 24),\n            Expanded(\n              flex: 1,\n              child: _buildWebQuickActions(context),\n            ),\n          ],\n        ),\n      ],\n    );\n  }\n\n  Widget _buildMobileDashboard(BuildContext context) {\n    return Column(\n      crossAxisAlignment: CrossAxisAlignment.start,\n      children: [\n        // Welcome Section\n        Consumer<AuthProvider>(\n          builder: (context, authProvider, child) {\n            final user = authProvider.currentUser;\n            return Card(\n              color: Colors.blue.withOpacity(0.1),\n              child: Padding(\n                padding: const EdgeInsets.all(16),\n                child: Row(\n                  children: [\n                    CircleAvatar(\n                      radius: 30,\n                      backgroundColor: Colors.blue,\n                      child: Text(\n                        user?.firstName != null && user?.firstName.isNotEmpty == true ? user!.firstName[0].toUpperCase() : 'G',\n                        style: const TextStyle(\n                          color: Colors.white,\n                          fontSize: 24,\n                          fontWeight: FontWeight.bold,\n                        ),\n                      ),\n                    ),\n                    const SizedBox(width: 16),\n                    Expanded(\n                      child: Column(\n                        crossAxisAlignment: CrossAxisAlignment.start,\n                        children: [\n                          Text(\n                            'Welcome back, ${user?.firstName ?? 'Gym Owner'}!',\n                            style: const TextStyle(\n                              fontSize: 18,\n                              fontWeight: FontWeight.bold,\n                            ),\n                          ),\n                          if (user?.gymName != null)\n                            Text(\n                              user!.decodedGymName,\n                              style: TextStyle(\n                                fontSize: 14,\n                                color: Colors.grey[600],\n                              ),\n                            ),\n                        ],\n                      ),\n                    ),\n                  ],\n                ),\n              ),\n            );\n          },\n        ),\n        const SizedBox(height: 20),\n        \n        // Quick Stats\n        const Text(\n          'Quick Overview',\n          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),\n        ),\n        const SizedBox(height: 12),\n        GridView.count(\n          crossAxisCount: 2,\n          crossAxisSpacing: 12,\n          mainAxisSpacing: 12,\n          shrinkWrap: true,\n          physics: const NeverScrollableScrollPhysics(),\n          childAspectRatio: 1.3,\n          children: [\n            Consumer<MemberProvider>(\n              builder: (context, memberProvider, child) {\n                return _buildStatCard(\n                  'Total Members',\n                  '${memberProvider.members.length}',\n                  Icons.people,\n                  Colors.blue,\n                );\n              },\n            ),\n            Consumer<MemberProvider>(\n              builder: (context, memberProvider, child) {\n                final activeMembers = memberProvider.members.where((m) => m.isActive).length;\n                return _buildStatCard(\n                  'Active Members',\n                  '$activeMembers',\n                  Icons.person_add,\n                  Colors.green,\n                );\n              },\n            ),\n            Consumer<TrainerProvider>(\n              builder: (context, trainerProvider, child) {\n                return _buildStatCard(\n                  'Trainers',\n                  '${trainerProvider.trainers.length}',\n                  Icons.fitness_center,\n                  Colors.orange,\n                );\n              },\n            ),\n            Consumer<EquipmentProvider>(\n              builder: (context, equipmentProvider, child) {\n                final workingEquipment = equipmentProvider.equipment.where((e) => e.isWorking).length;\n                return _buildStatCard(\n                  'Working Equipment',\n                  '$workingEquipment',\n                  Icons.sports_gymnastics,\n                  Colors.purple,\n                );\n              },\n            ),\n          ],\n        ),\n        const SizedBox(height: 24),\n        \n        // Revenue Section\n        Consumer<PaymentProvider>(\n          builder: (context, paymentProvider, child) {\n            return Column(\n              crossAxisAlignment: CrossAxisAlignment.start,\n              children: [\n                const Text(\n                  'Revenue Overview',\n                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),\n                ),\n                const SizedBox(height: 12),\n                GridView.count(\n                  crossAxisCount: 2,\n                  crossAxisSpacing: 12,\n                  mainAxisSpacing: 12,\n                  shrinkWrap: true,\n                  physics: const NeverScrollableScrollPhysics(),\n                  childAspectRatio: 1.3,\n                  children: [\n                    _buildRevenueCard(\n                      'Monthly Revenue',\n                      '₹${paymentProvider.monthlyRevenue.toStringAsFixed(0)}',\n                      Icons.calendar_month,\n                      Colors.green,\n                    ),\n                    _buildRevenueCard(\n                      'Today\\'s Revenue',\n                      '₹${paymentProvider.dailyRevenue.toStringAsFixed(0)}',\n                      Icons.today,\n                      Colors.blue,\n                    ),\n                  ],\n                ),\n              ],\n            );\n          },\n        ),\n        const SizedBox(height: 24),\n        \n        // Quick Actions\n        const Text(\n          'Quick Actions',\n          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),\n        ),\n        const SizedBox(height: 12),\n        GridView.count(\n          crossAxisCount: 2,\n          crossAxisSpacing: 12,\n          mainAxisSpacing: 12,\n          shrinkWrap: true,\n          physics: const NeverScrollableScrollPhysics(),\n          childAspectRatio: 2,\n          children: [\n            _buildActionCard(\n              context,\n              'Add Member',\n              Icons.person_add,\n              Colors.blue,\n              () {\n                Navigator.of(context).push(\n                  MaterialPageRoute(builder: (context) => const AddMemberScreen()),\n                );\n              },\n            ),\n            _buildActionCard(\n              context,\n              'Record Payment',\n              Icons.payment,\n              Colors.green,\n              () async {\n                final result = await Navigator.of(context).push(\n                  MaterialPageRoute(builder: (context) => const CreatePaymentScreen()),\n                );\n                \n                // Force refresh all data when returning from payment creation\n                _refreshData(context);\n              },\n            ),\n            _buildActionCard(\n              context,\n              'QR Scanner',\n              Icons.qr_code_scanner,\n              Colors.orange,\n              () {\n                Navigator.of(context).push(\n                  MaterialPageRoute(builder: (context) => const QRScannerScreen()),\n                );\n              },\n            ),\n            _buildActionCard(\n              context,\n              'Add Plan',\n              Icons.card_membership,\n              Colors.purple,\n              () {\n                Navigator.of(context).push(\n                  MaterialPageRoute(builder: (context) => const CreateSubscriptionPlanScreen()),\n                );\n              },\n            ),\n          ],\n        ),\n      ],\n    );\n  }
+
+  Widget _buildWebWelcomeSection(BuildContext context) {
+    return Consumer<AuthProvider>(
+      builder: (context, authProvider, child) {
+        final user = authProvider.currentUser;
+        return Container(
+          padding: const EdgeInsets.all(32),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [AppTheme.primaryBlue, AppTheme.primaryBlue.withOpacity(0.8)],
+            ),
+            borderRadius: BorderRadius.circular(context.webCardBorderRadius),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.2),
+                  border: Border.all(color: Colors.white.withOpacity(0.3), width: 2),
+                ),
+                child: Center(
+                  child: Text(
+                    user?.firstName != null && user?.firstName.isNotEmpty == true 
+                        ? user!.firstName[0].toUpperCase() 
+                        : 'G',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-              );
-            },
-          ),
-          const SizedBox(height: 20),
-          
-          // Quick Stats
-          const Text(
-            'Quick Overview',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
-          GridView.count(
-            crossAxisCount: 2,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            childAspectRatio: 1.3,
-            children: [
-              Consumer<MemberProvider>(
-                builder: (context, memberProvider, child) {
-                  return _buildStatCard(
-                    'Total Members',
-                    '${memberProvider.members.length}',
-                    Icons.people,
-                    Colors.blue,
-                  );
-                },
               ),
-              Consumer<MemberProvider>(
-                builder: (context, memberProvider, child) {
-                  final activeMembers = memberProvider.members.where((m) => m.isActive).length;
-                  return _buildStatCard(
-                    'Active Members',
-                    '$activeMembers',
-                    Icons.person_add,
-                    Colors.green,
-                  );
-                },
+              const SizedBox(width: 24),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Welcome back, ${user?.firstName ?? 'Gym Owner'}!',
+                      style: const TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (user?.gymName != null)
+                      Text(
+                        user!.decodedGymName,
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.white.withOpacity(0.9),
+                        ),
+                      ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Today is ${_formatDate(DateTime.now())}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.white.withOpacity(0.8),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              Consumer<TrainerProvider>(
-                builder: (context, trainerProvider, child) {
-                  return _buildStatCard(
-                    'Trainers',
-                    '${trainerProvider.trainers.length}',
-                    Icons.fitness_center,
-                    Colors.orange,
-                  );
-                },
-              ),
-              Consumer<EquipmentProvider>(
-                builder: (context, equipmentProvider, child) {
-                  final workingEquipment = equipmentProvider.equipment.where((e) => e.isWorking).length;
-                  return _buildStatCard(
-                    'Working Equipment',
-                    '$workingEquipment',
-                    Icons.sports_gymnastics,
-                    Colors.purple,
-                  );
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          
-          // Revenue Section
-          Consumer<PaymentProvider>(
-            builder: (context, paymentProvider, child) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  const Text(
-                    'Revenue Overview',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  Icon(
+                    Icons.dashboard,
+                    color: Colors.white.withOpacity(0.8),
+                    size: 48,
                   ),
-                  const SizedBox(height: 12),
-                  GridView.count(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    childAspectRatio: 1.3,
-                    children: [
-                      _buildRevenueCard(
-                        'Monthly Revenue',
-                        '₹${paymentProvider.monthlyRevenue.toStringAsFixed(0)}',
-                        Icons.calendar_month,
-                        Colors.green,
-                      ),
-                      _buildRevenueCard(
-                        'Today\'s Revenue',
-                        '₹${paymentProvider.dailyRevenue.toStringAsFixed(0)}',
-                        Icons.today,
-                        Colors.blue,
-                      ),
-                    ],
+                  const SizedBox(height: 8),
+                  Text(
+                    'Dashboard',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.white.withOpacity(0.8),
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ],
-              );
-            },
-          ),
-          const SizedBox(height: 24),
-          
-          // Quick Actions
-          const Text(
-            'Quick Actions',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
-          GridView.count(
-            crossAxisCount: 2,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            childAspectRatio: 2,
-            children: [
-              _buildActionCard(
-                context,
-                'Add Member',
-                Icons.person_add,
-                Colors.blue,
-                () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (context) => const AddMemberScreen()),
-                  );
-                },
-              ),
-              _buildActionCard(
-                context,
-                'Record Payment',
-                Icons.payment,
-                Colors.green,
-                () async {
-                  final result = await Navigator.of(context).push(
-                    MaterialPageRoute(builder: (context) => const CreatePaymentScreen()),
-                  );
-                  
-                  // Force refresh all data when returning from payment creation
-                  _refreshData(context);
-                },
-              ),
-              _buildActionCard(
-                context,
-                'QR Scanner',
-                Icons.qr_code_scanner,
-                Colors.orange,
-                () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (context) => const QRScannerScreen()),
-                  );
-                },
-              ),
-              _buildActionCard(
-                context,
-                'Add Plan',
-                Icons.card_membership,
-                Colors.purple,
-                () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (context) => const CreateSubscriptionPlanScreen()),
-                  );
-                },
               ),
             ],
           ),
-        ],
+        );
+      },
+    );
+  }
+
+  Widget _buildWebStatsGrid(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Consumer<MemberProvider>(
+            builder: (context, memberProvider, child) {
+              return _buildWebStatCard(
+                'Total Members',
+                '${memberProvider.members.length}',
+                Icons.people,
+                AppTheme.primaryBlue,
+                '+${memberProvider.members.where((m) => _isThisWeek(m.createdAt)).length} this week',
+                context,
+              );
+            },
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Consumer<MemberProvider>(
+            builder: (context, memberProvider, child) {
+              final activeMembers = memberProvider.members.where((m) => m.isActive).length;
+              return _buildWebStatCard(
+                'Active Members',
+                '$activeMembers',
+                Icons.person_add,
+                AppTheme.successGreen,
+                '${((activeMembers / memberProvider.members.length) * 100).toStringAsFixed(1)}% of total',
+                context,
+              );
+            },
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Consumer<TrainerProvider>(
+            builder: (context, trainerProvider, child) {
+              return _buildWebStatCard(
+                'Trainers',
+                '${trainerProvider.trainers.length}',
+                Icons.fitness_center,
+                AppTheme.warningOrange,
+                'All active',
+                context,
+              );
+            },
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Consumer<EquipmentProvider>(
+            builder: (context, equipmentProvider, child) {
+              final workingEquipment = equipmentProvider.equipment.where((e) => e.isWorking).length;
+              final totalEquipment = equipmentProvider.equipment.length;
+              return _buildWebStatCard(
+                'Equipment',
+                '$workingEquipment / $totalEquipment',
+                Icons.sports_gymnastics,
+                Colors.purple,
+                'Working condition',
+                context,
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWebStatCard(String title, String value, IconData icon, Color color, String subtitle, BuildContext context) {
+    return Card(
+      elevation: context.cardElevation,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(context.webCardBorderRadius),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: color,
+                    size: 24,
+                  ),
+                ),
+                Icon(
+                  Icons.trending_up,
+                  color: Colors.grey.shade400,
+                  size: 16,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: TextStyle(
+                fontSize: 12,
+                color: color,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
         ),
       ),
     );
+  }
+
+  Widget _buildWebRevenueSection(BuildContext context) {
+    return Consumer<PaymentProvider>(
+      builder: (context, paymentProvider, child) {
+        return Card(
+          elevation: context.cardElevation,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(context.webCardBorderRadius),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Revenue Analytics',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade800,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildRevenueMetric(
+                        'Today',
+                        '₹${paymentProvider.dailyRevenue.toStringAsFixed(0)}',
+                        Icons.today,
+                        AppTheme.successGreen,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _buildRevenueMetric(
+                        'This Month',
+                        '₹${paymentProvider.monthlyRevenue.toStringAsFixed(0)}',
+                        Icons.calendar_month,
+                        AppTheme.primaryBlue,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                Container(
+                  height: 120,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.bar_chart,
+                          color: Colors.grey.shade400,
+                          size: 48,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Revenue Chart',
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 14,
+                          ),
+                        ),
+                        Text(
+                          'Coming Soon',
+                          style: TextStyle(
+                            color: Colors.grey.shade500,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildRevenueMetric(String title, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey.shade600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWebQuickActions(BuildContext context) {
+    return Card(
+      elevation: context.cardElevation,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(context.webCardBorderRadius),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Quick Actions',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade800,
+              ),
+            ),
+            const SizedBox(height: 24),
+            _buildWebActionButton(
+              context,
+              'Add New Member',
+              Icons.person_add,
+              AppTheme.primaryBlue,
+              () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (context) => const AddMemberScreen()),
+                );
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildWebActionButton(
+              context,
+              'Record Payment',
+              Icons.payment,
+              AppTheme.successGreen,
+              () async {
+                final result = await Navigator.of(context).push(
+                  MaterialPageRoute(builder: (context) => const CreatePaymentScreen()),
+                );
+                _refreshData(context);
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildWebActionButton(
+              context,
+              'QR Scanner',
+              Icons.qr_code_scanner,
+              AppTheme.warningOrange,
+              () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (context) => const QRScannerScreen()),
+                );
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildWebActionButton(
+              context,
+              'Create Plan',
+              Icons.card_membership,
+              Colors.purple,
+              () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (context) => const CreateSubscriptionPlanScreen()),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWebActionButton(BuildContext context, String title, IconData icon, Color color, VoidCallback onPressed) {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon, size: 18),
+        label: Text(title),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: color,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(context.webButtonBorderRadius),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    return '${months[date.month - 1]} ${date.day}, ${date.year}';
+  }
+
+  bool _isThisWeek(DateTime? date) {
+    if (date == null) return false;
+    final now = DateTime.now();
+    final weekAgo = now.subtract(const Duration(days: 7));
+    return date.isAfter(weekAgo);
   }
 
   Widget _buildStatCard(String title, String value, IconData icon, Color color) {

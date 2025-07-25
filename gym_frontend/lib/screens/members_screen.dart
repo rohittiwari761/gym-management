@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
 import '../providers/member_provider.dart';
 import '../models/member.dart';
@@ -6,6 +7,8 @@ import '../utils/responsive_utils.dart';
 import '../utils/app_theme.dart';
 import '../widgets/common_widgets.dart' as common_widgets;
 import '../widgets/optimized_widgets.dart';
+import '../widgets/web_layout.dart';
+import '../widgets/web_data_table.dart';
 import 'add_member_screen.dart';
 import 'member_detail_screen.dart';
 
@@ -48,37 +51,57 @@ class _MembersScreenState extends State<MembersScreen> with SingleTickerProvider
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      appBar: AppBar(
-        title: const Text('Members'),
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Theme.of(context).colorScheme.onPrimary,
-        elevation: 0,
-        actions: [
-          IconButton(
-            onPressed: () => _navigateToAddMember(context),
-            icon: const Icon(Icons.person_add, size: 20),
-            tooltip: 'Add Member',
+    return WebLayoutWrapper(
+      currentRoute: '/members',
+      pageTitle: 'Members Management',
+      actions: [
+        ElevatedButton.icon(
+          onPressed: () => _navigateToAddMember(context),
+          icon: const Icon(Icons.person_add, size: 18),
+          label: const Text('Add Member'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppTheme.primaryBlue,
+            foregroundColor: Colors.white,
+            padding: context.webActionButtonPadding,
           ),
-        ],
-      ),
-      body: Column(
-        children: [
-          _buildMemberStats(context),
-          _buildSearchBar(context),
-          _buildTabBar(context),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildMembersList(context, null), // All members
-                _buildMembersList(context, true), // Active only
-                _buildMembersList(context, false), // Inactive only
-              ],
+        ),
+      ],
+      child: Scaffold(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        appBar: (!kIsWeb || context.isWebMobile) ? AppBar(
+          title: const Text('Members'),
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          foregroundColor: Theme.of(context).colorScheme.onPrimary,
+          elevation: 0,
+          actions: [
+            IconButton(
+              onPressed: () => _navigateToAddMember(context),
+              icon: const Icon(Icons.person_add, size: 20),
+              tooltip: 'Add Member',
             ),
-          ),
-        ],
+          ],
+        ) : null,
+        body: Column(
+          children: [
+            if (!kIsWeb || context.isWebMobile) ..[
+              _buildMemberStats(context),
+              _buildSearchBar(context),
+              _buildTabBar(context),
+            ],
+            Expanded(
+              child: context.isWebDesktop 
+                  ? _buildWebMembersView(context)
+                  : TabBarView(
+                      controller: _tabController,
+                      children: [
+                        _buildMembersList(context, null), // All members
+                        _buildMembersList(context, true), // Active only
+                        _buildMembersList(context, false), // Inactive only
+                      ],
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -173,6 +196,33 @@ class _MembersScreenState extends State<MembersScreen> with SingleTickerProvider
           Tab(text: 'Inactive'),
         ],
       ),
+    );
+  }
+
+  Widget _buildWebMembersView(BuildContext context) {
+    return Consumer<MemberProvider>(
+      builder: (context, memberProvider, child) {
+        return Column(
+          children: [
+            _buildWebMemberStats(context),
+            const SizedBox(height: 24),
+            Expanded(
+              child: WebMemberDataTable(
+                members: memberProvider.members,
+                isLoading: memberProvider.isLoading,
+                onMemberTap: (member) => _showMemberDetails(context, member),
+                onMemberEdit: (member) => _editMember(context, member),
+                onMemberToggle: (member) => _toggleMemberStatusDirect(context, member),
+                onSearch: (query) {
+                  setState(() {
+                    _searchQuery = query.toLowerCase();
+                  });
+                },
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -523,6 +573,132 @@ class _MembersScreenState extends State<MembersScreen> with SingleTickerProvider
     return activeFilter 
         ? 'All members are currently inactive'
         : 'All members are currently active';
+  }
+
+  Widget _buildWebMemberStats(BuildContext context) {
+    return Consumer<MemberProvider>(
+      builder: (context, provider, child) {
+        final activeMembers = provider.activeMembers.length;
+        final inactiveMembers = provider.members.length - activeMembers;
+        
+        return Row(
+          children: [
+            Expanded(
+              child: _buildWebStatCard(
+                'Total Members',
+                '${provider.members.length}',
+                Icons.people,
+                AppTheme.primaryBlue,
+                context,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildWebStatCard(
+                'Active Members',
+                '$activeMembers',
+                Icons.person,
+                AppTheme.successGreen,
+                context,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildWebStatCard(
+                'Inactive Members',
+                '$inactiveMembers',
+                Icons.person_off,
+                AppTheme.warningOrange,
+                context,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildWebStatCard(
+                'This Month',
+                '${provider.members.where((m) => _isThisMonth(m.createdAt)).length}',
+                Icons.calendar_month,
+                AppTheme.primaryBlue.withOpacity(0.8),
+                context,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildWebStatCard(String title, String value, IconData icon, Color color, BuildContext context) {
+    return Card(
+      elevation: context.cardElevation,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(context.webCardBorderRadius),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: color,
+                    size: 24,
+                  ),
+                ),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade700,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Updated just now',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  bool _isThisMonth(DateTime? date) {
+    if (date == null) return false;
+    final now = DateTime.now();
+    return date.year == now.year && date.month == now.month;
+  }
+
+  void _editMember(BuildContext context, Member member) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => AddMemberScreen(memberToEdit: member),
+      ),
+    );
   }
 
   void _navigateToAddMember(BuildContext context) {

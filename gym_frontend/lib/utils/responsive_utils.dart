@@ -1,9 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class ResponsiveUtils {
   static const double mobileBreakpoint = 600;
   static const double tabletBreakpoint = 900;
   static const double desktopBreakpoint = 1200;
+
+  // Platform detection
+  static bool isWeb() => kIsWeb;
+  
+  // Proper responsive detection for enterprise web UI
+  static bool shouldUseMobileLayout(BuildContext context) {
+    if (!kIsWeb) {
+      return MediaQuery.of(context).size.width < mobileBreakpoint;
+    }
+    // Web uses proper responsive breakpoints
+    return MediaQuery.of(context).size.width < mobileBreakpoint;
+  }
 
   static bool isMobile(BuildContext context) {
     return MediaQuery.of(context).size.width < mobileBreakpoint;
@@ -16,6 +29,23 @@ class ResponsiveUtils {
 
   static bool isDesktop(BuildContext context) {
     return MediaQuery.of(context).size.width >= tabletBreakpoint;
+  }
+
+  static bool isLargeDesktop(BuildContext context) {
+    return MediaQuery.of(context).size.width >= desktopBreakpoint;
+  }
+
+  // Web-specific layout detection
+  static bool isWebDesktop(BuildContext context) {
+    return kIsWeb && isDesktop(context);
+  }
+
+  static bool isWebTablet(BuildContext context) {
+    return kIsWeb && isTablet(context);
+  }
+
+  static bool isWebMobile(BuildContext context) {
+    return kIsWeb && isMobile(context);
   }
 
   static bool isLandscape(BuildContext context) {
@@ -41,6 +71,17 @@ class ResponsiveUtils {
     }
   }
 
+  // Web-specific content padding
+  static EdgeInsets getWebContentPadding(BuildContext context) {
+    if (isWebDesktop(context)) {
+      return const EdgeInsets.all(32.0);
+    } else if (isWebTablet(context)) {
+      return const EdgeInsets.all(24.0);
+    } else {
+      return const EdgeInsets.all(16.0);
+    }
+  }
+
   // Get appropriate card margin based on screen size
   static EdgeInsets getCardMargin(BuildContext context) {
     if (isMobile(context)) {
@@ -61,17 +102,44 @@ class ResponsiveUtils {
       return 2;
     } else if (width < desktopBreakpoint) {
       return 3;
-    } else {
+    } else if (width < 1600) {
       return 4;
+    } else {
+      return 5; // For very large screens
     }
   }
 
-  // Get appropriate font sizes
+  // Get columns for different content types
+  static int getMemberCardColumns(BuildContext context) {
+    if (isWebDesktop(context)) {
+      final width = getScreenWidth(context);
+      if (width > 1600) return 4;
+      if (width > 1200) return 3;
+      return 2;
+    }
+    return getGridColumns(context);
+  }
+
+  static int getDashboardCardColumns(BuildContext context) {
+    if (isWebDesktop(context)) {
+      final width = getScreenWidth(context);
+      if (width > 1400) return 4;
+      if (width > 1000) return 3;
+      return 2;
+    } else if (isTablet(context)) {
+      return 2;
+    }
+    return 1;
+  }
+
+  // Get appropriate font sizes for enterprise UI
   static double getTitleFontSize(BuildContext context) {
     if (isMobile(context)) {
       return 20.0;
     } else if (isTablet(context)) {
       return 24.0;
+    } else if (isLargeDesktop(context)) {
+      return 32.0;
     } else {
       return 28.0;
     }
@@ -82,6 +150,8 @@ class ResponsiveUtils {
       return 16.0;
     } else if (isTablet(context)) {
       return 18.0;
+    } else if (isLargeDesktop(context)) {
+      return 22.0;
     } else {
       return 20.0;
     }
@@ -91,9 +161,9 @@ class ResponsiveUtils {
     if (isMobile(context)) {
       return 14.0;
     } else if (isTablet(context)) {
-      return 16.0;
+      return 15.0;
     } else {
-      return 18.0;
+      return 16.0;
     }
   }
 
@@ -101,10 +171,19 @@ class ResponsiveUtils {
     if (isMobile(context)) {
       return 12.0;
     } else if (isTablet(context)) {
-      return 14.0;
+      return 13.0;
     } else {
-      return 16.0;
+      return 14.0;
     }
+  }
+
+  // Web-specific font sizes
+  static double getWebTableHeaderFontSize(BuildContext context) {
+    return isWebDesktop(context) ? 14.0 : 13.0;
+  }
+
+  static double getWebTableBodyFontSize(BuildContext context) {
+    return isWebDesktop(context) ? 13.0 : 12.0;
   }
 
   // Get appropriate icon sizes
@@ -112,9 +191,9 @@ class ResponsiveUtils {
     if (isMobile(context)) {
       return 24.0;
     } else if (isTablet(context)) {
-      return 28.0;
+      return 26.0;
     } else {
-      return 32.0;
+      return 28.0;
     }
   }
 
@@ -122,10 +201,19 @@ class ResponsiveUtils {
     if (isMobile(context)) {
       return 16.0;
     } else if (isTablet(context)) {
-      return 20.0;
+      return 18.0;
     } else {
-      return 24.0;
+      return 20.0;
     }
+  }
+
+  // Web-specific icon sizes
+  static double getWebNavigationIconSize(BuildContext context) {
+    return isWebDesktop(context) ? 20.0 : 18.0;
+  }
+
+  static double getWebActionIconSize(BuildContext context) {
+    return isWebDesktop(context) ? 18.0 : 16.0;
   }
 
   // Get appropriate button padding
@@ -139,12 +227,21 @@ class ResponsiveUtils {
     }
   }
 
+  // Web-specific button padding
+  static EdgeInsets getWebActionButtonPadding(BuildContext context) {
+    return isWebDesktop(context) 
+        ? const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0)
+        : const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0);
+  }
+
   // Get appropriate card elevation
   static double getCardElevation(BuildContext context) {
     if (isMobile(context)) {
       return 2.0;
+    } else if (isWebDesktop(context)) {
+      return 1.0; // Subtle shadows for modern web design
     } else {
-      return 4.0;
+      return 3.0;
     }
   }
 
@@ -153,10 +250,19 @@ class ResponsiveUtils {
     if (isMobile(context)) {
       return 8.0;
     } else if (isTablet(context)) {
-      return 12.0;
+      return 10.0;
     } else {
-      return 16.0;
+      return 12.0; // More subtle for web
     }
+  }
+
+  // Web-specific border radius
+  static double getWebCardBorderRadius(BuildContext context) {
+    return isWebDesktop(context) ? 8.0 : 6.0;
+  }
+
+  static double getWebButtonBorderRadius(BuildContext context) {
+    return isWebDesktop(context) ? 6.0 : 5.0;
   }
 
   // Get adaptive layout for cards
@@ -224,28 +330,51 @@ class ResponsiveUtils {
 
 // Extension for easy access to responsive utilities
 extension ResponsiveContext on BuildContext {
+  // Platform detection
   bool get isMobile => ResponsiveUtils.isMobile(this);
   bool get isTablet => ResponsiveUtils.isTablet(this);
   bool get isDesktop => ResponsiveUtils.isDesktop(this);
+  bool get isLargeDesktop => ResponsiveUtils.isLargeDesktop(this);
   bool get isLandscape => ResponsiveUtils.isLandscape(this);
   
+  // Web-specific detection
+  bool get isWebDesktop => ResponsiveUtils.isWebDesktop(this);
+  bool get isWebTablet => ResponsiveUtils.isWebTablet(this);
+  bool get isWebMobile => ResponsiveUtils.isWebMobile(this);
+  
+  // Screen dimensions
   double get screenWidth => ResponsiveUtils.getScreenWidth(this);
   double get screenHeight => ResponsiveUtils.getScreenHeight(this);
   
+  // Spacing and margins
   EdgeInsets get screenPadding => ResponsiveUtils.getScreenPadding(this);
+  EdgeInsets get webContentPadding => ResponsiveUtils.getWebContentPadding(this);
   EdgeInsets get cardMargin => ResponsiveUtils.getCardMargin(this);
   EdgeInsets get buttonPadding => ResponsiveUtils.getButtonPadding(this);
+  EdgeInsets get webActionButtonPadding => ResponsiveUtils.getWebActionButtonPadding(this);
   
+  // Grid columns
   int get gridColumns => ResponsiveUtils.getGridColumns(this);
+  int get memberCardColumns => ResponsiveUtils.getMemberCardColumns(this);
+  int get dashboardCardColumns => ResponsiveUtils.getDashboardCardColumns(this);
   
+  // Font sizes
   double get titleFontSize => ResponsiveUtils.getTitleFontSize(this);
   double get subtitleFontSize => ResponsiveUtils.getSubtitleFontSize(this);
   double get bodyFontSize => ResponsiveUtils.getBodyFontSize(this);
   double get captionFontSize => ResponsiveUtils.getCaptionFontSize(this);
+  double get webTableHeaderFontSize => ResponsiveUtils.getWebTableHeaderFontSize(this);
+  double get webTableBodyFontSize => ResponsiveUtils.getWebTableBodyFontSize(this);
   
+  // Icon sizes
   double get iconSize => ResponsiveUtils.getIconSize(this);
   double get smallIconSize => ResponsiveUtils.getSmallIconSize(this);
+  double get webNavigationIconSize => ResponsiveUtils.getWebNavigationIconSize(this);
+  double get webActionIconSize => ResponsiveUtils.getWebActionIconSize(this);
   
+  // Visual properties
   double get cardElevation => ResponsiveUtils.getCardElevation(this);
   double get borderRadius => ResponsiveUtils.getBorderRadius(this);
+  double get webCardBorderRadius => ResponsiveUtils.getWebCardBorderRadius(this);
+  double get webButtonBorderRadius => ResponsiveUtils.getWebButtonBorderRadius(this);
 }
