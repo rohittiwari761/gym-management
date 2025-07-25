@@ -383,6 +383,8 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",  # Flutter web dev
     "http://127.0.0.1:3000",
     "http://192.168.1.7:3000",
+    "http://localhost:54488",  # User's web server
+    "http://127.0.0.1:54488",
     "https://yourdomain.com",  # Production domain
     # Add Netlify domains for web deployment
     "https://benevolent-gingersnap-155623.netlify.app",  # Current Netlify domain
