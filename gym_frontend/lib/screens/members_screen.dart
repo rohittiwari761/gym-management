@@ -199,6 +199,52 @@ class _MembersScreenState extends State<MembersScreen> with SingleTickerProvider
     );
   }
 
+  Widget _buildWebTabBar(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(context.webCardBorderRadius),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: TabBar(
+        controller: _tabController,
+        labelColor: AppTheme.primaryBlue,
+        unselectedLabelColor: Colors.grey.shade600,
+        indicatorColor: AppTheme.primaryBlue,
+        indicatorWeight: 3.0,
+        indicatorSize: TabBarIndicatorSize.tab,
+        indicator: BoxDecoration(
+          color: AppTheme.primaryBlue.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(context.webCardBorderRadius),
+          border: Border.all(color: AppTheme.primaryBlue.withOpacity(0.3)),
+        ),
+        labelPadding: EdgeInsets.zero,
+        labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        unselectedLabelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+        dividerColor: Colors.transparent,
+        tabs: [
+          _buildWebTab('All Members', Icons.people_outline),
+          _buildWebTab('Active', Icons.check_circle_outline),
+          _buildWebTab('Inactive', Icons.pause_circle_outline),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWebTab(String text, IconData icon) {
+    return Container(
+      height: 48,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 18),
+          const SizedBox(width: 8),
+          Text(text),
+        ],
+      ),
+    );
+  }
+
   Widget _buildWebMembersView(BuildContext context) {
     return Consumer<MemberProvider>(
       builder: (context, memberProvider, child) {
@@ -206,18 +252,49 @@ class _MembersScreenState extends State<MembersScreen> with SingleTickerProvider
           children: [
             _buildWebMemberStats(context),
             const SizedBox(height: 24),
+            _buildWebTabBar(context),
+            const SizedBox(height: 16),
             Expanded(
-              child: WebMemberDataTable(
-                members: memberProvider.members,
-                isLoading: memberProvider.isLoading,
-                onMemberTap: (member) => _showMemberDetails(context, member),
-                onMemberEdit: (member) => _editMember(context, member),
-                onMemberToggle: (member) => _toggleMemberStatusDirect(context, member),
-                onSearch: (query) {
-                  setState(() {
-                    _searchQuery = query.toLowerCase();
-                  });
-                },
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  WebMemberDataTable(
+                    members: _getFilteredMembers(memberProvider.members, null),
+                    isLoading: memberProvider.isLoading,
+                    onMemberTap: (member) => _showMemberDetails(context, member),
+                    onMemberEdit: (member) => _editMember(context, member),
+                    onMemberToggle: (member) => _toggleMemberStatusDirect(context, member),
+                    onSearch: (query) {
+                      setState(() {
+                        _searchQuery = query.toLowerCase();
+                      });
+                    },
+                  ),
+                  WebMemberDataTable(
+                    members: _getFilteredMembers(memberProvider.members, true),
+                    isLoading: memberProvider.isLoading,
+                    onMemberTap: (member) => _showMemberDetails(context, member),
+                    onMemberEdit: (member) => _editMember(context, member),
+                    onMemberToggle: (member) => _toggleMemberStatusDirect(context, member),
+                    onSearch: (query) {
+                      setState(() {
+                        _searchQuery = query.toLowerCase();
+                      });
+                    },
+                  ),
+                  WebMemberDataTable(
+                    members: _getFilteredMembers(memberProvider.members, false),
+                    isLoading: memberProvider.isLoading,
+                    onMemberTap: (member) => _showMemberDetails(context, member),
+                    onMemberEdit: (member) => _editMember(context, member),
+                    onMemberToggle: (member) => _toggleMemberStatusDirect(context, member),
+                    onSearch: (query) {
+                      setState(() {
+                        _searchQuery = query.toLowerCase();
+                      });
+                    },
+                  ),
+                ],
               ),
             ),
           ],
