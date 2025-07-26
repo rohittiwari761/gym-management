@@ -1102,8 +1102,12 @@ class AttendanceProvider with ChangeNotifier {
           // Successful API check-in - refresh today's data to ensure sync
           await fetchTodaysAttendance();
           
+          // Force sync with history tab immediately after refresh
+          syncTodayWithHistory();
+          
           if (kDebugMode) {
             print('QR_ATTENDANCE: ✅ Member $memberIdInt checked in successfully via API');
+            print('QR_ATTENDANCE: Synced with history tab - today records: ${_todayAttendances.length}');
           }
           return true;
         } else {
