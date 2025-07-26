@@ -16,7 +16,7 @@ class AttendanceScreen extends StatefulWidget {
   State<AttendanceScreen> createState() => _AttendanceScreenState();
 }
 
-class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerProviderStateMixin {
+class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late TabController _tabController;
   AttendanceProvider? _attendanceProvider;
   MemberProvider? _memberProvider;
@@ -32,6 +32,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
+    
+    // Add app lifecycle observer to refresh data when app resumes
+    WidgetsBinding.instance.addObserver(this);
     
     // Listen to tab changes to sync data between today's and history tabs
     _tabController.addListener(() {
@@ -67,7 +70,25 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
     _attendanceProvider = null;
     _memberProvider = null;
     _scaffoldMessenger = null;
+    
+    // Remove app lifecycle observer
+    WidgetsBinding.instance.removeObserver(this);
+    
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    // When app resumes from background (e.g., after QR web attendance)
+    if (state == AppLifecycleState.resumed && _attendanceProvider != null) {
+      // Refresh today's attendance data to pick up any new QR attendance
+      _attendanceProvider!.fetchTodaysAttendance().then((_) {
+        // Sync with history tab after refresh
+        _attendanceProvider!.syncTodayWithHistory();
+      });
+    }
   }
 
   Future<void> _loadData() async {
@@ -590,21 +611,43 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
             // Today's Stats
             _buildTodayStats(),
             
-            // Search Bar
+            // Refresh Button and Search Bar
             Padding(
-              padding: const EdgeInsets.all(16),
-              child: TextField(
-                controller: _searchController,
-                decoration: const InputDecoration(
-                  hintText: 'Search members...',
-                  prefixIcon: Icon(Icons.search),
-                  border: OutlineInputBorder(),
-                ),
-                onChanged: (value) {
-                  setState(() {
-                    _searchQuery = value.toLowerCase();
-                  });
-                },
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Row(
+                children: [
+                  // Refresh Button
+                  ElevatedButton.icon(
+                    onPressed: attendanceProvider.isLoading ? null : () async {
+                      await _attendanceProvider?.fetchTodaysAttendance();
+                      _attendanceProvider?.syncTodayWithHistory();
+                    },
+                    icon: Icon(Icons.refresh, size: 18),
+                    label: Text('Refresh'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                  ),
+                  SizedBox(width: 8),
+                  // Search Bar
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: const InputDecoration(
+                        hintText: 'Search members...',
+                        prefixIcon: Icon(Icons.search),
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (value) {
+                        setState(() {
+                          _searchQuery = value.toLowerCase();
+                        });
+                      },
+                    ),
+                  ),
+                ],
               ),
             ),
             
