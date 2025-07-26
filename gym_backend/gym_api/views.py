@@ -1595,8 +1595,8 @@ def web_attendance_submit(request):
                 'message': f'Member ID {member_id} not found or inactive'
             })
         
-        # Get current date in IST
-        today = get_ist_date()
+        # Get current date (using timezone-neutral approach to match Flutter app)
+        today = timezone.now().date()
         
         # Check if already checked in today
         existing_attendance = Attendance.objects.filter(
@@ -1623,7 +1623,7 @@ def web_attendance_submit(request):
             member=member,
             gym_owner=gym_owner,
             date=today,
-            check_in_time=get_ist_now(),
+            check_in_time=timezone.now(),
             qr_code_used=True,
             notes='QR Code Check-in via Web'
         )
