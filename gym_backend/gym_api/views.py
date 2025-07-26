@@ -1607,7 +1607,15 @@ def web_attendance_submit(request):
         if existing_attendance:
             return JsonResponse({
                 'success': True,
-                'message': f'Welcome back {member.user.first_name}! You are already checked in today.'
+                'message': f'Welcome back {member.user.first_name}! You are already checked in today.',
+                'debug_info': {
+                    'existing_attendance_id': str(existing_attendance.attendance_id),
+                    'check_in_time': str(existing_attendance.check_in_time),
+                    'date': str(existing_attendance.date),
+                    'qr_code_used': existing_attendance.qr_code_used,
+                    'gym_owner_id': gym_owner.id,
+                    'member_id': member.member_id
+                }
             })
         
         # Create new attendance record
