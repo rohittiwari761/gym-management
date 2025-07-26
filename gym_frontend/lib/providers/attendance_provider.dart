@@ -197,6 +197,9 @@ class AttendanceProvider with ChangeNotifier {
         // Fix member names using cache
         _fixTodayAttendanceNames();
         
+        // Update stats with fresh data
+        _updateRealTimeStats();
+        
         // Today's attendance data loaded
         _syncHistoryAfterTodayRefresh(); // Sync with history tab if needed
         notifyListeners();
@@ -223,6 +226,7 @@ class AttendanceProvider with ChangeNotifier {
           
           _todayAttendances = fallbackTodayData.map((item) => Attendance.fromJson(item)).toList();
           _fixTodayAttendanceNames();
+          _updateRealTimeStats();
           _syncHistoryAfterTodayRefresh(); // Sync with history tab if needed
           notifyListeners();
         } else {
@@ -252,26 +256,52 @@ class AttendanceProvider with ChangeNotifier {
       
       if (response['success'] == true) {
         final data = response['data'];
+        
+        // Use real-time calculations from today's attendance when available
+        final realTimePresentToday = _todayAttendances.where((a) => a.isCheckedIn).length;
+        final realTimeCheckedOut = _todayAttendances.where((a) => a.isCheckedOut).length;
+        final realTimeTotalToday = _todayAttendances.length;
+        
+        // Calculate average session time from today's data
+        double avgSessionTime = 0.0;
+        if (_todayAttendances.isNotEmpty) {
+          final totalMinutes = _todayAttendances
+              .where((a) => a.checkOutTime != null)
+              .map((a) => a.sessionDuration.inMinutes)
+              .fold(0, (sum, minutes) => sum + minutes);
+          final checkedOutCount = _todayAttendances.where((a) => a.checkOutTime != null).length;
+          if (checkedOutCount > 0) {
+            avgSessionTime = totalMinutes / checkedOutCount;
+          }
+        }
+        
         _stats = AttendanceStats(
           totalMembers: data['total_active_members'] ?? 0,
-          presentToday: data['today']['present'] ?? 0,
+          presentToday: realTimePresentToday > 0 ? realTimePresentToday : (data['today']['present'] ?? 0),
           absentToday: data['today']['absent'] ?? 0,
-          totalCheckIns: data['week']['total_visits'] ?? 0,
-          averageSessionTime: 85.5, // This would need session duration calculation in Django
+          totalCheckIns: realTimeTotalToday > 0 ? realTimeTotalToday : (data['week']['total_visits'] ?? 0),
+          averageSessionTime: avgSessionTime > 0 ? avgSessionTime : (data['month']['avg_session_time'] ?? 85.5),
           peakHourCheckIns: data['today']['still_in_gym'] ?? 0,
           peakHour: '18:00', // This would need peak hour analysis in Django
         );
+        
+        if (kDebugMode) {
+          print('STATS: Using real-time data - Present: $realTimePresentToday, Total: $realTimeTotalToday, Avg Session: ${avgSessionTime.toStringAsFixed(1)}min');
+        }
         // Analytics loaded successfully
       } else {
         if (kDebugMode) {
           print('ATTENDANCE ANALYTICS ERROR: ${response['message']}');
         }
-        // Set empty stats instead of mock data
+        // Use real-time stats when backend fails
+        final realTimePresentToday = _todayAttendances.where((a) => a.isCheckedIn).length;
+        final realTimeTotalToday = _todayAttendances.length;
+        
         _stats = AttendanceStats(
           totalMembers: 0,
-          presentToday: 0,
+          presentToday: realTimePresentToday,
           absentToday: 0,
-          totalCheckIns: 0,
+          totalCheckIns: realTimeTotalToday,
           averageSessionTime: 0.0,
           peakHourCheckIns: 0,
           peakHour: '00:00',
@@ -281,12 +311,15 @@ class AttendanceProvider with ChangeNotifier {
       if (kDebugMode) {
         print('ATTENDANCE ANALYTICS ERROR: $e');
       }
-      // Set empty stats on error instead of mock data
+      // Use real-time stats on error instead of mock data
+      final realTimePresentToday = _todayAttendances.where((a) => a.isCheckedIn).length;
+      final realTimeTotalToday = _todayAttendances.length;
+      
       _stats = AttendanceStats(
         totalMembers: 0,
-        presentToday: 0,
+        presentToday: realTimePresentToday,
         absentToday: 0,
-        totalCheckIns: 0,
+        totalCheckIns: realTimeTotalToday,
         averageSessionTime: 0.0,
         peakHourCheckIns: 0,
         peakHour: '00:00',
@@ -1149,6 +1182,9 @@ class AttendanceProvider with ChangeNotifier {
         }
       }
       
+      // Update stats with new real-time data
+      _updateRealTimeStats();
+      
       notifyListeners();
 
       if (kDebugMode) {
@@ -1243,6 +1279,41 @@ class AttendanceProvider with ChangeNotifier {
       _historyAttendances.addAll(_todayAttendances);
       if (kDebugMode) {
         print('ATTENDANCE_SYNC: Updated history tab with refreshed today\'s data');
+      }
+    }
+  }
+
+  /// Update stats with real-time calculations from today's attendance data
+  void _updateRealTimeStats() {
+    if (_stats != null && _todayAttendances.isNotEmpty) {
+      final realTimePresentToday = _todayAttendances.where((a) => a.isCheckedIn).length;
+      final realTimeTotalToday = _todayAttendances.length;
+      
+      // Calculate average session time from today's data
+      double avgSessionTime = _stats!.averageSessionTime;
+      if (_todayAttendances.isNotEmpty) {
+        final totalMinutes = _todayAttendances
+            .where((a) => a.checkOutTime != null)
+            .map((a) => a.sessionDuration.inMinutes)
+            .fold(0, (sum, minutes) => sum + minutes);
+        final checkedOutCount = _todayAttendances.where((a) => a.checkOutTime != null).length;
+        if (checkedOutCount > 0) {
+          avgSessionTime = totalMinutes / checkedOutCount;
+        }
+      }
+      
+      _stats = AttendanceStats(
+        totalMembers: _stats!.totalMembers,
+        presentToday: realTimePresentToday,
+        absentToday: _stats!.absentToday,
+        totalCheckIns: realTimeTotalToday,
+        averageSessionTime: avgSessionTime,
+        peakHourCheckIns: _stats!.peakHourCheckIns,
+        peakHour: _stats!.peakHour,
+      );
+      
+      if (kDebugMode) {
+        print('STATS_UPDATE: Real-time stats updated - Present: $realTimePresentToday, Total: $realTimeTotalToday');
       }
     }
   }

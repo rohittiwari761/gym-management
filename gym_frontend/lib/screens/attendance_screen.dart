@@ -6,8 +6,6 @@ import '../providers/member_provider.dart';
 import '../models/attendance.dart';
 import '../utils/app_theme.dart';
 import '../utils/timezone_utils.dart';
-import 'qr_scanner_screen.dart';
-import 'member_qr_attendance_screen.dart';
 
 class AttendanceScreen extends StatefulWidget {
   const AttendanceScreen({super.key});
@@ -207,7 +205,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
       ),
       body: Column(
         children: [
-          _buildQuickActionButton(),
           _buildTabBar(),
           Expanded(
             child: TabBarView(
@@ -225,58 +222,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
     );
   }
 
-  Widget _buildQuickActionButton() {
-    return Container(
-      padding: const EdgeInsets.all(16.0),
-      child: Row(
-        children: [
-          Expanded(
-            child: SizedBox(
-              height: 44,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => const QRScannerScreen(),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.qr_code_scanner, size: 20),
-                label: const Text('QR Scanner', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  elevation: 2,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          SizedBox(
-            height: 44,
-            child: ElevatedButton.icon(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => const MemberQRAttendanceScreen(),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.person_add, size: 20),
-              label: const Text('Member QR', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                elevation: 2,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildTabBar() {
     return Container(
