@@ -1351,6 +1351,44 @@ class ApiService {
     return await apiCall(1, 10, excludeFields);  // Only first 10 items for summary
   }
 
+  /// Delete all attendance records for the current gym
+  Future<Map<String, dynamic>> deleteAllAttendance() async {
+    try {
+      SecurityConfig.logSecurityEvent('DELETE_ALL_ATTENDANCE_REQUEST', {});
+      
+      print('🗑️ ATTENDANCE: Requesting to delete all attendance records');
+      
+      final response = await _httpClient.delete('attendance/delete_all/');
+      
+      if (response.isSuccess) {
+        SecurityConfig.logSecurityEvent('DELETE_ALL_ATTENDANCE_SUCCESS', {});
+        print('✅ ATTENDANCE: All attendance records deleted successfully');
+        
+        return {
+          'success': true,
+          'message': 'All attendance records deleted successfully',
+          'data': response.data,
+        };
+      } else {
+        final errorMessage = response.errorMessage ?? 'Failed to delete attendance records';
+        SecurityConfig.logSecurityEvent('DELETE_ALL_ATTENDANCE_ERROR', {
+          'error': errorMessage,
+        });
+        
+        return {
+          'success': false,
+          'message': errorMessage,
+        };
+      }
+    } catch (e) {
+      SecurityConfig.logSecurityEvent('DELETE_ALL_ATTENDANCE_EXCEPTION', {
+        'error': e.toString(),
+      });
+      
+      return _handleSecureError('delete_all_attendance', e);
+    }
+  }
+
   /// Dispose of resources
   void dispose() {
     _httpClient.dispose();

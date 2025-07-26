@@ -936,26 +936,52 @@ class AttendanceProvider with ChangeNotifier {
       _isLoading = true;
       notifyListeners();
 
-      // Clear all local data
-      _attendances.clear();
-      _todayAttendances.clear();
-      _historyAttendances.clear();
-      _stats = null;
-      _errorMessage = '';
-      _historyDate = null;
-      _isLoadingHistory = false;
-
-      // All attendance data has been reset locally
+      // Call API to delete all attendance records from the server
+      final response = await _apiService.deleteAllAttendance();
       
-      // You could also call an API endpoint here to clear server data
-      // await _apiService.resetAllAttendance();
+      if (response['success'] == true) {
+        // Clear all local data after successful server deletion
+        _attendances.clear();
+        _todayAttendances.clear();
+        _historyAttendances.clear();
+        _stats = null;
+        _errorMessage = '';
+        _historyDate = null;
+        _isLoadingHistory = false;
+
+        if (kDebugMode) {
+          print('ATTENDANCE: ✅ All attendance data deleted from server and cleared locally');
+        }
+      } else {
+        // If server deletion fails, still clear local data but show warning
+        _attendances.clear();
+        _todayAttendances.clear();
+        _historyAttendances.clear();
+        _stats = null;
+        _historyDate = null;
+        _isLoadingHistory = false;
+        
+        _errorMessage = response['message'] ?? 'Failed to delete server data, but local data cleared';
+        if (kDebugMode) {
+          print('ATTENDANCE: ⚠️ Server deletion failed: ${_errorMessage}');
+        }
+      }
       
       notifyListeners();
     } catch (e) {
       if (kDebugMode) {
         print('ATTENDANCE: Error resetting data: $e');
       }
-      _errorMessage = 'Failed to reset attendance data: $e';
+      
+      // Still clear local data even if API call fails
+      _attendances.clear();
+      _todayAttendances.clear();
+      _historyAttendances.clear();
+      _stats = null;
+      _historyDate = null;
+      _isLoadingHistory = false;
+      
+      _errorMessage = 'Failed to reset server data: $e. Local data cleared.';
     } finally {
       _isLoading = false;
       notifyListeners();

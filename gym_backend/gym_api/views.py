@@ -1069,6 +1069,42 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             
             return Response(result)
         return Response({'error': 'User must be a gym owner'}, status=status.HTTP_403_FORBIDDEN)
+    
+    @action(detail=False, methods=['delete'])
+    @throttle_classes([UserRateThrottle])
+    def delete_all(self, request):
+        """Delete all attendance records for the current gym owner"""
+        if hasattr(request.user, 'gymowner'):
+            gym_owner = request.user.gymowner
+            
+            try:
+                # Count records before deletion for confirmation
+                total_records = Attendance.objects.filter(gym_owner=gym_owner).count()
+                
+                # Delete all attendance records for this gym
+                deleted_count, _ = Attendance.objects.filter(gym_owner=gym_owner).delete()
+                
+                logger.info(f'Deleted {deleted_count} attendance records for gym {gym_owner.id}')
+                
+                # Clear any related cache
+                cache_key = f'attendance_analytics_{gym_owner.id}'
+                cache.delete(cache_key)
+                
+                return Response({
+                    'success': True,
+                    'message': f'Successfully deleted {deleted_count} attendance records',
+                    'deleted_count': deleted_count,
+                    'total_records_before': total_records
+                })
+                
+            except Exception as e:
+                logger.error(f'Error deleting attendance records for gym {gym_owner.id}: {e}')
+                return Response({
+                    'success': False,
+                    'message': f'Failed to delete attendance records: {str(e)}'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                
+        return Response({'error': 'User must be a gym owner'}, status=status.HTTP_403_FORBIDDEN)
 
 
 class SubscriptionPlanViewSet(viewsets.ModelViewSet):
