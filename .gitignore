@@ -135,3 +135,27 @@ app.*.map.json
 .jekyll-metadata
 node_modules/
 *.orig
+
+# Python virtual environment
+venv/
+env/
+ENV/
+
+# User uploads
+gym_owner_profiles/
+
+# IDE/Editor files
+.claude/
+
+# Additional iOS files
+**/ios/**/Podfile.lock
+**/macos/**/Podfile.lock
+**/ios/**/UserInterfaceState.xcuserstate
+**/macos/**/UserInterfaceState.xcuserstate
+
+# Android additional
+android/key.properties
+
+# Generated files
+**/GeneratedPluginRegistrant.java
+**/GeneratedPluginRegistrant.swift

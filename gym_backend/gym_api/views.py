@@ -1474,7 +1474,7 @@ def web_attendance_page(request):
             <form id="attendanceForm">
                 <div class="input-group">
                     <label for="memberId">Member ID</label>
-                    <input type="number" id="memberId" name="memberId" placeholder="Enter your member ID" required>
+                    <input type="text" id="memberId" name="memberId" placeholder="Enter your member ID (e.g., MEM-0008)" required>
                 </div>
                 <button type="submit" class="btn" id="submitBtn">Log Attendance</button>
             </form>
@@ -1483,7 +1483,7 @@ def web_attendance_page(request):
             
             <div class="info">
                 <strong>Instructions:</strong><br>
-                • Enter your unique Member ID<br>
+                • Enter your unique Member ID (format: MEM-XXXX)<br>
                 • Tap "Log Attendance" to check in<br>
                 • Your attendance will be recorded instantly<br>
                 • Contact gym staff if you don't know your Member ID
@@ -1561,24 +1561,26 @@ def web_attendance_submit(request):
     Handle attendance submission from web page
     """
     try:
+        # Parse request data
         data = json.loads(request.body)
         member_id = data.get('member_id')
         gym_id = data.get('gym_id')
         
+        # Validate input
         if not member_id or not gym_id:
-            return JsonResponse({{
+            return JsonResponse({
                 'success': False,
                 'message': 'Member ID and Gym ID are required'
-            }})
+            })
         
         # Find the gym owner
         try:
             gym_owner = GymOwner.objects.get(id=gym_id)
         except GymOwner.DoesNotExist:
-            return JsonResponse({{
+            return JsonResponse({
                 'success': False,
                 'message': 'Invalid gym code'
-            }})
+            })
         
         # Find the member
         try:
@@ -1588,47 +1590,53 @@ def web_attendance_submit(request):
                 is_active=True
             )
         except Member.DoesNotExist:
-            return JsonResponse({{
+            return JsonResponse({
                 'success': False,
-                'message': f'Member ID {{member_id}} not found or inactive'
-            }})
+                'message': f'Member ID {member_id} not found or inactive'
+            })
+        
+        # Get current date in IST
+        today = get_ist_date()
         
         # Check if already checked in today
-        today = get_ist_date()
         existing_attendance = Attendance.objects.filter(
             member=member,
             date=today
         ).first()
         
         if existing_attendance:
-            if existing_attendance.check_out_time is None:
-                return JsonResponse({{
-                    'success': True,
-                    'message': f'Welcome back {{member.user.first_name}}! You are already checked in today.'
-                }})
+            return JsonResponse({
+                'success': True,
+                'message': f'Welcome back {member.user.first_name}! You are already checked in today.'
+            })
         
         # Create new attendance record
         attendance = Attendance.objects.create(
             member=member,
+            gym_owner=gym_owner,
             date=today,
             check_in_time=get_ist_now(),
+            qr_code_used=True,
             notes='QR Code Check-in via Web'
         )
         
-        return JsonResponse({{
+        return JsonResponse({
             'success': True,
-            'message': f'Welcome {{member.user.first_name}}! Attendance logged successfully.',
-            'attendance_id': attendance.attendance_id
-        }})
+            'message': f'Welcome {member.user.first_name}! Attendance logged successfully.',
+            'attendance_id': str(attendance.attendance_id)
+        })
         
-    except json.JSONDecodeError:
-        return JsonResponse({{
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON decode error: {e}")
+        return JsonResponse({
             'success': False,
             'message': 'Invalid request format'
-        }})
+        })
     except Exception as e:
-        logger.error(f"Web attendance error: {{e}}")
-        return JsonResponse({{
+        import traceback
+        logger.error(f"Web attendance error: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return JsonResponse({
             'success': False,
-            'message': 'Server error. Please try again.'
-        }})
+            'message': f'Server error: {str(e)}'
+        })
