@@ -1623,7 +1623,14 @@ def web_attendance_submit(request):
         return JsonResponse({
             'success': True,
             'message': f'Welcome {member.user.first_name}! Attendance logged successfully.',
-            'attendance_id': str(attendance.attendance_id)
+            'attendance_id': str(attendance.attendance_id),
+            'debug_info': {
+                'gym_owner_id': gym_owner.id,
+                'gym_name': gym_owner.gym_name,
+                'member_id': member.member_id,
+                'qr_code_used': True,
+                'date': str(today)
+            }
         })
         
     except json.JSONDecodeError as e:
