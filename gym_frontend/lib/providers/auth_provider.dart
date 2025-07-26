@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import '../models/gym_owner.dart';
+import '../screens/login_screen.dart';
 import '../services/auth_service.dart';
 import '../services/web_api_service.dart';
 import '../services/gym_data_service.dart';
@@ -34,9 +35,19 @@ class AuthProvider with ChangeNotifier {
   AuthProvider() {
     // Register callback with AuthService for immediate state updates
     AuthService.setAuthStateChangeCallback(() {
+      if (kDebugMode) print('🔄 AUTH_PROVIDER: Auth state change callback triggered');
       _checkLoginStatus();
     });
-    _checkLoginStatus();
+    
+    // For web, delay initial check to ensure proper initialization
+    if (kIsWeb) {
+      if (kDebugMode) print('🌐 AUTH_PROVIDER: Web platform - scheduling delayed auth check');
+      Future.delayed(const Duration(milliseconds: 500), () {
+        _checkLoginStatus();
+      });
+    } else {
+      _checkLoginStatus();
+    }
   }
 
   Future<void> _checkLoginStatus() async {
@@ -44,13 +55,55 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
 
     try {
+      // Ensure JWT web storage is fully initialized for web platform
+      if (kIsWeb) {
+        if (kDebugMode) print('🔧 AUTH_PROVIDER: Ensuring web storage is initialized...');
+        await JWTManager.initializeWebStorage();
+        // Add a longer delay to ensure localStorage is fully ready and stable
+        await Future.delayed(const Duration(milliseconds: 300));
+        if (kDebugMode) print('✅ AUTH_PROVIDER: Web storage initialization completed');
+      }
+      
       _isLoggedIn = await _authService.isLoggedIn();
+      if (kDebugMode) print('🔍 AUTH_PROVIDER: Login status check result: $_isLoggedIn');
       
       if (_isLoggedIn) {
         _currentUser = await _authService.getCurrentUser();
+        if (kDebugMode) print('✅ AUTH_PROVIDER: Current user retrieved: ${_currentUser?.email}');
         
-        // Initialize gym-specific data isolation with mock data enabled
-        GymDataService().initialize(_currentUser, enableMockData: true);
+        // Test token availability after login status check with retry for web platform
+        String? token;
+        if (kIsWeb) {
+          // For web, add multiple attempts to account for localStorage timing issues
+          for (int attempt = 0; attempt < 5; attempt++) {
+            token = await JWTManager.getAccessToken();
+            if (token != null) break;
+            
+            if (kDebugMode) print('🔄 AUTH_PROVIDER: Token check attempt ${attempt + 1}/5 - waiting for web storage...');
+            await Future.delayed(Duration(milliseconds: 100 * (attempt + 1))); // Progressive delay
+          }
+        } else {
+          token = await JWTManager.getAccessToken();
+        }
+        
+        if (token == null) {
+          if (kDebugMode) print('❌ AUTH_PROVIDER: CRITICAL - User marked as logged in but no tokens available after retries!');
+          if (kDebugMode) print('🔄 AUTH_PROVIDER: Forcing logout due to missing tokens');
+          
+          // Force logout since login state is inconsistent with token state
+          _isLoggedIn = false;
+          _currentUser = null;
+          await _authService.logout();
+          
+          if (kDebugMode) print('✅ AUTH_PROVIDER: Forced logout completed - user must re-authenticate');
+        } else {
+          if (kDebugMode) print('✅ AUTH_PROVIDER: Token available after login status check');
+          
+          // Initialize gym-specific data isolation with mock data enabled
+          GymDataService().initialize(_currentUser, enableMockData: true);
+        }
+      } else {
+        if (kDebugMode) print('ℹ️ AUTH_PROVIDER: User not logged in');
       }
     } catch (e) {
       _errorMessage = e.toString();
@@ -64,6 +117,7 @@ class AuthProvider with ChangeNotifier {
   Future<void> checkLoginStatus() async {
     await _checkLoginStatus();
   }
+
 
   Future<Map<String, dynamic>> login(String email, String password) async {
     _isLoading = true;
@@ -81,9 +135,23 @@ class AuthProvider with ChangeNotifier {
           password: password,
         );
         
+        if (kDebugMode) {
+          print('🌐 AUTH_PROVIDER: WebApiService raw response: $result');
+          print('🌐 AUTH_PROVIDER: Response success: ${result['success']}');
+          print('🌐 AUTH_PROVIDER: Response data keys: ${result['data']?.keys?.toList()}');
+        }
+        
         // Convert WebApiService response to AuthService format
         if (result['success']) {
           final responseData = result['data'] as Map<String, dynamic>;
+          
+          if (kDebugMode) {
+            print('🌐 AUTH_PROVIDER: Response data: $responseData');
+            print('🌐 AUTH_PROVIDER: Contains gym_owner: ${responseData.containsKey('gym_owner')}');
+            print('🌐 AUTH_PROVIDER: Contains token: ${responseData.containsKey('token')}');
+            print('🌐 AUTH_PROVIDER: Token value: ${responseData['token']}');
+          }
+          
           result = {
             'success': true,
             'userData': responseData['gym_owner'],
@@ -120,6 +188,12 @@ class AuthProvider with ChangeNotifier {
         
         // Store token if provided
         if (result['token'] != null) {
+          if (kDebugMode) {
+            print('🔐 AUTH_PROVIDER: Storing authentication token...');
+            print('🔐 AUTH_PROVIDER: Token length: ${result['token'].toString().length}');
+            print('🔐 AUTH_PROVIDER: Token preview: ${result['token'].toString().substring(0, 10)}...');
+          }
+          
           await JWTManager.storeTokens(
             accessToken: result['token'],
             refreshToken: result['token'],
@@ -128,6 +202,41 @@ class AuthProvider with ChangeNotifier {
             sessionId: DateTime.now().millisecondsSinceEpoch.toString(),
             persistent: true,
           );
+          if (kDebugMode) print('✅ AUTH_PROVIDER: Token storage completed');
+          
+          // Add delay for web localStorage to fully commit
+          if (kIsWeb) {
+            await Future.delayed(const Duration(milliseconds: 200));
+            if (kDebugMode) print('🌐 AUTH_PROVIDER: Added web storage commit delay');
+          }
+          
+          // Immediately test token retrieval after storage
+          final testToken = await JWTManager.getAccessToken();
+          if (testToken == null) {
+            if (kDebugMode) {
+              print('❌ AUTH_PROVIDER: Token retrieval test failed immediately after storage');
+              // Try multiple times for web platform
+              if (kIsWeb) {
+                for (int i = 0; i < 3; i++) {
+                  await Future.delayed(const Duration(milliseconds: 100));
+                  final retryToken = await JWTManager.getAccessToken();
+                  if (retryToken != null) {
+                    if (kDebugMode) print('✅ AUTH_PROVIDER: Token retrieval succeeded on retry ${i + 1}');
+                    break;
+                  }
+                  if (kDebugMode) print('❌ AUTH_PROVIDER: Token retrieval retry ${i + 1} failed');
+                }
+              }
+            }
+          } else {
+            if (kDebugMode) {
+              print('✅ AUTH_PROVIDER: Token retrieval test successful');
+              print('✅ AUTH_PROVIDER: Retrieved token length: ${testToken.length}');
+              print('✅ AUTH_PROVIDER: Retrieved token preview: ${testToken.substring(0, 10)}...');
+            }
+          }
+        } else {
+          if (kDebugMode) print('⚠️ AUTH_PROVIDER: No token provided in login result');
         }
         
         // Initialize gym-specific data isolation with mock data enabled
@@ -286,47 +395,95 @@ class AuthProvider with ChangeNotifier {
       }
 
       // Get all providers and clear their data immediately
-      final memberProvider = Provider.of<MemberProvider>(context, listen: false);
-      final attendanceProvider = Provider.of<AttendanceProvider>(context, listen: false);
-      final trainerProvider = Provider.of<TrainerProvider>(context, listen: false);
-      final equipmentProvider = Provider.of<EquipmentProvider>(context, listen: false);
-      final paymentProvider = Provider.of<PaymentProvider>(context, listen: false);
-      final subscriptionProvider = Provider.of<SubscriptionProvider>(context, listen: false);
-      final userProfileProvider = Provider.of<UserProfileProvider>(context, listen: false);
-      
-      // Step 1: Clear all provider data immediately
-      print('🧹 Clearing all provider data...');
-      memberProvider.clearAllData();
-      attendanceProvider.clearAllData();
-      trainerProvider.clearAllData();
-      equipmentProvider.clearAllData();
-      paymentProvider.clearAllData();
-      subscriptionProvider.clearAllData();
-      userProfileProvider.clearAllData();
+      try {
+        final memberProvider = Provider.of<MemberProvider>(context, listen: false);
+        final attendanceProvider = Provider.of<AttendanceProvider>(context, listen: false);
+        final trainerProvider = Provider.of<TrainerProvider>(context, listen: false);
+        final equipmentProvider = Provider.of<EquipmentProvider>(context, listen: false);
+        final paymentProvider = Provider.of<PaymentProvider>(context, listen: false);
+        final subscriptionProvider = Provider.of<SubscriptionProvider>(context, listen: false);
+        final userProfileProvider = Provider.of<UserProfileProvider>(context, listen: false);
+        
+        // Step 1: Clear all provider data immediately
+        print('🧹 AUTH: Clearing all provider data...');
+        memberProvider.clearAllData();
+        attendanceProvider.clearAllData();
+        trainerProvider.clearAllData();
+        equipmentProvider.clearAllData();
+        paymentProvider.clearAllData();
+        subscriptionProvider.clearAllData();
+        userProfileProvider.clearAllData();
+        print('✅ AUTH: Provider data cleared successfully');
+      } catch (e) {
+        print('⚠️ AUTH: Error clearing provider data: $e');
+        // Continue with logout even if provider clearing fails
+      }
       
       // Step 2: Clear gym data service
-      GymDataService().nuclearClear();
+      try {
+        GymDataService().nuclearClear();
+        print('✅ AUTH: Gym data service cleared');
+      } catch (e) {
+        print('⚠️ AUTH: Error clearing gym data service: $e');
+      }
       
       // Step 3: Logout from auth service
-      await _authService.logout();
+      try {
+        await _authService.logout();
+        print('✅ AUTH: Auth service logout completed');
+      } catch (e) {
+        print('⚠️ AUTH: Error during auth service logout: $e');
+      }
       
       // Step 4: Nuclear reset of all stored data
-      await DatabaseResetService.nuclearReset();
+      try {
+        await DatabaseResetService.nuclearReset();
+        print('✅ AUTH: Database reset completed');
+      } catch (e) {
+        print('⚠️ AUTH: Error during database reset: $e');
+      }
       
-      // Step 5: Reset auth provider state
+      // Step 5: Reset auth provider state - THIS IS CRITICAL FOR NAVIGATION
       _currentUser = null;
       _isLoggedIn = false;
       _errorMessage = null;
       _isLoading = false;
+      
+      // Force immediate notification to trigger navigation
+      notifyListeners();
+      
+      // Add a small delay and notify again to ensure UI updates
+      await Future.delayed(const Duration(milliseconds: 100));
       notifyListeners();
       
       print('✅ AUTH: Enhanced logout completed - all data cleared');
+      print('🔄 AUTH: Current state - isLoggedIn: $_isLoggedIn, currentUser: $_currentUser');
+      
+      // Navigate to login screen manually if auto-navigation fails
+      if (context.mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          (route) => false,
+        );
+        print('🏠 AUTH: Manual navigation to login screen completed');
+      }
       
     } catch (e) {
       print('💥 AUTH: Error during enhanced logout: $e');
       _errorMessage = 'Logout error: $e';
       _isLoading = false;
+      _currentUser = null;
+      _isLoggedIn = false;
       notifyListeners();
+      
+      // Even if logout fails, try to navigate to login screen
+      if (context.mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          (route) => false,
+        );
+        print('🏠 AUTH: Emergency navigation to login screen after error');
+      }
     }
   }
 

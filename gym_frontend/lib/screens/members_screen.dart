@@ -337,8 +337,8 @@ class _MembersScreenState extends State<MembersScreen> with SingleTickerProvider
   Widget _buildGridView(BuildContext context, List<Member> members) {
     return GridView.builder(
       padding: context.screenPadding,
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: context.gridColumns,
+      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: context.isDesktop ? 300 : 250,
         childAspectRatio: 1.2,
         mainAxisSpacing: AppSpacing.md,
         crossAxisSpacing: AppSpacing.md,

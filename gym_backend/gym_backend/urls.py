@@ -20,6 +20,7 @@ from django.http import JsonResponse
 from django.conf import settings
 from django.conf.urls.static import static
 from gym_api.simple_health import simple_health_check, live_check
+from gym_api.views import web_attendance_page, web_attendance_submit
 
 def ultra_simple_health(request):
     """Ultra simple health check - just return 200."""
@@ -40,6 +41,10 @@ def ultra_simple_health(request):
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('gym_api.urls')),
+    
+    # Web attendance endpoints (for QR code access)
+    path('attendance/qr/', web_attendance_page, name='web_attendance_page'),
+    path('attendance/submit/', web_attendance_submit, name='web_attendance_submit'),
     
     # Health endpoints for Railway (both with and without trailing slash)
     path('health/', ultra_simple_health, name='ultra_health'),

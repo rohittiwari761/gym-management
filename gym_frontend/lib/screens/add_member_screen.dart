@@ -626,7 +626,7 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           decoration: BoxDecoration(
-            color: categoryColor.withOpacity(0.2),
+            color: categoryColor.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: categoryColor),
           ),
@@ -851,11 +851,39 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
         );
       }
     } else if (_currentStep == 2) {
-      // Physical attributes step - validation is optional but check format if provided
-      if (_formKey.currentState!.validate()) {
+      // Physical attributes step - validation is optional, just validate format if provided
+      bool canProceed = true;
+      String? errorMessage;
+      
+      // Validate height if provided
+      if (_heightController.text.isNotEmpty) {
+        final height = double.tryParse(_heightController.text.trim());
+        if (height == null || height < 50 || height > 300) {
+          canProceed = false;
+          errorMessage = 'Please enter a valid height (50-300 cm)';
+        }
+      }
+      
+      // Validate weight if provided
+      if (_weightController.text.isNotEmpty && canProceed) {
+        final weight = double.tryParse(_weightController.text.trim());
+        if (weight == null || weight < 20 || weight > 500) {
+          canProceed = false;
+          errorMessage = 'Please enter a valid weight (20-500 kg)';
+        }
+      }
+      
+      if (canProceed) {
         _pageController.nextPage(
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOut,
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage!),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } else {

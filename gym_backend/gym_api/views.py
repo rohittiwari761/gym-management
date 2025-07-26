@@ -1317,3 +1317,318 @@ class NotificationViewSet(viewsets.ModelViewSet):
                 'notification_created': expiring_members.exists() and not recent_notification
             })
         return Response({'error': 'User must be a gym owner'}, status=status.HTTP_403_FORBIDDEN)
+
+
+# Web attendance views for QR code access
+from django.http import HttpResponse, JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
+import json
+
+@require_http_methods(["GET"])
+def web_attendance_page(request):
+    """
+    Web page for member attendance via QR code
+    Accessible to members without app installation
+    """
+    gym_id = request.GET.get('gym_id')
+    gym_name = request.GET.get('gym_name', 'Gym')
+    
+    # Decode gym name if URL encoded
+    import urllib.parse
+    gym_name = urllib.parse.unquote(gym_name)
+    
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>{gym_name} - Attendance</title>
+        <style>
+            * {{
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }}
+            body {{
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 20px;
+            }}
+            .container {{
+                background: white;
+                border-radius: 20px;
+                padding: 40px 30px;
+                max-width: 400px;
+                width: 100%;
+                box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+                text-align: center;
+            }}
+            .gym-icon {{
+                width: 80px;
+                height: 80px;
+                background: linear-gradient(135deg, #667eea, #764ba2);
+                border-radius: 50%;
+                margin: 0 auto 20px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 30px;
+                color: white;
+            }}
+            h1 {{
+                color: #333;
+                margin-bottom: 10px;
+                font-size: 24px;
+            }}
+            .gym-name {{
+                color: #666;
+                margin-bottom: 30px;
+                font-size: 16px;
+            }}
+            .input-group {{
+                margin-bottom: 20px;
+                text-align: left;
+            }}
+            label {{
+                display: block;
+                margin-bottom: 8px;
+                color: #555;
+                font-weight: 500;
+            }}
+            input {{
+                width: 100%;
+                padding: 15px;
+                border: 2px solid #e1e5e9;
+                border-radius: 10px;
+                font-size: 16px;
+                transition: border-color 0.3s;
+            }}
+            input:focus {{
+                outline: none;
+                border-color: #667eea;
+            }}
+            .btn {{
+                width: 100%;
+                padding: 15px;
+                background: linear-gradient(135deg, #667eea, #764ba2);
+                color: white;
+                border: none;
+                border-radius: 10px;
+                font-size: 16px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: transform 0.2s;
+            }}
+            .btn:hover {{
+                transform: translateY(-2px);
+            }}
+            .btn:disabled {{
+                opacity: 0.7;
+                cursor: not-allowed;
+                transform: none;
+            }}
+            .message {{
+                margin-top: 20px;
+                padding: 15px;
+                border-radius: 10px;
+                font-weight: 500;
+            }}
+            .success {{
+                background: #d4edda;
+                color: #155724;
+                border: 1px solid #c3e6cb;
+            }}
+            .error {{
+                background: #f8d7da;
+                color: #721c24;
+                border: 1px solid #f5c6cb;
+            }}
+            .loading {{
+                background: #d1ecf1;
+                color: #0c5460;
+                border: 1px solid #bee5eb;
+            }}
+            .info {{
+                background: #f8f9fa;
+                color: #6c757d;
+                padding: 15px;
+                border-radius: 10px;
+                margin-top: 20px;
+                font-size: 14px;
+                text-align: left;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="gym-icon">🏋️</div>
+            <h1>Mark Attendance</h1>
+            <div class="gym-name">{gym_name}</div>
+            
+            <form id="attendanceForm">
+                <div class="input-group">
+                    <label for="memberId">Member ID</label>
+                    <input type="number" id="memberId" name="memberId" placeholder="Enter your member ID" required>
+                </div>
+                <button type="submit" class="btn" id="submitBtn">Log Attendance</button>
+            </form>
+            
+            <div id="message"></div>
+            
+            <div class="info">
+                <strong>Instructions:</strong><br>
+                • Enter your unique Member ID<br>
+                • Tap "Log Attendance" to check in<br>
+                • Your attendance will be recorded instantly<br>
+                • Contact gym staff if you don't know your Member ID
+            </div>
+        </div>
+
+        <script>
+            const form = document.getElementById('attendanceForm');
+            const submitBtn = document.getElementById('submitBtn');
+            const messageDiv = document.getElementById('message');
+            
+            form.addEventListener('submit', async (e) => {{
+                e.preventDefault();
+                
+                const memberId = document.getElementById('memberId').value;
+                
+                if (!memberId) {{
+                    showMessage('Please enter your Member ID', 'error');
+                    return;
+                }}
+                
+                // Show loading state
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Logging Attendance...';
+                showMessage('Processing your attendance...', 'loading');
+                
+                try {{
+                    const response = await fetch('/attendance/submit/', {{
+                        method: 'POST',
+                        headers: {{
+                            'Content-Type': 'application/json',
+                        }},
+                        body: JSON.stringify({{
+                            member_id: memberId,
+                            gym_id: '{gym_id}'
+                        }})
+                    }});
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {{
+                        showMessage('✅ Attendance logged successfully! Welcome to {gym_name}', 'success');
+                        form.reset();
+                        
+                        // Auto-close after 3 seconds
+                        setTimeout(() => {{
+                            showMessage('You can now close this page', 'success');
+                        }}, 3000);
+                    }} else {{
+                        showMessage('❌ ' + (data.message || 'Failed to log attendance'), 'error');
+                    }}
+                }} catch (error) {{
+                    showMessage('❌ Network error. Please try again.', 'error');
+                }} finally {{
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Log Attendance';
+                }}
+            }});
+            
+            function showMessage(text, type) {{
+                messageDiv.innerHTML = `<div class="message ${{type}}">${{text}}</div>`;
+            }}
+        </script>
+    </body>
+    </html>
+    """
+    
+    return HttpResponse(html_content, content_type='text/html')
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def web_attendance_submit(request):
+    """
+    Handle attendance submission from web page
+    """
+    try:
+        data = json.loads(request.body)
+        member_id = data.get('member_id')
+        gym_id = data.get('gym_id')
+        
+        if not member_id or not gym_id:
+            return JsonResponse({{
+                'success': False,
+                'message': 'Member ID and Gym ID are required'
+            }})
+        
+        # Find the gym owner
+        try:
+            gym_owner = GymOwner.objects.get(id=gym_id)
+        except GymOwner.DoesNotExist:
+            return JsonResponse({{
+                'success': False,
+                'message': 'Invalid gym code'
+            }})
+        
+        # Find the member
+        try:
+            member = Member.objects.get(
+                member_id=member_id,
+                gym_owner=gym_owner,
+                is_active=True
+            )
+        except Member.DoesNotExist:
+            return JsonResponse({{
+                'success': False,
+                'message': f'Member ID {{member_id}} not found or inactive'
+            }})
+        
+        # Check if already checked in today
+        today = get_ist_date()
+        existing_attendance = Attendance.objects.filter(
+            member=member,
+            date=today
+        ).first()
+        
+        if existing_attendance:
+            if existing_attendance.check_out_time is None:
+                return JsonResponse({{
+                    'success': True,
+                    'message': f'Welcome back {{member.user.first_name}}! You are already checked in today.'
+                }})
+        
+        # Create new attendance record
+        attendance = Attendance.objects.create(
+            member=member,
+            date=today,
+            check_in_time=get_ist_now(),
+            notes='QR Code Check-in via Web'
+        )
+        
+        return JsonResponse({{
+            'success': True,
+            'message': f'Welcome {{member.user.first_name}}! Attendance logged successfully.',
+            'attendance_id': attendance.attendance_id
+        }})
+        
+    except json.JSONDecodeError:
+        return JsonResponse({{
+            'success': False,
+            'message': 'Invalid request format'
+        }})
+    except Exception as e:
+        logger.error(f"Web attendance error: {{e}}")
+        return JsonResponse({{
+            'success': False,
+            'message': 'Server error. Please try again.'
+        }})

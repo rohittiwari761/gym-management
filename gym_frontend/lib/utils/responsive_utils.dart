@@ -328,53 +328,47 @@ class ResponsiveUtils {
   }
 }
 
-// Extension for easy access to responsive utilities
+// Simplified extension for basic responsive utilities
 extension ResponsiveContext on BuildContext {
-  // Platform detection
-  bool get isMobile => ResponsiveUtils.isMobile(this);
-  bool get isTablet => ResponsiveUtils.isTablet(this);
-  bool get isDesktop => ResponsiveUtils.isDesktop(this);
-  bool get isLargeDesktop => ResponsiveUtils.isLargeDesktop(this);
-  bool get isLandscape => ResponsiveUtils.isLandscape(this);
+  // Basic platform detection
+  bool get isMobile => MediaQuery.of(this).size.width < 600;
+  bool get isTablet => MediaQuery.of(this).size.width >= 600 && MediaQuery.of(this).size.width < 900;
+  bool get isDesktop => MediaQuery.of(this).size.width >= 900;
   
-  // Web-specific detection
-  bool get isWebDesktop => ResponsiveUtils.isWebDesktop(this);
-  bool get isWebTablet => ResponsiveUtils.isWebTablet(this);
-  bool get isWebMobile => ResponsiveUtils.isWebMobile(this);
+  // Web-specific simplified detection
+  bool get isWebMobile => kIsWeb && isMobile;
+  bool get isWebDesktop => kIsWeb && isDesktop;
   
   // Screen dimensions
-  double get screenWidth => ResponsiveUtils.getScreenWidth(this);
-  double get screenHeight => ResponsiveUtils.getScreenHeight(this);
+  double get screenWidth => MediaQuery.of(this).size.width;
+  double get screenHeight => MediaQuery.of(this).size.height;
   
-  // Spacing and margins
-  EdgeInsets get screenPadding => ResponsiveUtils.getScreenPadding(this);
-  EdgeInsets get webContentPadding => ResponsiveUtils.getWebContentPadding(this);
-  EdgeInsets get cardMargin => ResponsiveUtils.getCardMargin(this);
-  EdgeInsets get buttonPadding => ResponsiveUtils.getButtonPadding(this);
-  EdgeInsets get webActionButtonPadding => ResponsiveUtils.getWebActionButtonPadding(this);
+  // Basic spacing utilities
+  EdgeInsets get screenPadding => const EdgeInsets.all(16.0);
+  EdgeInsets get cardMargin => const EdgeInsets.all(8.0);
+  EdgeInsets get webActionButtonPadding => const EdgeInsets.symmetric(horizontal: 12, vertical: 8);
   
-  // Grid columns
-  int get gridColumns => ResponsiveUtils.getGridColumns(this);
-  int get memberCardColumns => ResponsiveUtils.getMemberCardColumns(this);
-  int get dashboardCardColumns => ResponsiveUtils.getDashboardCardColumns(this);
+  // Basic visual properties
+  double get cardElevation => 2.0;
+  double get borderRadius => 8.0;
+  double get webCardBorderRadius => 8.0;
+  double get webButtonBorderRadius => 6.0;
+  
+  // Basic icon sizes
+  double get iconSize => 24.0;
+  double get smallIconSize => 16.0;
+  double get webActionIconSize => 18.0;
+  double get webNavigationIconSize => 20.0;
+  
+  // Basic grid columns
+  int get gridColumns => isDesktop ? 4 : (isTablet ? 2 : 1);
+  int get memberCardColumns => gridColumns;
+  int get dashboardCardColumns => gridColumns;
   
   // Font sizes
-  double get titleFontSize => ResponsiveUtils.getTitleFontSize(this);
-  double get subtitleFontSize => ResponsiveUtils.getSubtitleFontSize(this);
-  double get bodyFontSize => ResponsiveUtils.getBodyFontSize(this);
-  double get captionFontSize => ResponsiveUtils.getCaptionFontSize(this);
-  double get webTableHeaderFontSize => ResponsiveUtils.getWebTableHeaderFontSize(this);
-  double get webTableBodyFontSize => ResponsiveUtils.getWebTableBodyFontSize(this);
+  double get webTableHeaderFontSize => 14.0;
+  double get webTableBodyFontSize => 13.0;
   
-  // Icon sizes
-  double get iconSize => ResponsiveUtils.getIconSize(this);
-  double get smallIconSize => ResponsiveUtils.getSmallIconSize(this);
-  double get webNavigationIconSize => ResponsiveUtils.getWebNavigationIconSize(this);
-  double get webActionIconSize => ResponsiveUtils.getWebActionIconSize(this);
-  
-  // Visual properties
-  double get cardElevation => ResponsiveUtils.getCardElevation(this);
-  double get borderRadius => ResponsiveUtils.getBorderRadius(this);
-  double get webCardBorderRadius => ResponsiveUtils.getWebCardBorderRadius(this);
-  double get webButtonBorderRadius => ResponsiveUtils.getWebButtonBorderRadius(this);
+  // Content padding
+  EdgeInsets get webContentPadding => const EdgeInsets.all(24.0);
 }

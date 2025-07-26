@@ -164,14 +164,41 @@ class SecureHttpClient {
         queryParams,
       );
 
-      // Check for 401 error and retry with fresh token
+      // Check for 401 error and attempt token refresh instead of clearing tokens
       if (response.statusCode == 401 && requireAuth) {
         if (kDebugMode) {
-          print('SECURE_HTTP: Got 401 error, clearing tokens and retrying...');
+          print('SECURE_HTTP: Got 401 error, attempting token refresh...');
         }
-        await JWTManager.clearTokens();
         
-        // Retry once with fresh authentication
+        // Try to refresh the token instead of clearing all tokens
+        bool refreshSuccessful = false;
+        try {
+          refreshSuccessful = await JWTManager.refreshAccessToken();
+          if (kDebugMode) {
+            print('SECURE_HTTP: Token refresh result: $refreshSuccessful');
+          }
+        } catch (refreshError) {
+          if (kDebugMode) {
+            print('SECURE_HTTP: Token refresh failed: $refreshError');
+          }
+        }
+        
+        // If refresh failed, check if we still have valid tokens before clearing
+        if (!refreshSuccessful) {
+          final existingToken = await JWTManager.getAccessToken();
+          if (existingToken == null) {
+            if (kDebugMode) {
+              print('SECURE_HTTP: No tokens available, user needs to re-authenticate');
+            }
+            throw SecurityException('Authentication required - please login again');
+          }
+          
+          if (kDebugMode) {
+            print('SECURE_HTTP: Token refresh failed but existing token found, attempting retry...');
+          }
+        }
+        
+        // Retry once with fresh authentication headers
         try {
           final freshHeaders = await _buildSecureHeaders(headers, requireAuth, endpoint);
           final retryResponse = await _executeRequest(method, _buildSecureUri(endpoint, queryParams), freshHeaders, jsonBody, timeout);
@@ -187,11 +214,21 @@ class SecureHttpClient {
               'statusCode': retryResponse.statusCode,
             });
             return secureResponse;
+          } else {
+            if (kDebugMode) {
+              print('SECURE_HTTP: Retry also returned 401, clearing tokens and requiring re-authentication');
+            }
+            // Only clear tokens if retry also fails with 401
+            await JWTManager.clearTokens();
+            throw SecurityException('Authentication required - please login again');
           }
         } catch (retryError) {
           if (kDebugMode) {
             print('SECURE_HTTP: Retry after 401 failed: $retryError');
           }
+          // Only clear tokens if retry completely fails
+          await JWTManager.clearTokens();
+          throw SecurityException('Authentication required - please login again');
         }
       }
 

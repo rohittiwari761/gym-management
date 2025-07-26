@@ -4,6 +4,9 @@ import 'package:provider/provider.dart';
 import '../providers/member_provider.dart';
 import '../providers/attendance_provider.dart';
 
+// Mobile scanner temporarily disabled for iOS compatibility
+// import 'package:mobile_scanner/mobile_scanner.dart' if (dart.library.html) 'dart:html' as mobile_scanner;
+
 class QRScannerScreen extends StatefulWidget {
   const QRScannerScreen({super.key});
 
@@ -14,6 +17,22 @@ class QRScannerScreen extends StatefulWidget {
 class _QRScannerScreenState extends State<QRScannerScreen> {
   bool _isProcessing = false;
   String? _lastScannedCode;
+  // MobileScannerController? _controller; // Temporarily disabled
+
+  @override
+  void initState() {
+    super.initState();
+    // Mobile scanner temporarily disabled
+    // if (!kIsWeb) {
+    //   _controller = MobileScannerController();
+    // }
+  }
+
+  @override
+  void dispose() {
+    // _controller?.dispose(); // Temporarily disabled
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,13 +49,13 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
             IconButton(
               icon: const Icon(Icons.flash_on),
               onPressed: () {
-                // Flash toggle - not available on web
+                // _controller?.toggleTorch(); // Temporarily disabled
               },
             ),
             IconButton(
               icon: const Icon(Icons.flip_camera_ios),
               onPressed: () {
-                // Camera flip - not available on web
+                // _controller?.switchCamera(); // Temporarily disabled
               },
             ),
           ],
@@ -173,6 +192,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   }
 
   Widget _buildMobileQRScanner() {
+    // Mobile scanner temporarily disabled for iOS compatibility
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -190,10 +210,17 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               fontSize: 18,
             ),
           ),
+          const SizedBox(height: 10),
+          const Text(
+            'QR scanner temporarily disabled',
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 14,
+            ),
+          ),
           const SizedBox(height: 20),
           ElevatedButton(
             onPressed: () {
-              // Simulate QR scan for mobile testing
               _onQRScanned('MOBILE-TEST-QR-67890');
             },
             child: const Text('Simulate QR Scan'),
@@ -254,8 +281,4 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     }
   }
 
-  @override
-  void dispose() {
-    super.dispose();
-  }
 }

@@ -14,7 +14,7 @@ import '../services/gym_data_service.dart';
 import '../utils/html_decoder.dart';
 import '../utils/responsive_utils.dart';
 import '../utils/app_theme.dart';
-import '../widgets/web_layout.dart';
+import '../widgets/gym_logo_avatar.dart';
 import 'members_screen.dart';
 import 'trainers_screen.dart';
 import 'equipment_screen.dart';
@@ -30,6 +30,7 @@ import 'qr_scanner_screen.dart';
 import 'create_subscription_plan_screen.dart';
 import 'create_payment_screen.dart';
 import 'debug_screen.dart';
+import 'qr_attendance_generator_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -66,6 +67,15 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       
       try {
+        // Check authentication before loading data
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        if (!authProvider.isLoggedIn) {
+          if (kDebugMode) print('🚫 HOME_SCREEN: User not logged in - skipping data load');
+          return;
+        }
+        
+        if (kDebugMode) print('✅ HOME_SCREEN: User authenticated - starting data load');
+        
         // Starting optimized data loading for dashboard
         
         // Load critical summary data first for faster UI response (only first page)
@@ -100,223 +110,113 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return WebLayoutWrapper(
-      currentRoute: '/dashboard',
-      pageTitle: 'Dashboard',
-      actions: kDebugMode ? [
-        FloatingActionButton.extended(
-          onPressed: () {
-            _showDebugInfo(context);
-          },
-          label: const Text('Debug'),
-          icon: const Icon(Icons.bug_report),
-          backgroundColor: Colors.red,
-        ),
-        PopupMenuButton<String>(
-          icon: const Icon(Icons.bug_report, color: Colors.grey),
-          tooltip: 'Debug Tools',
-          onSelected: (value) async {
-            switch (value) {
-              case 'reset_all':
-                await _resetAllDataForCurrentGym();
-                break;
-              case 'force_clean':
-                await _forceCompleteReset();
-                break;
-              case 'log_state':
-                _logCurrentDataState();
-                break;
-              case 'test_isolation':
-                _testDataIsolation();
-                break;
-              case 'disable_mock':
-                _disableMockData();
-                break;
-              case 'enable_mock':
-                _enableMockData();
-                break;
-            }
-          },
-          itemBuilder: (context) => [
-            const PopupMenuItem(
-              value: 'reset_all',
-              child: Row(
-                children: [
-                  Icon(Icons.refresh, size: 20),
-                  SizedBox(width: 8),
-                  Text('Reset Gym Data'),
-                ],
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'force_clean',
-              child: Row(
-                children: [
-                  Icon(Icons.cleaning_services, size: 20, color: Colors.red),
-                  SizedBox(width: 8),
-                  Text('Force Clean State', style: TextStyle(color: Colors.red)),
-                ],
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'log_state',
-              child: Row(
-                children: [
-                  Icon(Icons.info_outline, size: 20),
-                  SizedBox(width: 8),
-                  Text('Log Data State'),
-                ],
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'test_isolation',
-              child: Row(
-                children: [
-                  Icon(Icons.security, size: 20, color: Colors.blue),
-                  SizedBox(width: 8),
-                  Text('Test Data Isolation'),
-                ],
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'disable_mock',
-              child: Row(
-                children: [
-                  Icon(Icons.clear_all, size: 20, color: Colors.orange),
-                  SizedBox(width: 8),
-                  Text('Disable Mock Data'),
-                ],
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'enable_mock',
-              child: Row(
-                children: [
-                  Icon(Icons.add_circle, size: 20, color: Colors.green),
-                  SizedBox(width: 8),
-                  Text('Enable Mock Data'),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ] : null,
-      child: Scaffold(
-        // Add floating debug info for mobile platforms
-        floatingActionButton: (!kIsWeb && kDebugMode) ? FloatingActionButton.extended(
-          onPressed: () {
-            _showDebugInfo(context);
-          },
-          label: const Text('Debug'),
-          icon: const Icon(Icons.bug_report),
-          backgroundColor: Colors.red,
-        ) : null,
-        drawer: (!kIsWeb || context.isWebMobile) ? _buildDrawer() : null,
-        appBar: (!kIsWeb || context.isWebMobile) ? AppBar(
-          title: const Text('Gym Management'),
-          backgroundColor: Theme.of(context).primaryColor,
-          foregroundColor: Colors.white,
-          leading: Builder(
-            builder: (context) => IconButton(
-              icon: const Icon(Icons.menu),
-              onPressed: () => Scaffold.of(context).openDrawer(),
-            ),
-          ),
-          actions: [
-            // Debug reset button for testing gym-specific data isolation
-            if (kDebugMode)
-              PopupMenuButton<String>(
-                icon: const Icon(Icons.bug_report, color: Colors.white),
-                tooltip: 'Debug Tools',
-                onSelected: (value) async {
-                  switch (value) {
-                    case 'reset_all':
-                      await _resetAllDataForCurrentGym();
-                      break;
-                    case 'force_clean':
-                      await _forceCompleteReset();
-                      break;
-                    case 'log_state':
-                      _logCurrentDataState();
-                      break;
-                    case 'test_isolation':
-                      _testDataIsolation();
-                      break;
-                    case 'disable_mock':
-                      _disableMockData();
-                      break;
-                    case 'enable_mock':
-                      _enableMockData();
-                      break;
-                  }
-                },
-                itemBuilder: (context) => [
-                  const PopupMenuItem(
-                    value: 'reset_all',
-                    child: Row(
-                      children: [
-                        Icon(Icons.refresh, size: 20),
-                        SizedBox(width: 8),
-                        Text('Reset Gym Data'),
-                      ],
-                    ),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Gym Management'),
+        backgroundColor: Theme.of(context).primaryColor,
+        foregroundColor: Colors.white,
+        actions: [
+          if (kDebugMode)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.bug_report, color: Colors.white),
+              tooltip: 'Debug Tools',
+              onSelected: (value) async {
+                switch (value) {
+                  case 'reset_all':
+                    await _resetAllDataForCurrentGym();
+                    break;
+                  case 'force_clean':
+                    await _forceCompleteReset();
+                    break;
+                  case 'log_state':
+                    _logCurrentDataState();
+                    break;
+                  case 'test_isolation':
+                    _testDataIsolation();
+                    break;
+                  case 'disable_mock':
+                    _disableMockData();
+                    break;
+                  case 'enable_mock':
+                    _enableMockData();
+                    break;
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'reset_all',
+                  child: Row(
+                    children: [
+                      Icon(Icons.refresh, size: 20),
+                      SizedBox(width: 8),
+                      Text('Reset Gym Data'),
+                    ],
                   ),
-                  const PopupMenuItem(
-                    value: 'force_clean',
-                    child: Row(
-                      children: [
-                        Icon(Icons.cleaning_services, size: 20, color: Colors.red),
-                        SizedBox(width: 8),
-                        Text('Force Clean State', style: TextStyle(color: Colors.red)),
-                      ],
-                    ),
+                ),
+                const PopupMenuItem(
+                  value: 'force_clean',
+                  child: Row(
+                    children: [
+                      Icon(Icons.cleaning_services, size: 20, color: Colors.red),
+                      SizedBox(width: 8),
+                      Text('Force Clean State', style: TextStyle(color: Colors.red)),
+                    ],
                   ),
-                  const PopupMenuItem(
-                    value: 'log_state',
-                    child: Row(
-                      children: [
-                        Icon(Icons.info_outline, size: 20),
-                        SizedBox(width: 8),
-                        Text('Log Data State'),
-                      ],
-                    ),
+                ),
+                const PopupMenuItem(
+                  value: 'log_state',
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, size: 20),
+                      SizedBox(width: 8),
+                      Text('Log Data State'),
+                    ],
                   ),
-                  const PopupMenuItem(
-                    value: 'test_isolation',
-                    child: Row(
-                      children: [
-                        Icon(Icons.security, size: 20, color: Colors.blue),
-                        SizedBox(width: 8),
-                        Text('Test Data Isolation'),
-                      ],
-                    ),
+                ),
+                const PopupMenuItem(
+                  value: 'test_isolation',
+                  child: Row(
+                    children: [
+                      Icon(Icons.security, size: 20, color: Colors.blue),
+                      SizedBox(width: 8),
+                      Text('Test Data Isolation'),
+                    ],
                   ),
-                  const PopupMenuItem(
-                    value: 'disable_mock',
-                    child: Row(
-                      children: [
-                        Icon(Icons.clear_all, size: 20, color: Colors.orange),
-                        SizedBox(width: 8),
-                        Text('Disable Mock Data'),
-                      ],
-                    ),
+                ),
+                const PopupMenuItem(
+                  value: 'disable_mock',
+                  child: Row(
+                    children: [
+                      Icon(Icons.clear_all, size: 20, color: Colors.orange),
+                      SizedBox(width: 8),
+                      Text('Disable Mock Data'),
+                    ],
                   ),
-                  const PopupMenuItem(
-                    value: 'enable_mock',
-                    child: Row(
-                      children: [
-                        Icon(Icons.add_circle, size: 20, color: Colors.green),
-                        SizedBox(width: 8),
-                        Text('Enable Mock Data'),
-                      ],
-                    ),
+                ),
+                const PopupMenuItem(
+                  value: 'enable_mock',
+                  child: Row(
+                    children: [
+                      Icon(Icons.add_circle, size: 20, color: Colors.green),
+                      SizedBox(width: 8),
+                      Text('Enable Mock Data'),
+                    ],
                   ),
-                ],
-              ),
-          ],
-        ) : null,
-        body: const DashboardScreen(),
+                ),
+              ],
+            ),
+        ],
       ),
+      drawer: _buildDrawer(),
+      floatingActionButton: kDebugMode ? FloatingActionButton.extended(
+        onPressed: () {
+          _showDebugInfo(context);
+        },
+        label: const Text('Debug'),
+        icon: const Icon(Icons.bug_report),
+        backgroundColor: Colors.red,
+      ) : null,
+      body: const DashboardScreen(),
     );
   }
 
@@ -437,14 +337,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const CircleAvatar(
+                    GymLogoAvatar(
                       radius: 35,
                       backgroundColor: Colors.white,
-                      child: Icon(
-                        Icons.fitness_center,
-                        size: 35,
-                        color: Colors.blue,
-                      ),
+                      iconColor: Colors.blue,
                     ),
                     const SizedBox(height: 15),
                     Text(
@@ -563,6 +459,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   onTap: () {
                     Navigator.pop(context);
                     _showSettings();
+                  },
+                ),
+                _buildDrawerItem(
+                  icon: Icons.qr_code_2,
+                  title: 'QR Attendance Code',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.of(context).push(MaterialPageRoute(
+                      builder: (context) => const QRAttendanceGeneratorScreen(),
+                    ));
                   },
                 ),
                 if (kDebugMode)
@@ -1065,17 +971,29 @@ class DashboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isWebDesktop = kIsWeb && MediaQuery.of(context).size.width > 600;
+    
     return RefreshIndicator(
       onRefresh: () => _refreshData(context),
       color: Colors.blue,
       backgroundColor: Colors.white,
       strokeWidth: 2.0,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(), // Ensures pull-to-refresh works even when content is short
-        padding: context.isWebDesktop ? EdgeInsets.zero : const EdgeInsets.all(16.0),
-        child: context.isWebDesktop 
-            ? _buildWebDashboard(context)
-            : _buildMobileDashboard(context),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(16.0),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: constraints.maxHeight,
+                maxWidth: constraints.maxWidth,
+              ),
+              child: isWebDesktop 
+                  ? _buildWebDashboard(context)
+                  : _buildMobileDashboard(context),
+            ),
+          );
+        },
       ),
     );
   }
@@ -1086,11 +1004,11 @@ class DashboardScreen extends StatelessWidget {
       children: [
         // Welcome Section for Web
         _buildWebWelcomeSection(context),
-        const SizedBox(height: 32),
+        const SizedBox(height: 24),
         
         // Stats Grid for Web
         _buildWebStatsGrid(context),
-        const SizedBox(height: 32),
+        const SizedBox(height: 24),
         
         // Revenue and Quick Actions Row
         Row(
@@ -1100,7 +1018,7 @@ class DashboardScreen extends StatelessWidget {
               flex: 2,
               child: _buildWebRevenueSection(context),
             ),
-            const SizedBox(width: 24),
+            const SizedBox(width: 16),
             Expanded(
               flex: 1,
               child: _buildWebQuickActions(context),
@@ -1125,17 +1043,10 @@ class DashboardScreen extends StatelessWidget {
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
-                    CircleAvatar(
+                    GymLogoAvatar(
                       radius: 30,
                       backgroundColor: Colors.blue,
-                      child: Text(
-                        user?.firstName != null && user?.firstName.isNotEmpty == true ? user!.firstName[0].toUpperCase() : 'G',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      iconColor: Colors.white,
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -1174,13 +1085,15 @@ class DashboardScreen extends StatelessWidget {
           style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
-        GridView.count(
-          crossAxisCount: 2,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
+        GridView(
+          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: 200,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 1.3,
+          ),
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          childAspectRatio: 1.3,
           children: [
             Consumer<MemberProvider>(
               builder: (context, memberProvider, child) {
@@ -1239,13 +1152,15 @@ class DashboardScreen extends StatelessWidget {
                   style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 12),
-                GridView.count(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
+                GridView(
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 200,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 1.3,
+                  ),
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  childAspectRatio: 1.3,
                   children: [
                     _buildRevenueCard(
                       'Monthly Revenue',
@@ -1339,39 +1254,34 @@ class DashboardScreen extends StatelessWidget {
       builder: (context, authProvider, child) {
         final user = authProvider.currentUser;
         return Container(
-          padding: const EdgeInsets.all(32),
+          padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [AppTheme.primaryBlue, AppTheme.primaryBlue.withOpacity(0.8)],
+              colors: [Colors.blue, Colors.blue.withOpacity(0.8)],
             ),
-            borderRadius: BorderRadius.circular(context.webCardBorderRadius),
+            borderRadius: BorderRadius.circular(12),
           ),
           child: Row(
             children: [
               Container(
-                width: 80,
-                height: 80,
+                width: 60,
+                height: 60,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: Colors.white.withOpacity(0.2),
                   border: Border.all(color: Colors.white.withOpacity(0.3), width: 2),
                 ),
                 child: Center(
-                  child: Text(
-                    user?.firstName != null && user?.firstName.isNotEmpty == true 
-                        ? user!.firstName[0].toUpperCase() 
-                        : 'G',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  child: GymLogoAvatar(
+                    radius: 25,
+                    backgroundColor: Colors.transparent,
+                    iconColor: Colors.white,
                   ),
                 ),
               ),
-              const SizedBox(width: 24),
+              const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1379,49 +1289,35 @@ class DashboardScreen extends StatelessWidget {
                     Text(
                       'Welcome back, ${user?.firstName ?? 'Gym Owner'}!',
                       style: const TextStyle(
-                        fontSize: 28,
+                        fontSize: 24,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 4),
                     if (user?.gymName != null)
                       Text(
                         user!.decodedGymName,
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 14,
                           color: Colors.white.withOpacity(0.9),
                         ),
                       ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 8),
                     Text(
                       'Today is ${_formatDate(DateTime.now())}',
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: 12,
                         color: Colors.white.withOpacity(0.8),
                       ),
                     ),
                   ],
                 ),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Icon(
-                    Icons.dashboard,
-                    color: Colors.white.withOpacity(0.8),
-                    size: 48,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Dashboard',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.white.withOpacity(0.8),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
+              Icon(
+                Icons.dashboard,
+                color: Colors.white.withOpacity(0.8),
+                size: 32,
               ),
             ],
           ),
@@ -1440,30 +1336,30 @@ class DashboardScreen extends StatelessWidget {
                 'Total Members',
                 '${memberProvider.members.length}',
                 Icons.people,
-                AppTheme.primaryBlue,
+                Colors.blue,
                 '+${memberProvider.members.where((m) => _isThisWeek(DateTime.now())).length} this week',
-                context,
               );
             },
           ),
         ),
-        const SizedBox(width: 16),
+        const SizedBox(width: 12),
         Expanded(
           child: Consumer<MemberProvider>(
             builder: (context, memberProvider, child) {
               final activeMembers = memberProvider.members.where((m) => m.isActive).length;
+              final total = memberProvider.members.length;
+              final percentage = total > 0 ? ((activeMembers / total) * 100).toStringAsFixed(1) : '0';
               return _buildWebStatCard(
                 'Active Members',
                 '$activeMembers',
                 Icons.person_add,
-                AppTheme.successGreen,
-                '${((activeMembers / memberProvider.members.length) * 100).toStringAsFixed(1)}% of total',
-                context,
+                Colors.green,
+                '$percentage% of total',
               );
             },
           ),
         ),
-        const SizedBox(width: 16),
+        const SizedBox(width: 12),
         Expanded(
           child: Consumer<TrainerProvider>(
             builder: (context, trainerProvider, child) {
@@ -1471,14 +1367,13 @@ class DashboardScreen extends StatelessWidget {
                 'Trainers',
                 '${trainerProvider.trainers.length}',
                 Icons.fitness_center,
-                AppTheme.warningOrange,
+                Colors.orange,
                 'All active',
-                context,
               );
             },
           ),
         ),
-        const SizedBox(width: 16),
+        const SizedBox(width: 12),
         Expanded(
           child: Consumer<EquipmentProvider>(
             builder: (context, equipmentProvider, child) {
@@ -1490,7 +1385,6 @@ class DashboardScreen extends StatelessWidget {
                 Icons.sports_gymnastics,
                 Colors.purple,
                 'Working condition',
-                context,
               );
             },
           ),
@@ -1499,14 +1393,14 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildWebStatCard(String title, String value, IconData icon, Color color, String subtitle, BuildContext context) {
+  Widget _buildWebStatCard(String title, String value, IconData icon, Color color, String subtitle) {
     return Card(
-      elevation: context.cardElevation,
+      elevation: 2,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(context.webCardBorderRadius),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1514,47 +1408,47 @@ class DashboardScreen extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: color.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(6),
                   ),
                   child: Icon(
                     icon,
                     color: color,
-                    size: 24,
+                    size: 20,
                   ),
                 ),
                 Icon(
                   Icons.trending_up,
                   color: Colors.grey.shade400,
-                  size: 16,
+                  size: 14,
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             Text(
               value,
               style: TextStyle(
-                fontSize: 32,
+                fontSize: 24,
                 fontWeight: FontWeight.bold,
                 color: Colors.grey.shade800,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             Text(
               title,
               style: TextStyle(
-                fontSize: 16,
+                fontSize: 14,
                 fontWeight: FontWeight.w600,
                 color: Colors.grey.shade600,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             Text(
               subtitle,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 11,
                 color: color,
                 fontWeight: FontWeight.w500,
               ),
@@ -1569,24 +1463,24 @@ class DashboardScreen extends StatelessWidget {
     return Consumer<PaymentProvider>(
       builder: (context, paymentProvider, child) {
         return Card(
-          elevation: context.cardElevation,
+          elevation: 2,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(context.webCardBorderRadius),
+            borderRadius: BorderRadius.circular(8),
           ),
           child: Padding(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Revenue Analytics',
                   style: TextStyle(
-                    fontSize: 20,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: Colors.grey.shade800,
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
                 Row(
                   children: [
                     Expanded(
@@ -1594,26 +1488,26 @@ class DashboardScreen extends StatelessWidget {
                         'Today',
                         '₹${paymentProvider.dailyRevenue.toStringAsFixed(0)}',
                         Icons.today,
-                        AppTheme.successGreen,
+                        Colors.green,
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: _buildRevenueMetric(
                         'This Month',
                         '₹${paymentProvider.monthlyRevenue.toStringAsFixed(0)}',
                         Icons.calendar_month,
-                        AppTheme.primaryBlue,
+                        Colors.blue,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
                 Container(
-                  height: 120,
+                  height: 100,
                   decoration: BoxDecoration(
                     color: Colors.grey.shade50,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(6),
                   ),
                   child: Center(
                     child: Column(
@@ -1622,20 +1516,13 @@ class DashboardScreen extends StatelessWidget {
                         Icon(
                           Icons.bar_chart,
                           color: Colors.grey.shade400,
-                          size: 48,
+                          size: 32,
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 4),
                         Text(
-                          'Revenue Chart',
+                          'Revenue Chart Coming Soon',
                           style: TextStyle(
                             color: Colors.grey.shade600,
-                            fontSize: 14,
-                          ),
-                        ),
-                        Text(
-                          'Coming Soon',
-                          style: TextStyle(
-                            color: Colors.grey.shade500,
                             fontSize: 12,
                           ),
                         ),
@@ -1685,41 +1572,41 @@ class DashboardScreen extends StatelessWidget {
 
   Widget _buildWebQuickActions(BuildContext context) {
     return Card(
-      elevation: context.cardElevation,
+      elevation: 2,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(context.webCardBorderRadius),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               'Quick Actions',
               style: TextStyle(
-                fontSize: 20,
+                fontSize: 18,
                 fontWeight: FontWeight.bold,
                 color: Colors.grey.shade800,
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
             _buildWebActionButton(
               context,
               'Add New Member',
               Icons.person_add,
-              AppTheme.primaryBlue,
+              Colors.blue,
               () {
                 Navigator.of(context).push(
                   MaterialPageRoute(builder: (context) => const AddMemberScreen()),
                 );
               },
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             _buildWebActionButton(
               context,
               'Record Payment',
               Icons.payment,
-              AppTheme.successGreen,
+              Colors.green,
               () async {
                 final result = await Navigator.of(context).push(
                   MaterialPageRoute(builder: (context) => const CreatePaymentScreen()),
@@ -1727,19 +1614,19 @@ class DashboardScreen extends StatelessWidget {
                 _refreshData(context);
               },
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             _buildWebActionButton(
               context,
               'QR Scanner',
               Icons.qr_code_scanner,
-              AppTheme.warningOrange,
+              Colors.orange,
               () {
                 Navigator.of(context).push(
                   MaterialPageRoute(builder: (context) => const QRScannerScreen()),
                 );
               },
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             _buildWebActionButton(
               context,
               'Create Plan',
@@ -1762,14 +1649,14 @@ class DashboardScreen extends StatelessWidget {
       width: double.infinity,
       child: ElevatedButton.icon(
         onPressed: onPressed,
-        icon: Icon(icon, size: 18),
+        icon: Icon(icon, size: 16),
         label: Text(title),
         style: ElevatedButton.styleFrom(
           backgroundColor: color,
           foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(context.webButtonBorderRadius),
+            borderRadius: BorderRadius.circular(6),
           ),
         ),
       ),

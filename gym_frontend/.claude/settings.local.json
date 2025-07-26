@@ -22,7 +22,12 @@
       "WebFetch(domain:gym-management-production-2168.up.railway.app)",
       "Bash(git commit:*)",
       "Bash(python:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(pod deintegrate:*)",
+      "Bash(pod repo update:*)",
+      "Bash(rm:*)",
+      "Bash(dart analyze:*)",
+      "Bash(git init:*)"
     ],
     "deny": []
   }

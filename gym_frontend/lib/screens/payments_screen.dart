@@ -22,10 +22,34 @@ class _PaymentsScreenState extends State<PaymentsScreen> with SingleTickerProvid
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    
+    // Start loading immediately
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      print('🔍 PAYMENTS_SCREEN: Starting debug tests...');
+      final provider = Provider.of<PaymentProvider>(context, listen: false);
       
-      // Run debug tests first
+      // Set loading state immediately if no data exists
+      if (provider.payments.isEmpty && provider.revenueAnalytics.isEmpty) {
+        print('🔄 PAYMENTS_SCREEN: Starting initial data load...');
+        
+        // Start both API calls in parallel
+        await Future.wait([
+          provider.fetchPayments(),
+          provider.fetchRevenueAnalytics(),
+        ]);
+      } else {
+        print('📊 PAYMENTS_SCREEN: Data already exists, skipping initial load');
+      }
+      
+      // Optional: Run debug tests in background (don't block UI)
+      _runDebugTestsInBackground();
+    });
+  }
+
+  /// Run debug tests in background without blocking the UI
+  void _runDebugTestsInBackground() async {
+    try {
+      print('🔍 PAYMENTS_SCREEN: Starting background debug tests...');
+      
       final authTest = await DebugApiService.testAuthentication();
       print('🔍 PAYMENTS_SCREEN: Auth test result: $authTest');
       
@@ -34,12 +58,9 @@ class _PaymentsScreenState extends State<PaymentsScreen> with SingleTickerProvid
       
       final revenueTest = await DebugApiService.testRevenueEndpoint();
       print('🔍 PAYMENTS_SCREEN: Revenue test result: $revenueTest');
-      
-      // Now run the normal provider calls
-      final provider = Provider.of<PaymentProvider>(context, listen: false);
-      provider.fetchPayments();
-      provider.fetchRevenueAnalytics();
-    });
+    } catch (e) {
+      print('⚠️ PAYMENTS_SCREEN: Debug tests failed: $e');
+    }
   }
 
   @override
@@ -119,8 +140,11 @@ class _PaymentsScreenState extends State<PaymentsScreen> with SingleTickerProvid
   Widget _buildPaymentsTab() {
     return Consumer<PaymentProvider>(
       builder: (context, paymentProvider, child) {
-        if (paymentProvider.isLoading) {
-          return const Center(child: CircularProgressIndicator());
+        final payments = paymentProvider.payments;
+        
+        // Show loading screen if we're loading AND have no data yet
+        if (paymentProvider.isLoading && payments.isEmpty) {
+          return _buildLoadingScreen('Loading payments...');
         }
 
         if (paymentProvider.errorMessage != null) {
@@ -130,8 +154,6 @@ class _PaymentsScreenState extends State<PaymentsScreen> with SingleTickerProvid
             retryButtonText: 'Retry Loading Payments',
           );
         }
-
-        final payments = paymentProvider.payments;
 
         if (payments.isEmpty) {
           return Center(
@@ -177,27 +199,35 @@ class _PaymentsScreenState extends State<PaymentsScreen> with SingleTickerProvid
             Container(
               padding: const EdgeInsets.all(16),
               color: Colors.blue.withOpacity(0.1),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _buildStatCard(
-                      'Today',
-                      paymentProvider.todayPayments.length.toString(),
-                      Icons.today,
-                      Colors.green,
-                    ),
+              child: paymentProvider.isLoading && payments.isEmpty
+                ? Row(
+                    children: [
+                      Expanded(child: _buildStatCardShimmer()),
+                      const SizedBox(width: 16),
+                      Expanded(child: _buildStatCardShimmer()),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      Expanded(
+                        child: _buildStatCard(
+                          'Today',
+                          paymentProvider.todayPayments.length.toString(),
+                          Icons.today,
+                          Colors.green,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildStatCard(
+                          'This Month',
+                          '₹${paymentProvider.monthlyRevenue.toStringAsFixed(2)}',
+                          Icons.calendar_month,
+                          Colors.blue,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildStatCard(
-                      'This Month',
-                      '₹${paymentProvider.monthlyRevenue.toStringAsFixed(2)}',
-                      Icons.calendar_month,
-                      Colors.blue,
-                    ),
-                  ),
-                ],
-              ),
             ),
             // Payments List
             Expanded(
@@ -208,14 +238,16 @@ class _PaymentsScreenState extends State<PaymentsScreen> with SingleTickerProvid
                     paymentProvider.fetchRevenueAnalytics(),
                   ]);
                 },
-                child: ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: payments.length,
-                  itemBuilder: (context, index) {
-                    final payment = payments[index];
-                    return _buildPaymentCard(payment);
-                  },
-                ),
+                child: paymentProvider.isLoading && payments.isEmpty 
+                  ? _buildPaymentListShimmer()
+                  : ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: payments.length,
+                      itemBuilder: (context, index) {
+                        final payment = payments[index];
+                        return _buildPaymentCard(payment);
+                      },
+                    ),
               ),
             ),
           ],
@@ -227,8 +259,9 @@ class _PaymentsScreenState extends State<PaymentsScreen> with SingleTickerProvid
   Widget _buildAnalyticsTab() {
     return Consumer<PaymentProvider>(
       builder: (context, paymentProvider, child) {
-        if (paymentProvider.isLoading) {
-          return const Center(child: CircularProgressIndicator());
+        // Show loading screen if we're loading AND have no revenue data yet
+        if (paymentProvider.isLoading && paymentProvider.revenueAnalytics.isEmpty) {
+          return _buildLoadingScreen('Loading analytics...');
         }
 
         return RefreshIndicator(
@@ -543,5 +576,200 @@ class _PaymentsScreenState extends State<PaymentsScreen> with SingleTickerProvid
       case PaymentMethod.bankTransfer:
         return 'Bank Transfer';
     }
+  }
+
+  /// Build enhanced loading screen with message and animation
+  Widget _buildLoadingScreen(String message) {
+    return Container(
+      color: Theme.of(context).colorScheme.surface,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Animated loading indicator
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: Colors.blue.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(40),
+            ),
+            child: const Center(
+              child: SizedBox(
+                width: 40,
+                height: 40,
+                child: CircularProgressIndicator(
+                  strokeWidth: 3,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          
+          // Loading message
+          Text(
+            message,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              color: Colors.blue,
+            ),
+          ),
+          const SizedBox(height: 8),
+          
+          // Subtitle
+          Text(
+            'Please wait while we fetch your data',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[600],
+            ),
+          ),
+          const SizedBox(height: 32),
+          
+          // Payment icons animation
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildAnimatedIcon(Icons.payment, 0),
+              const SizedBox(width: 16),
+              _buildAnimatedIcon(Icons.analytics, 200),
+              const SizedBox(width: 16),
+              _buildAnimatedIcon(Icons.account_balance_wallet, 400),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Build animated icon for loading screen
+  Widget _buildAnimatedIcon(IconData icon, int delay) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 1000),
+      curve: Curves.easeInOut,
+      builder: (context, value, child) {
+        return Transform.scale(
+          scale: 0.5 + (value * 0.5),
+          child: Opacity(
+            opacity: value,
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Icon(
+                icon,
+                color: Colors.blue.withOpacity(value),
+                size: 20,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Build shimmer loading effect for payments list
+  Widget _buildPaymentListShimmer() {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: 6, // Show 6 shimmer items
+      itemBuilder: (context, index) {
+        return _buildShimmerPaymentCard();
+      },
+    );
+  }
+
+  /// Build shimmer payment card placeholder
+  Widget _buildShimmerPaymentCard() {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                // Shimmer avatar
+                _buildShimmerContainer(40, 40, BorderRadius.circular(20)),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Shimmer amount
+                      _buildShimmerContainer(18, 100, BorderRadius.circular(4)),
+                      const SizedBox(height: 8),
+                      // Shimmer member name
+                      _buildShimmerContainer(14, 150, BorderRadius.circular(4)),
+                    ],
+                  ),
+                ),
+                // Shimmer status badge
+                _buildShimmerContainer(24, 60, BorderRadius.circular(12)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // Shimmer payment method
+            _buildShimmerContainer(12, 120, BorderRadius.circular(4)),
+            const SizedBox(height: 6),
+            // Shimmer date
+            _buildShimmerContainer(12, 80, BorderRadius.circular(4)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Build animated shimmer container
+  Widget _buildShimmerContainer(double height, double width, BorderRadius borderRadius) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.3, end: 1.0),
+      duration: const Duration(milliseconds: 1200),
+      curve: Curves.easeInOut,
+      builder: (context, value, child) {
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 800),
+          height: height,
+          width: width,
+          decoration: BoxDecoration(
+            borderRadius: borderRadius,
+            gradient: LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [
+                Colors.grey[300]!,
+                Colors.grey[100]!.withOpacity(value),
+                Colors.grey[300]!,
+              ],
+              stops: const [0.0, 0.5, 1.0],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Build shimmer loading effect for stat cards
+  Widget _buildStatCardShimmer() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            _buildShimmerContainer(24, 24, BorderRadius.circular(12)),
+            const SizedBox(height: 8),
+            _buildShimmerContainer(20, 60, BorderRadius.circular(4)),
+            const SizedBox(height: 4),
+            _buildShimmerContainer(12, 40, BorderRadius.circular(4)),
+          ],
+        ),
+      ),
+    );
   }
 }

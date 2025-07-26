@@ -52,6 +52,50 @@
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>This app needs photo library access to select images.</string>
 	
+	<!-- Network Security Configuration for iOS -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<false/>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>localhost</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSExceptionMinimumTLSVersion</key>
+				<string>TLSv1.0</string>
+			</dict>
+			<key>127.0.0.1</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSExceptionMinimumTLSVersion</key>
+				<string>TLSv1.0</string>
+			</dict>
+			<key>192.168.1.7</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSExceptionMinimumTLSVersion</key>
+				<string>TLSv1.0</string>
+			</dict>
+			<key>gym-management-production-2168.up.railway.app</key>
+			<dict>
+				<key>NSRequiresCertificateTransparency</key>
+				<false/>
+				<key>NSExceptionRequiresForwardSecrecy</key>
+				<false/>
+			</dict>
+		</dict>
+	</dict>
+	
+	<!-- Additional iOS Permissions -->
+	<key>NSNetworkVolumesUsageDescription</key>
+	<string>This app needs network access to sync data with the gym management system.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Use Face ID to securely access your gym account.</string>
+	
 	<!-- Google Sign-In Configuration -->
 	<key>GIDClientID</key>
 	<string>818835282138-8h3qf505eco222l28feg0o1t3tvu0v8g.apps.googleusercontent.com</string>

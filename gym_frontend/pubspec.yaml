@@ -31,7 +31,7 @@ dependencies:
   # Image handling
   image_picker: ^1.0.7
   
-  # QR Code scanning (mobile only) - temporarily disabled for iOS build
+  # QR Code scanning (mobile only) - temporarily disabled for iOS build compatibility
   # mobile_scanner: ^5.0.0
   
   # Google Sign-In
@@ -39,6 +39,9 @@ dependencies:
   
   # URL launcher for phone, email, WhatsApp
   url_launcher: ^6.2.5
+  
+  # Sharing functionality
+  share_plus: ^9.0.0
   
   # Web QR Code alternative
   qr_flutter: ^4.1.0

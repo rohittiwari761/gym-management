@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:http/http.dart' as http;
 import 'security_config.dart';
 
 // Conditional import for web platform
@@ -26,6 +27,7 @@ class JWTManager {
   
   // Fallback storage for web when IndexedDB fails
   static final Map<String, String> _webFallbackStorage = {};
+  static bool _webStorageInitialized = false;
 
   static const String _accessTokenKey = 'secure_access_token';
   static const String _refreshTokenKey = 'secure_refresh_token';
@@ -35,6 +37,92 @@ class JWTManager {
   static const String _sessionIdKey = 'session_id';
   static const String _sessionPersistentKey = 'session_persistent';
 
+  /// Initialize web storage and preload tokens from localStorage on app startup
+  static Future<void> initializeWebStorage() async {
+    if (!kIsWeb) return;
+    
+    try {
+      if (kDebugMode) print('JWT_MANAGER: Initializing web storage...');
+      
+      // Clear any stale fallback storage
+      _webFallbackStorage.clear();
+      
+      // Preload all authentication data from localStorage into memory
+      final tokenKeys = [
+        _accessTokenKey,
+        _refreshTokenKey,
+        _tokenExpiryKey,
+        _userIdKey,
+        _userRoleKey,
+        _sessionIdKey,
+        _sessionPersistentKey,
+      ];
+      
+      int keysLoaded = 0;
+      for (final key in tokenKeys) {
+        try {
+          // Try multiple storage key formats for backward compatibility
+          final possibleKeys = [
+            'gym_management_public_key.$key',  // Current format
+            key,                               // Direct key
+            'gym_app_$key',                   // Legacy format
+            'flutter_secure_storage:$key',    // Alternative format
+          ];
+          
+          String? value;
+          for (final possibleKey in possibleKeys) {
+            value = WebStorage.getItem(possibleKey);
+            if (value != null) {
+              if (kDebugMode) print('JWT_MANAGER: Found $key using key format: $possibleKey');
+              break;
+            }
+          }
+          
+          if (value != null && value.isNotEmpty) {
+            _webFallbackStorage[key] = value;
+            keysLoaded++;
+            if (kDebugMode) print('JWT_MANAGER: ✅ Preloaded $key (${value.length} chars)');
+          } else {
+            if (kDebugMode) print('JWT_MANAGER: ⚠️ No value found for $key in any format');
+          }
+        } catch (e) {
+          if (kDebugMode) print('JWT_MANAGER: ❌ Error preloading $key: $e');
+        }
+      }
+      
+      _webStorageInitialized = true;
+      if (kDebugMode) print('JWT_MANAGER: ✅ Web storage initialization completed - loaded $keysLoaded/${tokenKeys.length} keys');
+      
+      // Verify critical tokens are available
+      final hasAccessToken = _webFallbackStorage.containsKey(_accessTokenKey);
+      final hasRefreshToken = _webFallbackStorage.containsKey(_refreshTokenKey);
+      
+      if (hasAccessToken || hasRefreshToken) {
+        if (kDebugMode) print('JWT_MANAGER: 🔐 Authentication tokens detected (Access: $hasAccessToken, Refresh: $hasRefreshToken)');
+        if (hasAccessToken) {
+          final tokenLength = _webFallbackStorage[_accessTokenKey]?.length ?? 0;
+          if (kDebugMode) print('JWT_MANAGER: 🔑 Access token length: $tokenLength chars');
+        }
+      } else {
+        if (kDebugMode) print('JWT_MANAGER: ℹ️ No authentication tokens found - user needs to login');
+        // Check if tokens exist in any localStorage format
+        if (kDebugMode) {
+          final checkKeys = ['gym_management_public_key.$_accessTokenKey', _accessTokenKey, 'gym_app_$_accessTokenKey'];
+          for (final key in checkKeys) {
+            final value = WebStorage.getItem(key);
+            if (value != null) {
+              print('JWT_MANAGER: 🔍 Found token in localStorage with key: $key (${value.length} chars)');
+            }
+          }
+        }
+      }
+      
+    } catch (e) {
+      if (kDebugMode) print('JWT_MANAGER: ❌ Web storage initialization error: $e');
+      _webStorageInitialized = true; // Mark as initialized even on error to prevent infinite loops
+    }
+  }
+
   /// Check if a token is a JWT token (has 3 parts separated by dots)
   static bool _isJWTToken(String token) {
     return token.split('.').length == 3;
@@ -42,18 +130,50 @@ class JWTManager {
   
   /// Safe storage write with fallback for web platform
   static Future<void> _safeWrite(String key, String value) async {
+    if (kDebugMode) print('JWT_MANAGER: _safeWrite called for key: $key with value length: ${value.length}');
+    
     // Always store in localStorage for web (primary storage)
     if (kIsWeb) {
+      // Store in memory first
       _webFallbackStorage[key] = value;
+      
       try {
+        // Primary storage: prefixed localStorage
         final prefixedKey = 'gym_management_public_key.$key';
         WebStorage.setItem(prefixedKey, value);
-        // Successfully stored to localStorage with prefix
         
-        // Immediately verify the write worked
-        final verification = WebStorage.getItem(prefixedKey);
-        if (verification != value && kDebugMode) {
-          print('JWT_MANAGER: localStorage write verification failed');
+        // Backup storage: direct localStorage (for compatibility)
+        WebStorage.setItem(key, value);
+        
+        // Additional fallback: store with app-specific prefix
+        final appPrefixedKey = 'gym_app_$key';
+        WebStorage.setItem(appPrefixedKey, value);
+        
+        if (kDebugMode) print('JWT_MANAGER: Stored to localStorage (prefixed, direct, and app-prefixed)');
+        
+        // Add a small delay to ensure localStorage write completes
+        await Future.delayed(const Duration(milliseconds: 50));
+        
+        // Immediately verify all writes worked
+        final verification1 = WebStorage.getItem(prefixedKey);
+        final verification2 = WebStorage.getItem(key);
+        final verification3 = WebStorage.getItem(appPrefixedKey);
+        
+        if (kDebugMode) {
+          print('JWT_MANAGER: Verification - prefixed: ${verification1 != null}, direct: ${verification2 != null}, app-prefixed: ${verification3 != null}');
+          if (verification1 != null) print('JWT_MANAGER: Prefixed value matches: ${verification1 == value}');
+          if (verification2 != null) print('JWT_MANAGER: Direct value matches: ${verification2 == value}');
+          if (verification3 != null) print('JWT_MANAGER: App-prefixed value matches: ${verification3 == value}');
+        }
+        
+        if (verification1 != value && verification2 != value && verification3 != value && kDebugMode) {
+          print('JWT_MANAGER: ❌ All localStorage write verifications failed');
+          print('JWT_MANAGER: ❌ Expected: $value');
+          print('JWT_MANAGER: ❌ Got prefixed: $verification1');
+          print('JWT_MANAGER: ❌ Got direct: $verification2');
+          print('JWT_MANAGER: ❌ Got app-prefixed: $verification3');
+        } else if (kDebugMode) {
+          print('JWT_MANAGER: ✅ At least one localStorage write verification succeeded');
         }
       } catch (storageError) {
         if (kDebugMode) {
@@ -80,34 +200,47 @@ class JWTManager {
   
   /// Safe storage read with fallback for web platform
   static Future<String?> _safeRead(String key) async {
+    if (kDebugMode) print('JWT_MANAGER: _safeRead called for key: $key');
+    
     // For web, try localStorage first (primary storage)
     if (kIsWeb) {
-      // Try in-memory fallback first
-      if (_webFallbackStorage.containsKey(key)) {
-        // Retrieved from fallback memory storage
-        return _webFallbackStorage[key];
+      // Ensure web storage is initialized
+      if (!_webStorageInitialized) {
+        if (kDebugMode) print('JWT_MANAGER: Web storage not initialized, initializing now...');
+        await initializeWebStorage();
       }
       
-      // Try localStorage as primary storage (with prefix)
-      try {
-        final prefixedKey = 'gym_management_public_key.$key';
-        final value = WebStorage.getItem(prefixedKey);
-        if (value != null) {
-          // Successfully retrieved from localStorage with prefix
-          return value;
-        }
-        
-        // Also try without prefix for compatibility
-        final directValue = WebStorage.getItem(key);
-        if (directValue != null) {
-          // Successfully retrieved from localStorage direct
-          return directValue;
-        }
-      } catch (e) {
-        if (kDebugMode) {
-          print('JWT_MANAGER: localStorage read error: $e');
+      // Try in-memory fallback first (fastest)
+      if (_webFallbackStorage.containsKey(key)) {
+        final value = _webFallbackStorage[key];
+        if (kDebugMode) print('JWT_MANAGER: ✅ Found in memory storage (${value?.length ?? 0} chars)');
+        return value;
+      }
+      
+      // Try localStorage directly with multiple key formats
+      final possibleKeys = [
+        'gym_management_public_key.$key',  // Current format
+        key,                               // Direct key
+        'gym_app_$key',                   // Legacy format
+        'flutter_secure_storage:$key',    // Alternative format
+      ];
+      
+      for (final possibleKey in possibleKeys) {
+        try {
+          final value = WebStorage.getItem(possibleKey);
+          if (value != null && value.isNotEmpty) {
+            if (kDebugMode) print('JWT_MANAGER: ✅ Found in localStorage using key: $possibleKey (${value.length} chars)');
+            // Cache in memory for faster future access
+            _webFallbackStorage[key] = value;
+            return value;
+          }
+        } catch (e) {
+          if (kDebugMode) print('JWT_MANAGER: Error reading localStorage key $possibleKey: $e');
         }
       }
+      
+      if (kDebugMode) print('JWT_MANAGER: ⚠️ No value found for $key in any storage format');
+      return null;
     }
     
     // Try FlutterSecureStorage as fallback
@@ -169,11 +302,26 @@ class JWTManager {
       
       // Immediate verification for web platform
       if (kIsWeb && kDebugMode) {
+        print('JWT_MANAGER: Starting token storage verification...');
+        
         // Testing immediate retrieval on web platform
         try {
           final testToken = await _safeRead(_accessTokenKey);
           if (testToken == null) {
-            print('JWT_MANAGER: Token verification failed - not retrievable');
+            print('JWT_MANAGER: ❌ Token verification failed - not retrievable immediately after storage');
+            
+            // Debug localStorage contents  
+            try {
+              final prefixedKey = 'gym_management_public_key.$_accessTokenKey';
+              final prefixedExists = WebStorage.getItem(prefixedKey) != null;
+              final directExists = WebStorage.getItem(_accessTokenKey) != null;
+              print('JWT_MANAGER: After storage - prefixed key exists: $prefixedExists');
+              print('JWT_MANAGER: After storage - direct key exists: $directExists');
+            } catch (e) {
+              print('JWT_MANAGER: Error checking localStorage after storage: $e');
+            }
+          } else {
+            print('JWT_MANAGER: ✅ Token verification successful - token retrievable');
           }
         } catch (e) {
           print('JWT_MANAGER: Token verification error: $e');
@@ -200,7 +348,12 @@ class JWTManager {
   /// Retrieve access token with retry logic
   static Future<String?> getAccessToken() async {
     try {
-      // Attempting to retrieve access token
+      if (kDebugMode) print('JWT_MANAGER: Attempting to retrieve access token...');
+      
+      // Initialize web storage on first access if not done yet
+      if (kIsWeb && !_webStorageInitialized) {
+        await initializeWebStorage();
+      }
       
       // Try multiple retrieval attempts for web platform
       String? token;
@@ -208,6 +361,7 @@ class JWTManager {
         // Web platform - using multiple storage methods with retry
         for (int attempt = 0; attempt < 3; attempt++) {
           token = await _safeRead(_accessTokenKey);
+          if (kDebugMode) print('JWT_MANAGER: Attempt ${attempt + 1}/3 - Token found: ${token != null}');
           if (token != null) break;
           await Future.delayed(Duration(milliseconds: 100));
         }
@@ -338,6 +492,7 @@ class JWTManager {
   /// Clear all stored tokens
   static Future<void> clearTokens() async {
     try {
+      // Clear from secure storage
       await Future.wait([
         _storage.delete(key: _accessTokenKey),
         _storage.delete(key: _refreshTokenKey),
@@ -347,6 +502,37 @@ class JWTManager {
         _storage.delete(key: _sessionIdKey),
         _storage.delete(key: _sessionPersistentKey),
       ]);
+
+      // Clear from web storage (localStorage and memory)
+      if (kIsWeb) {
+        final tokenKeys = [
+          _accessTokenKey,
+          _refreshTokenKey,
+          _tokenExpiryKey,
+          _userIdKey,
+          _userRoleKey,
+          _sessionIdKey,
+          _sessionPersistentKey,
+        ];
+        
+        for (final key in tokenKeys) {
+          try {
+            // Clear from memory storage
+            _webFallbackStorage.remove(key);
+            
+            // Clear from localStorage (all prefixes)
+            final prefixedKey = 'gym_management_public_key.$key';
+            final appPrefixedKey = 'gym_app_$key';
+            WebStorage.removeItem(prefixedKey);
+            WebStorage.removeItem(key);
+            WebStorage.removeItem(appPrefixedKey);
+          } catch (e) {
+            if (kDebugMode) print('JWT_MANAGER: Error clearing web storage for $key: $e');
+          }
+        }
+        
+        if (kDebugMode) print('JWT_MANAGER: Cleared all web storage');
+      }
 
       SecurityConfig.logSecurityEvent('TOKENS_CLEARED', {});
     } catch (e) {
@@ -429,19 +615,102 @@ class JWTManager {
   static Future<bool> refreshAccessToken() async {
     try {
       final refreshToken = await getRefreshToken();
-      if (refreshToken == null) return false;
+      if (refreshToken == null) {
+        if (kDebugMode) print('JWT_MANAGER: No refresh token available for refresh');
+        return false;
+      }
 
-      // In a real implementation, this would call the backend API
-      // For now, we'll simulate token refresh
       SecurityConfig.logSecurityEvent('TOKEN_REFRESH_ATTEMPTED', {});
       
-      // This should be replaced with actual API call
-      return false; // Indicate that refresh failed (no backend implementation)
+      if (kDebugMode) print('JWT_MANAGER: Attempting token refresh with backend API...');
+      
+      // Make API call to refresh endpoint
+      final response = await _makeTokenRefreshRequest(refreshToken);
+      
+      if (response != null && response['success'] == true) {
+        final newAccessToken = response['access_token'] ?? response['token'];
+        final newRefreshToken = response['refresh_token'] ?? refreshToken; // Use new refresh token or keep existing
+        
+        if (newAccessToken != null) {
+          // Store the new tokens - get current user info
+          final userInfo = await getUserInfo();
+          
+          await storeTokens(
+            accessToken: newAccessToken,
+            refreshToken: newRefreshToken,
+            userId: userInfo?.userId ?? '',
+            userRole: userInfo?.role.toString() ?? 'gym_owner',
+            sessionId: userInfo?.sessionId ?? generateSessionId(),
+            persistent: userInfo?.isPersistent ?? false,
+          );
+          
+          if (kDebugMode) print('JWT_MANAGER: ✅ Token refresh successful');
+          SecurityConfig.logSecurityEvent('TOKEN_REFRESH_SUCCESS', {});
+          return true;
+        }
+      }
+      
+      if (kDebugMode) print('JWT_MANAGER: ❌ Token refresh failed - invalid response');
+      SecurityConfig.logSecurityEvent('TOKEN_REFRESH_FAILED', {
+        'response': response.toString(),
+      });
+      return false;
+      
     } catch (e) {
+      if (kDebugMode) print('JWT_MANAGER: ❌ Token refresh error: $e');
       SecurityConfig.logSecurityEvent('TOKEN_REFRESH_ERROR', {
         'error': e.toString(),
       });
       return false;
+    }
+  }
+
+  /// Make HTTP request to token refresh endpoint
+  static Future<Map<String, dynamic>?> _makeTokenRefreshRequest(String refreshToken) async {
+    try {
+      final baseUrl = SecurityConfig.apiUrl;
+      final url = '$baseUrl/auth/refresh/';
+      
+      if (kDebugMode) print('JWT_MANAGER: Making refresh request to: $url');
+      
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Token $refreshToken', // Use the refresh token for authentication
+        },
+        body: jsonEncode({
+          'refresh_token': refreshToken,
+        }),
+      ).timeout(const Duration(seconds: 10));
+      
+      if (kDebugMode) {
+        print('JWT_MANAGER: Refresh response status: ${response.statusCode}');
+        print('JWT_MANAGER: Refresh response body: ${response.body}');
+      }
+      
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        return {
+          'success': true,
+          ...data,
+        };
+      } else {
+        if (kDebugMode) print('JWT_MANAGER: Refresh request failed with status: ${response.statusCode}');
+        return {
+          'success': false,
+          'status_code': response.statusCode,
+          'body': response.body,
+        };
+      }
+      
+    } catch (e) {
+      if (kDebugMode) print('JWT_MANAGER: Error making refresh request: $e');
+      return {
+        'success': false,
+        'error': e.toString(),
+      };
     }
   }
 

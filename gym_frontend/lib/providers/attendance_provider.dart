@@ -1011,4 +1011,169 @@ class AttendanceProvider with ChangeNotifier {
       'checkedOut': checkedOut,
     };
   }
+
+  /// Log attendance via QR code scanning
+  Future<bool> logAttendanceViaQR({
+    required String memberId,
+    required String qrData,
+    String? gymId,
+  }) async {
+    try {
+      _isLoading = true;
+      _errorMessage = '';
+      notifyListeners();
+
+      // Parse member ID
+      final memberIdInt = int.tryParse(memberId);
+      if (memberIdInt == null) {
+        _errorMessage = 'Invalid member ID format';
+        return false;
+      }
+
+      // Validate QR data format
+      if (!qrData.startsWith('gym_attendance:')) {
+        _errorMessage = 'Invalid QR code. Please scan a valid gym attendance QR code.';
+        return false;
+      }
+
+      // Extract gym info from QR data
+      final qrParts = qrData.split(':');
+      if (qrParts.length < 3) {
+        _errorMessage = 'Invalid QR code format';
+        return false;
+      }
+
+      final qrGymId = qrParts[1];
+      final qrGymName = Uri.decodeComponent(qrParts[2]);
+
+      if (kDebugMode) {
+        print('QR_ATTENDANCE: Processing attendance for member $memberIdInt');
+        print('QR_ATTENDANCE: Gym ID: $qrGymId, Gym Name: $qrGymName');
+      }
+
+      // Check if member is already checked in today
+      final alreadyCheckedIn = _todayAttendances.any(
+        (a) => a.memberId == memberIdInt && a.isCheckedIn,
+      );
+
+      if (alreadyCheckedIn) {
+        _errorMessage = 'Member is already checked in today';
+        return false;
+      }
+
+      // Attempt to check in via API
+      try {
+        final response = await _apiService.checkIn(
+          memberIdInt,
+          notes: 'QR Code Check-in at $qrGymName',
+        );
+
+        if (response['success'] == true) {
+          // Successful API check-in
+          await fetchTodaysAttendance(); // Refresh today's data
+          
+          if (kDebugMode) {
+            print('QR_ATTENDANCE: ✅ Member $memberIdInt checked in successfully via API');
+          }
+          return true;
+        } else {
+          // API returned error but we'll handle it locally
+          final errorMsg = response['message'] ?? 'API check-in failed';
+          if (kDebugMode) {
+            print('QR_ATTENDANCE: API check-in failed: $errorMsg');
+          }
+        }
+      } catch (apiError) {
+        if (kDebugMode) {
+          print('QR_ATTENDANCE: API check-in error: $apiError');
+        }
+      }
+
+      // Fallback: Local check-in if API fails
+      final memberName = resolveMemberName(memberIdInt, fallback: 'Member $memberIdInt');
+      
+      // Create local attendance record
+      final newAttendance = Attendance(
+        id: DateTime.now().millisecondsSinceEpoch, // Temporary ID
+        memberId: memberIdInt,
+        memberName: memberName,
+        checkInTime: DateTime.now(),
+        checkOutTime: null,
+        status: 'checked_in',
+        notes: 'QR Code Check-in (Local) at $qrGymName',
+      );
+
+      // Add to today's attendances
+      _todayAttendances.add(newAttendance);
+      notifyListeners();
+
+      if (kDebugMode) {
+        print('QR_ATTENDANCE: ✅ Member $memberIdInt checked in locally via QR');
+      }
+
+      return true;
+
+    } catch (e) {
+      if (kDebugMode) {
+        print('QR_ATTENDANCE: Error: $e');
+      }
+      _errorMessage = 'Failed to log attendance: ${e.toString()}';
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Validate QR code format for attendance
+  bool isValidAttendanceQR(String qrData) {
+    try {
+      if (!qrData.startsWith('gym_attendance:')) {
+        return false;
+      }
+
+      final parts = qrData.split(':');
+      if (parts.length < 3) {
+        return false;
+      }
+
+      // Check if gym ID is numeric
+      final gymId = int.tryParse(parts[1]);
+      if (gymId == null) {
+        return false;
+      }
+
+      // Check if gym name is not empty
+      final gymName = Uri.decodeComponent(parts[2]);
+      if (gymName.trim().isEmpty) {
+        return false;
+      }
+
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Extract gym information from QR code
+  Map<String, String>? extractGymInfoFromQR(String qrData) {
+    try {
+      if (!isValidAttendanceQR(qrData)) {
+        return null;
+      }
+
+      final parts = qrData.split(':');
+      final gymId = parts[1];
+      final gymName = Uri.decodeComponent(parts[2]);
+      final timestamp = parts.length > 3 ? parts[3] : '';
+
+      return {
+        'gymId': gymId,
+        'gymName': gymName,
+        'timestamp': timestamp,
+      };
+    } catch (e) {
+      return null;
+    }
+  }
 }
