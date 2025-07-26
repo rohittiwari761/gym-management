@@ -198,6 +198,7 @@ class AttendanceProvider with ChangeNotifier {
         _fixTodayAttendanceNames();
         
         // Today's attendance data loaded
+        _syncHistoryAfterTodayRefresh(); // Sync with history tab if needed
         notifyListeners();
       } else {
         // Fallback to API call with today's date in IST
@@ -222,12 +223,14 @@ class AttendanceProvider with ChangeNotifier {
           
           _todayAttendances = fallbackTodayData.map((item) => Attendance.fromJson(item)).toList();
           _fixTodayAttendanceNames();
+          _syncHistoryAfterTodayRefresh(); // Sync with history tab if needed
           notifyListeners();
         } else {
           if (kDebugMode) {
             print('ATTENDANCE: Failed to fetch today\'s attendance');
           }
           _todayAttendances = [];
+          _syncHistoryAfterTodayRefresh(); // Sync with history tab if needed
           notifyListeners();
         }
       }
@@ -236,6 +239,7 @@ class AttendanceProvider with ChangeNotifier {
         print('ATTENDANCE: Error fetching today\'s attendance: $e');
       }
       _todayAttendances = [];
+      _syncHistoryAfterTodayRefresh(); // Sync with history tab if needed
       notifyListeners();
     }
   }
@@ -321,6 +325,11 @@ class AttendanceProvider with ChangeNotifier {
           
           _todayAttendances.add(newAttendance);
           _attendances.add(newAttendance);
+          
+          // CRITICAL FIX: Also update history if today's date is selected in history tab
+          if (_historyDate != null && TimezoneUtils.isToday(_historyDate!)) {
+            _historyAttendances.add(newAttendance);
+          }
           // First check-in of day recorded
         } else {
           // Update existing record to show member is currently checked in
@@ -347,6 +356,14 @@ class AttendanceProvider with ChangeNotifier {
             final mainIndex = _attendances.indexWhere((a) => a.id == existing.id);
             if (mainIndex != -1) {
               _attendances[mainIndex] = updatedAttendance;
+            }
+            
+            // CRITICAL FIX: Also update history if today's date is selected
+            if (_historyDate != null && TimezoneUtils.isToday(_historyDate!)) {
+              final historyIndex = _historyAttendances.indexWhere((a) => a.id == existing.id);
+              if (historyIndex != -1) {
+                _historyAttendances[historyIndex] = updatedAttendance;
+              }
             }
           }
           // Subsequent check-in processed
@@ -393,6 +410,11 @@ class AttendanceProvider with ChangeNotifier {
         
         _todayAttendances.add(newAttendance);
         _attendances.add(newAttendance);
+        
+        // CRITICAL FIX: Also update history if today's date is selected in history tab
+        if (_historyDate != null && TimezoneUtils.isToday(_historyDate!)) {
+          _historyAttendances.add(newAttendance);
+        }
         // First check-in of day recorded (offline)
       } else {
         // Just update status for subsequent check-ins
@@ -414,6 +436,14 @@ class AttendanceProvider with ChangeNotifier {
           );
           
           _todayAttendances[existingIndex] = updatedAttendance;
+          
+          // CRITICAL FIX: Also update history if today's date is selected
+          if (_historyDate != null && TimezoneUtils.isToday(_historyDate!)) {
+            final historyIndex = _historyAttendances.indexWhere((a) => a.id == existing.id);
+            if (historyIndex != -1) {
+              _historyAttendances[historyIndex] = updatedAttendance;
+            }
+          }
         }
         // Subsequent check-in handled (offline)
       }
@@ -1069,8 +1099,8 @@ class AttendanceProvider with ChangeNotifier {
         );
 
         if (response['success'] == true) {
-          // Successful API check-in
-          await fetchTodaysAttendance(); // Refresh today's data
+          // Successful API check-in - refresh today's data to ensure sync
+          await fetchTodaysAttendance();
           
           if (kDebugMode) {
             print('QR_ATTENDANCE: ✅ Member $memberIdInt checked in successfully via API');
@@ -1103,12 +1133,23 @@ class AttendanceProvider with ChangeNotifier {
         notes: 'QR Code Check-in (Local) at $qrGymName',
       );
 
-      // Add to today's attendances
+      // Add to BOTH today's attendances AND main attendances to ensure consistency
       _todayAttendances.add(newAttendance);
+      _attendances.add(newAttendance);
+      
+      // CRITICAL FIX: Also update history if today's date is selected in history tab
+      if (_historyDate != null && TimezoneUtils.isToday(_historyDate!)) {
+        _historyAttendances.add(newAttendance);
+        if (kDebugMode) {
+          print('QR_ATTENDANCE: Also added to history attendances for today');
+        }
+      }
+      
       notifyListeners();
 
       if (kDebugMode) {
         print('QR_ATTENDANCE: ✅ Member $memberIdInt checked in locally via QR');
+        print('QR_ATTENDANCE: Added to today\'s list (${_todayAttendances.length} total)');
       }
 
       return true;
@@ -1174,6 +1215,31 @@ class AttendanceProvider with ChangeNotifier {
       };
     } catch (e) {
       return null;
+    }
+  }
+
+  /// Ensure data consistency between today's tab and history tab when today is selected
+  void syncTodayWithHistory() {
+    if (_historyDate != null && TimezoneUtils.isToday(_historyDate!)) {
+      // If history tab is showing today's date, sync with today's data
+      _historyAttendances.clear();
+      _historyAttendances.addAll(_todayAttendances);
+      if (kDebugMode) {
+        print('ATTENDANCE_SYNC: Synced history with today\'s data (${_todayAttendances.length} records)');
+      }
+      notifyListeners();
+    }
+  }
+
+  /// Call this when today's attendance data is refreshed to maintain sync
+  void _syncHistoryAfterTodayRefresh() {
+    if (_historyDate != null && TimezoneUtils.isToday(_historyDate!)) {
+      // History tab is showing today, so update it with the refreshed today's data
+      _historyAttendances.clear();
+      _historyAttendances.addAll(_todayAttendances);
+      if (kDebugMode) {
+        print('ATTENDANCE_SYNC: Updated history tab with refreshed today\'s data');
+      }
     }
   }
 }

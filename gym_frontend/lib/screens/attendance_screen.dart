@@ -32,6 +32,16 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
+    
+    // Listen to tab changes to sync data between today's and history tabs
+    _tabController.addListener(() {
+      if (_tabController.indexIsChanging && _attendanceProvider != null) {
+        // When switching to today's tab (index 1) or history tab (index 2)
+        if (_tabController.index == 1 || _tabController.index == 2) {
+          _attendanceProvider!.syncTodayWithHistory();
+        }
+      }
+    });
   }
 
   @override
@@ -696,6 +706,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
               ElevatedButton.icon(
                 onPressed: () {
                   _attendanceProvider?.setHistoryDate(TimezoneUtils.todayIST);
+                  // Sync the data to ensure consistency
+                  _attendanceProvider?.syncTodayWithHistory();
                 },
                 icon: const Icon(Icons.today),
                 label: const Text('Today'),
