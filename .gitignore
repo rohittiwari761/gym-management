@@ -10,7 +10,10 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+# NOTE: NOT excluding lib/ as it contains Flutter source code
+# Only exclude Python lib directories in specific Python projects
+gym_backend/lib/
+gym_backend/lib64/
 lib64/
 parts/
 sdist/
@@ -95,8 +98,10 @@ android/app/src/main/res/values/
 **/ios/Runner/GeneratedPluginRegistrant.*
 **/ios/Pods/
 
-# Web
-/web/
+# Web - exclude build output but keep source
+gym_frontend/build/web/
+/web/build/
+# Keep web source files like index.html, manifest.json
 
 # Windows
 **/windows/flutter/generated_plugin_registrant.cc
