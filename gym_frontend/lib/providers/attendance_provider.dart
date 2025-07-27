@@ -1229,10 +1229,17 @@ class AttendanceProvider with ChangeNotifier {
       _attendances.add(newAttendance);
       
       // CRITICAL FIX: Also update history if today's date is selected in history tab
-      if (_historyDate != null && TimezoneUtils.isToday(_historyDate!)) {
-        _historyAttendances.add(newAttendance);
-        if (kDebugMode) {
-          print('QR_ATTENDANCE: Also added to history attendances for today');
+      if (_historyDate != null) {
+        final historyDateIST = TimezoneUtils.toIST(_historyDate!);
+        final todayIST = TimezoneUtils.todayIST;
+        final isActuallyToday = historyDateIST.year == todayIST.year && 
+                                historyDateIST.month == todayIST.month && 
+                                historyDateIST.day == todayIST.day;
+        if (isActuallyToday) {
+          _historyAttendances.add(newAttendance);
+          if (kDebugMode) {
+            print('QR_ATTENDANCE: Also added to history attendances for today');
+          }
         }
       }
       
