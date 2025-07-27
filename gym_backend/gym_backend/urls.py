@@ -19,7 +19,7 @@ from django.urls import path, include
 from django.http import JsonResponse
 from django.conf import settings
 from django.conf.urls.static import static
-from gym_api.simple_health import simple_health_check, live_check
+# Removed import of deleted simple_health module
 from gym_api.views import web_attendance_page, web_attendance_submit
 
 def ultra_simple_health(request):
@@ -49,9 +49,8 @@ urlpatterns = [
     # Health endpoints for Railway (both with and without trailing slash)
     path('health/', ultra_simple_health, name='ultra_health'),
     path('health', ultra_simple_health, name='ultra_health_no_slash'),
-    path('health-detailed/', simple_health_check, name='detailed_health'),
-    path('live/', live_check, name='live_check'),
-    path('live', live_check, name='live_check_no_slash'),
+    path('live/', ultra_simple_health, name='live_check'),
+    path('live', ultra_simple_health, name='live_check_no_slash'),
     
     # Root endpoint for basic connectivity test
     path('', ultra_simple_health, name='root_health'),
