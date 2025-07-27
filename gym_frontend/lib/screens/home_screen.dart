@@ -29,7 +29,7 @@ import 'add_member_screen.dart';
 import 'qr_scanner_screen.dart';
 import 'create_subscription_plan_screen.dart';
 import 'create_payment_screen.dart';
-import 'debug_screen.dart';
+// Removed debug_screen.dart import - file was cleaned up
 import 'qr_attendance_generator_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -471,18 +471,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ));
                   },
                 ),
-                if (kDebugMode)
-                  _buildDrawerItem(
-                    icon: Icons.bug_report,
-                    title: 'Debug & Connectivity',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.of(context).push(MaterialPageRoute(
-                        builder: (context) => const DebugScreen(),
-                      ));
-                    },
-                    textColor: Colors.red,
-                  ),
+                // Removed debug drawer item - debug screen was cleaned up
               ],
             ),
           ),
