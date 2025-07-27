@@ -360,8 +360,15 @@ class AttendanceProvider with ChangeNotifier {
           _attendances.add(newAttendance);
           
           // CRITICAL FIX: Also update history if today's date is selected in history tab
-          if (_historyDate != null && TimezoneUtils.isToday(_historyDate!)) {
-            _historyAttendances.add(newAttendance);
+          if (_historyDate != null) {
+            final historyDateIST = TimezoneUtils.toIST(_historyDate!);
+            final todayIST = TimezoneUtils.todayIST;
+            final isActuallyToday = historyDateIST.year == todayIST.year && 
+                                    historyDateIST.month == todayIST.month && 
+                                    historyDateIST.day == todayIST.day;
+            if (isActuallyToday) {
+              _historyAttendances.add(newAttendance);
+            }
           }
           // First check-in of day recorded
         } else {
@@ -392,10 +399,17 @@ class AttendanceProvider with ChangeNotifier {
             }
             
             // CRITICAL FIX: Also update history if today's date is selected
-            if (_historyDate != null && TimezoneUtils.isToday(_historyDate!)) {
-              final historyIndex = _historyAttendances.indexWhere((a) => a.id == existing.id);
-              if (historyIndex != -1) {
-                _historyAttendances[historyIndex] = updatedAttendance;
+            if (_historyDate != null) {
+              final historyDateIST = TimezoneUtils.toIST(_historyDate!);
+              final todayIST = TimezoneUtils.todayIST;
+              final isActuallyToday = historyDateIST.year == todayIST.year && 
+                                      historyDateIST.month == todayIST.month && 
+                                      historyDateIST.day == todayIST.day;
+              if (isActuallyToday) {
+                final historyIndex = _historyAttendances.indexWhere((a) => a.id == existing.id);
+                if (historyIndex != -1) {
+                  _historyAttendances[historyIndex] = updatedAttendance;
+                }
               }
             }
           }
@@ -445,8 +459,15 @@ class AttendanceProvider with ChangeNotifier {
         _attendances.add(newAttendance);
         
         // CRITICAL FIX: Also update history if today's date is selected in history tab
-        if (_historyDate != null && TimezoneUtils.isToday(_historyDate!)) {
-          _historyAttendances.add(newAttendance);
+        if (_historyDate != null) {
+          final historyDateIST = TimezoneUtils.toIST(_historyDate!);
+          final todayIST = TimezoneUtils.todayIST;
+          final isActuallyToday = historyDateIST.year == todayIST.year && 
+                                  historyDateIST.month == todayIST.month && 
+                                  historyDateIST.day == todayIST.day;
+          if (isActuallyToday) {
+            _historyAttendances.add(newAttendance);
+          }
         }
         // First check-in of day recorded (offline)
       } else {
@@ -471,10 +492,17 @@ class AttendanceProvider with ChangeNotifier {
           _todayAttendances[existingIndex] = updatedAttendance;
           
           // CRITICAL FIX: Also update history if today's date is selected
-          if (_historyDate != null && TimezoneUtils.isToday(_historyDate!)) {
-            final historyIndex = _historyAttendances.indexWhere((a) => a.id == existing.id);
-            if (historyIndex != -1) {
-              _historyAttendances[historyIndex] = updatedAttendance;
+          if (_historyDate != null) {
+            final historyDateIST = TimezoneUtils.toIST(_historyDate!);
+            final todayIST = TimezoneUtils.todayIST;
+            final isActuallyToday = historyDateIST.year == todayIST.year && 
+                                    historyDateIST.month == todayIST.month && 
+                                    historyDateIST.day == todayIST.day;
+            if (isActuallyToday) {
+              final historyIndex = _historyAttendances.indexWhere((a) => a.id == existing.id);
+              if (historyIndex != -1) {
+                _historyAttendances[historyIndex] = updatedAttendance;
+              }
             }
           }
         }
@@ -1286,25 +1314,57 @@ class AttendanceProvider with ChangeNotifier {
 
   /// Ensure data consistency between today's tab and history tab when today is selected
   void syncTodayWithHistory() {
-    if (_historyDate != null && TimezoneUtils.isToday(_historyDate!)) {
-      // If history tab is showing today's date, sync with today's data
-      _historyAttendances.clear();
-      _historyAttendances.addAll(_todayAttendances);
-      if (kDebugMode) {
-        print('ATTENDANCE_SYNC: Synced history with today\'s data (${_todayAttendances.length} records)');
+    if (_historyDate != null) {
+      // Convert both dates to IST for accurate comparison
+      final historyDateIST = TimezoneUtils.toIST(_historyDate!);
+      final todayIST = TimezoneUtils.todayIST;
+      
+      // Compare dates with explicit date-only comparison
+      final isActuallyToday = historyDateIST.year == todayIST.year && 
+                              historyDateIST.month == todayIST.month && 
+                              historyDateIST.day == todayIST.day;
+      
+      if (isActuallyToday) {
+        // If history tab is showing today's date, sync with today's data
+        _historyAttendances.clear();
+        _historyAttendances.addAll(_todayAttendances);
+        if (kDebugMode) {
+          print('ATTENDANCE_SYNC: Synced history with today\'s data (${_todayAttendances.length} records)');
+          print('ATTENDANCE_SYNC: History date: ${TimezoneUtils.formatISTDate(historyDateIST)}, Today: ${TimezoneUtils.formatISTDate(todayIST)}');
+        }
+        notifyListeners();
+      } else {
+        if (kDebugMode) {
+          print('ATTENDANCE_SYNC: NOT syncing - History date: ${TimezoneUtils.formatISTDate(historyDateIST)}, Today: ${TimezoneUtils.formatISTDate(todayIST)}');
+        }
       }
-      notifyListeners();
     }
   }
 
   /// Call this when today's attendance data is refreshed to maintain sync
   void _syncHistoryAfterTodayRefresh() {
-    if (_historyDate != null && TimezoneUtils.isToday(_historyDate!)) {
-      // History tab is showing today, so update it with the refreshed today's data
-      _historyAttendances.clear();
-      _historyAttendances.addAll(_todayAttendances);
-      if (kDebugMode) {
-        print('ATTENDANCE_SYNC: Updated history tab with refreshed today\'s data');
+    if (_historyDate != null) {
+      // Convert both dates to IST for accurate comparison
+      final historyDateIST = TimezoneUtils.toIST(_historyDate!);
+      final todayIST = TimezoneUtils.todayIST;
+      
+      // Compare dates with explicit date-only comparison
+      final isActuallyToday = historyDateIST.year == todayIST.year && 
+                              historyDateIST.month == todayIST.month && 
+                              historyDateIST.day == todayIST.day;
+      
+      if (isActuallyToday) {
+        // History tab is showing today, so update it with the refreshed today's data
+        _historyAttendances.clear();
+        _historyAttendances.addAll(_todayAttendances);
+        if (kDebugMode) {
+          print('ATTENDANCE_SYNC: Updated history tab with refreshed today\'s data');
+          print('ATTENDANCE_SYNC: History date: ${TimezoneUtils.formatISTDate(historyDateIST)}, Today: ${TimezoneUtils.formatISTDate(todayIST)}');
+        }
+      } else {
+        if (kDebugMode) {
+          print('ATTENDANCE_SYNC: NOT syncing refresh - History date: ${TimezoneUtils.formatISTDate(historyDateIST)}, Today: ${TimezoneUtils.formatISTDate(todayIST)}');
+        }
       }
     }
   }
